@@ -7,7 +7,6 @@ import Animated, {
   withSpring,
   withTiming
 } from 'react-native-reanimated';
-import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppStore } from '../../store/useAppStore';
 import { Card } from '../../components/Card';

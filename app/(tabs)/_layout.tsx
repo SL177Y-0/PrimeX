@@ -75,6 +75,23 @@ export default function TabLayout() {
           shadowOffset: { width: 0, height: 0 },
           shadowColor: 'transparent',
         },
+        tabBarButton: (props) => (
+          <Pressable
+            {...props}
+            android_ripple={{ color: 'transparent' }}
+            style={({ pressed }) => [
+              props.style,
+              {
+                elevation: 0,
+                shadowOpacity: 0,
+                shadowRadius: 0,
+                shadowOffset: { width: 0, height: 0 },
+                shadowColor: 'transparent',
+                opacity: pressed ? 0.7 : 1,
+              }
+            ]}
+          />
+        ),
         tabBarActiveTintColor: theme.colors.textPrimary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarShowLabel: true,
