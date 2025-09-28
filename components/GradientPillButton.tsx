@@ -12,7 +12,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
-  withSpring 
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../theme/ThemeProvider';
@@ -51,14 +52,14 @@ export function GradientPillButton({
   
   const handlePressIn = () => {
     if (!disabled) {
-      scale.value = withSpring(0.98);
+      scale.value = withTiming(0.98, { duration: 100 });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
   
   const handlePressOut = () => {
     if (!disabled) {
-      scale.value = withSpring(1);
+      scale.value = withSpring(1, { damping: 15, stiffness: 300 });
     }
   };
   

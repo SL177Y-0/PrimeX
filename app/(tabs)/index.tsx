@@ -11,6 +11,7 @@ import Animated, {
   interpolate,
   Extrapolate
 } from 'react-native-reanimated';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { useAppStore } from '../../store/useAppStore';
@@ -105,6 +106,14 @@ export default function TradeCenterScreen() {
   // Header animation values
   const scrollY = useSharedValue(0);
   const headerHeight = 100;
+  
+  // Optimize re-renders with useFocusEffect
+  useFocusEffect(
+    React.useCallback(() => {
+      // Reset any animations when screen comes into focus
+      scrollY.value = 0;
+    }, [scrollY])
+  );
   
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {

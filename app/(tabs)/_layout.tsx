@@ -3,21 +3,32 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { Home, TrendingUp, Wallet, Settings, ArrowUpDown } from 'lucide-react-native';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function CenterTradeButton({ focused }: { focused: boolean }) {
   const { theme } = useTheme();
   const accent = useAccent();
   const router = useRouter();
+  const scale = useSharedValue(1);
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
   
   const handlePress = () => {
+    scale.value = withSpring(0.95, {}, () => {
+      scale.value = withSpring(1);
+    });
     router.push('/trade');
   };
   
   return (
-    <Pressable onPress={handlePress} style={styles.centerButtonContainer}>
+    <AnimatedPressable onPress={handlePress} style={[styles.centerButtonContainer, animatedStyle]}>
       <LinearGradient
         colors={[accent.from, accent.to]}
         style={styles.centerTradeButton}
@@ -26,7 +37,7 @@ function CenterTradeButton({ focused }: { focused: boolean }) {
       >
         <ArrowUpDown size={24} color={theme.colors.textPrimary} />
       </LinearGradient>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
