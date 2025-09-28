@@ -1,26 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring,
-  withTiming,
-  useAnimatedScrollHandler,
-  interpolate,
-  Extrapolate
+  withTiming
 } from 'react-native-reanimated';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useAccent } from '../../theme/useAccent';
 import { useAppStore } from '../../store/useAppStore';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
 import { SoftButton } from '../../components/SoftButton';
 import { Sparkline } from '../../components/Sparkline';
-import { formatPnL } from '../../utils/number';
 import { Eye, EyeOff, Bell, ArrowUp, ArrowDown } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
 // Animated Action Button Component
@@ -87,48 +80,12 @@ function AnimatedActionButton({
 
 export default function TradeCenterScreen() {
   const { theme } = useTheme();
-  const accent = useAccent();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const router = useRouter();
   const { 
-    portfolioValue, 
-    portfolioChange, 
-    portfolioChangePercent,
-    tickers,
     hideBalances,
-    setHideBalances,
-    watchlist
+    setHideBalances
   } = useAppStore();
-  
-
-  // Header animation values
-  const scrollY = useSharedValue(0);
-  const headerHeight = 100;
-  
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
-
-  const headerAnimatedStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(
-      scrollY.value,
-      [0, headerHeight],
-      [0, -headerHeight],
-      Extrapolate.CLAMP
-    );
-    
-    return {
-      transform: [{ translateY }],
-    };
-  });
-  
-  const { formatted: changeFormatted, isPositive } = formatPnL(portfolioChange);
-  
-  // My Funds - show user's actual holdings
-  const myFunds = tickers.filter(t => watchlist.includes(t.symbol)).slice(0, 2);
   
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -164,8 +121,6 @@ export default function TradeCenterScreen() {
           showsHorizontalScrollIndicator={false}
           bounces={true}
           alwaysBounceVertical={false}
-          onScroll={scrollHandler}
-          scrollEventThrottle={16}
         >
 
         {/* Portfolio Card */}
@@ -206,13 +161,13 @@ export default function TradeCenterScreen() {
               <AnimatedActionButton
                 title="Withdraw"
                 variant="secondary"
-                onPress={() => router.push('/withdraw')}
+                onPress={() => router.push('/(tabs)/withdraw')}
                 icon={<ArrowDown size={16} color={theme.colors.orange} />}
               />
               <AnimatedActionButton
                 title="Deposit"
                 variant="primary"
-                onPress={() => router.push('/deposit')}
+                onPress={() => router.push('/(tabs)/deposit')}
                 icon={<ArrowUp size={16} color="#FFFFFF" />}
               />
             </View>
@@ -386,8 +341,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   portfolioCard: {
-    padding: 24,
-    borderRadius: 20,
+    padding: 16,
+    borderRadius: 16,
   },
   portfolioHeader: {
     flexDirection: 'row',

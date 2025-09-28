@@ -1,25 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useAppStore } from '../../store/useAppStore';
 import { Card } from '../../components/Card';
 import { StatChip } from '../../components/StatChip';
-import { TickerBadge } from '../../components/TickerBadge';
 import { Sparkline } from '../../components/Sparkline';
-import { formatCurrency } from '../../utils/number';
 import { Search, Bell } from 'lucide-react-native';
 
 export default function MarketScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const { tickers } = useAppStore();
-  const [activeChip, setActiveChip] = useState('Crypto');
-  
-  const chips = ['Crypto', 'DeFi', 'Layer2'];
-  
-  // Grid layout - show more tickers with scrolling
-  const displayTickers = tickers.slice(0, 12);
   
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -41,30 +31,6 @@ export default function MarketScreen() {
             <Bell size={20} color={theme.colors.textSecondary} />
           </Pressable>
         </View>
-      </View>
-      
-      {/* Category Chips */}
-      <View style={styles.chipContainer}>
-        {chips.map((chip) => (
-          <Pressable
-            key={chip}
-            style={[
-              styles.chip,
-              {
-                backgroundColor: activeChip === chip ? theme.colors.accentFrom : theme.colors.chip,
-                borderRadius: theme.borderRadius.xs,
-              },
-            ]}
-            onPress={() => setActiveChip(chip)}
-          >
-            <Text style={[styles.chipText, {
-              color: activeChip === chip ? '#FFFFFF' : theme.colors.textPrimary,
-              fontFamily: 'Inter-SemiBold',
-            }]}>
-              {chip}
-            </Text>
-          </Pressable>
-        ))}
       </View>
       
       {/* Tickers Grid with Hidden Scroll */}
@@ -388,19 +354,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 24,
-    gap: 12,
-  },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  chipText: {
-    fontSize: 14,
-  },
   scrollView: {
     flex: 1,
     paddingHorizontal: 20,
@@ -460,7 +413,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   statsCard: {
-    padding: 20,
+    padding: 16,
     borderRadius: 16,
   },
   statsTitle: {
@@ -484,4 +437,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     marginBottom: 8,
   },
+  // Responsive styles
 });

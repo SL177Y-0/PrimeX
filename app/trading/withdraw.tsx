@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions, TextInput } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
-import { ArrowLeft, Send, Shield, AlertTriangle } from 'lucide-react-native';
+import { AlertTriangle } from 'lucide-react-native';
 
 interface WithdrawContentProps {
   onBack: () => void;
@@ -14,7 +13,6 @@ interface WithdrawContentProps {
 export default function WithdrawContent({ onBack }: WithdrawContentProps) {
   const { theme } = useTheme();
   const accent = useAccent();
-  const insets = useSafeAreaInsets();
   const [selectedAsset, setSelectedAsset] = useState('BTC');
   const [amount, setAmount] = useState('');
   const [destination, setDestination] = useState('');
@@ -255,13 +253,10 @@ export default function WithdrawContent({ onBack }: WithdrawContentProps) {
 
         {/* Confirm Withdraw Button */}
         <GradientPillButton
+          title="Confirm Withdrawal"
           onPress={() => {}}
-          colors={[accent.from, accent.to]}
           style={styles.confirmButton}
-        >
-          <Send size={20} color="#FFFFFF" />
-          <Text style={styles.confirmButtonText}>Confirm Withdrawal</Text>
-        </GradientPillButton>
+        />
       </ScrollView>
     </View>
   );

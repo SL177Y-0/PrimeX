@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
-import { ArrowLeft, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react-native';
+import { CandleChart } from '../../components/CandleChart';
+import { TrendingUp, TrendingDown, BarChart3 } from 'lucide-react-native';
+import { CandleData } from '../../data/mock';
 
 interface SpotTradingContentProps {
   onBack: () => void;
@@ -15,7 +15,6 @@ interface SpotTradingContentProps {
 export default function SpotTradingContent({ onBack }: SpotTradingContentProps) {
   const { theme } = useTheme();
   const accent = useAccent();
-  const insets = useSafeAreaInsets();
   const [selectedPair, setSelectedPair] = useState('BTC/ETH');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
@@ -23,6 +22,22 @@ export default function SpotTradingContent({ onBack }: SpotTradingContentProps) 
   const [price, setPrice] = useState('');
   const screenWidth = Dimensions.get('window').width;
   const isMobile = screenWidth < 768;
+
+  // Mock candlestick data for BTC/ETH trading
+  const btcEthCandleData: CandleData[] = [
+    { timestamp: Date.now() - 11 * 60 * 60 * 1000, open: 14.8, high: 15.2, low: 14.6, close: 15.1, volume: 500 },
+    { timestamp: Date.now() - 10 * 60 * 60 * 1000, open: 15.1, high: 15.4, low: 14.9, close: 14.9, volume: 600 },
+    { timestamp: Date.now() - 9 * 60 * 60 * 1000, open: 14.9, high: 15.3, low: 14.7, close: 15.3, volume: 550 },
+    { timestamp: Date.now() - 8 * 60 * 60 * 1000, open: 15.3, high: 15.5, low: 15.0, close: 15.0, volume: 650 },
+    { timestamp: Date.now() - 7 * 60 * 60 * 1000, open: 15.0, high: 15.4, low: 14.8, close: 15.4, volume: 700 },
+    { timestamp: Date.now() - 6 * 60 * 60 * 1000, open: 15.4, high: 15.6, low: 15.2, close: 15.2, volume: 750 },
+    { timestamp: Date.now() - 5 * 60 * 60 * 1000, open: 15.2, high: 15.5, low: 15.1, close: 15.5, volume: 800 },
+    { timestamp: Date.now() - 4 * 60 * 60 * 1000, open: 15.5, high: 15.7, low: 15.3, close: 15.3, volume: 850 },
+    { timestamp: Date.now() - 3 * 60 * 60 * 1000, open: 15.3, high: 15.6, low: 15.2, close: 15.6, volume: 900 },
+    { timestamp: Date.now() - 2 * 60 * 60 * 1000, open: 15.6, high: 15.8, low: 15.4, close: 15.4, volume: 950 },
+    { timestamp: Date.now() - 1 * 60 * 60 * 1000, open: 15.4, high: 15.7, low: 15.3, close: 15.6, volume: 1000 },
+    { timestamp: Date.now(), open: 15.6, high: 15.8, low: 15.4, close: 15.42, volume: 1050 },
+  ];
 
   const tradingPairs = [
     { pair: 'BTC/ETH', price: '15.42', change: '+2.34%', changeValue: '+0.35' },
@@ -120,30 +135,33 @@ export default function SpotTradingContent({ onBack }: SpotTradingContentProps) 
                 </Pressable>
               </View>
             </View>
-            <View style={[styles.chartContainer, isMobile && styles.chartContainerMobile]}>
-              <View style={styles.mockChart}>
-                <View style={styles.chartPrice}>
-                  <Text style={[styles.priceValue, { color: theme.colors.textPrimary }]}>
-                    $15.42
-                  </Text>
-                  <Text style={[styles.priceChange, { color: theme.colors.positive }]}>
-                    +2.34% (+$0.35)
-                  </Text>
-                </View>
-                <View style={styles.chartGrid}>
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 3 }]} />
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 5, width: '70%' }]} />
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.negative, height: 2, width: '30%' }]} />
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 6, width: '85%' }]} />
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 4, width: '60%' }]} />
-                </View>
-                <Text style={[styles.mockChartText, { color: theme.colors.textSecondary }]}>
-                  📈 {selectedPair} Chart
-                </Text>
-                <Text style={[styles.mockChartSubtext, { color: theme.colors.textSecondary }]}>
-                  {selectedTimeframe} timeframe
-                </Text>
-              </View>
+            <View style={styles.priceHeader}>
+              <Text style={[styles.priceValue, { color: theme.colors.textPrimary }]}>
+                $15.42
+              </Text>
+              <Text style={[styles.priceChange, { color: theme.colors.positive }]}>
+                +2.34% (+$0.35)
+              </Text>
+            </View>
+            <View style={[styles.chartContainer, { height: isMobile ? 240 : 280 }]}>
+              <CandleChart
+                data={btcEthCandleData}
+                width={Math.min(screenWidth - 32, isMobile ? screenWidth - 16 : 500)}
+                height={isMobile ? 240 : 280}
+                showGrid={true}
+                showVolume={false}
+                showXAxis={true}
+                showYAxis={true}
+                showAxisLabels={true}
+              />
+            </View>
+            <View style={styles.chartInfo}>
+              <Text style={[styles.mockChartText, { color: theme.colors.textSecondary }]}>
+                📈 {selectedPair} Chart
+              </Text>
+              <Text style={[styles.mockChartSubtext, { color: theme.colors.textSecondary }]}>
+                {selectedTimeframe} timeframe
+              </Text>
             </View>
           </Card>
         </View>
@@ -246,14 +264,10 @@ export default function SpotTradingContent({ onBack }: SpotTradingContentProps) 
             </View>
 
             <GradientPillButton
+              title={`${tradeType === 'buy' ? 'Buy' : 'Sell'} ${selectedPair.split('/')[0]}`}
               onPress={handleTrade}
-              colors={tradeType === 'buy' ? [theme.colors.positive, theme.colors.positive] : [theme.colors.negative, theme.colors.negative]}
               style={styles.tradeButton}
-            >
-              <Text style={styles.tradeButtonText}>
-                {tradeType === 'buy' ? 'Buy' : 'Sell'} {selectedPair.split('/')[0]}
-              </Text>
-            </GradientPillButton>
+            />
           </Card>
         </View>
       </ScrollView>
@@ -342,7 +356,7 @@ const styles = StyleSheet.create({
   chartContainer: {
     height: 200,
     borderRadius: 12,
-    overflow: 'hidden',
+    // overflow: 'hidden', // Removed to prevent SVG clipping
   },
   chartContainerMobile: {
     height: 150,
@@ -362,6 +376,16 @@ const styles = StyleSheet.create({
   mockChartSubtext: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
+  },
+  priceHeader: {
+    marginBottom: 16,
+  },
+  chartInfo: {
+    marginTop: 16,
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
   },
   chartPrice: {
     position: 'absolute',
@@ -466,7 +490,7 @@ const styles = StyleSheet.create({
   },
   tradeButton: {
     width: '100%',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderRadius: 12,
   },
   tradeButtonText: {

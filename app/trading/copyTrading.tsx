@@ -1,26 +1,45 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
-import { TradingChart } from '../../components/TradingChart';
-import { ArrowLeft, Copy, TrendingUp, Users, Star, Shield, Home, Wallet, Settings, X, Eye } from 'lucide-react-native';
+import { CandleChart } from '../../components/CandleChart';
+import { CandleData } from '../../data/mock';
+import { ArrowLeft, Copy, TrendingUp, Users, Shield, X, Eye } from 'lucide-react-native';
 
-export default function CopyTradingPage() {
+interface CopyTradingPageProps {
+  onBack?: () => void;
+}
+
+export default function CopyTradingPage({ onBack }: CopyTradingPageProps = {}) {
   const { theme } = useTheme();
   const accent = useAccent();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [selectedTrader, setSelectedTrader] = useState<string | null>(null);
   const [showTraderProfile, setShowTraderProfile] = useState<string | null>(null);
   const screenWidth = Dimensions.get('window').width;
   const isMobile = screenWidth < 768;
+
+  // Mock candlestick data for trader performance - More data points for better visualization
+  const traderCandleData: CandleData[] = [
+    { timestamp: Date.now() - 12 * 30 * 24 * 60 * 60 * 1000, open: 85, high: 92, low: 82, close: 88, volume: 800 },
+    { timestamp: Date.now() - 11 * 30 * 24 * 60 * 60 * 1000, open: 88, high: 95, low: 85, close: 92, volume: 900 },
+    { timestamp: Date.now() - 10 * 30 * 24 * 60 * 60 * 1000, open: 92, high: 98, low: 88, close: 94, volume: 1000 },
+    { timestamp: Date.now() - 9 * 30 * 24 * 60 * 60 * 1000, open: 94, high: 102, low: 90, close: 96, volume: 1100 },
+    { timestamp: Date.now() - 8 * 30 * 24 * 60 * 60 * 1000, open: 96, high: 105, low: 93, close: 100, volume: 1200 },
+    { timestamp: Date.now() - 7 * 30 * 24 * 60 * 60 * 1000, open: 100, high: 108, low: 96, close: 104, volume: 1300 },
+    { timestamp: Date.now() - 6 * 30 * 24 * 60 * 60 * 1000, open: 104, high: 112, low: 100, close: 108, volume: 1400 },
+    { timestamp: Date.now() - 5 * 30 * 24 * 60 * 60 * 1000, open: 108, high: 115, low: 104, close: 112, volume: 1500 },
+    { timestamp: Date.now() - 4 * 30 * 24 * 60 * 60 * 1000, open: 112, high: 118, low: 108, close: 116, volume: 1600 },
+    { timestamp: Date.now() - 3 * 30 * 24 * 60 * 60 * 1000, open: 116, high: 122, low: 112, close: 120, volume: 1700 },
+    { timestamp: Date.now() - 2 * 30 * 24 * 60 * 60 * 1000, open: 120, high: 125, low: 116, close: 123, volume: 1800 },
+    { timestamp: Date.now() - 1 * 30 * 24 * 60 * 60 * 1000, open: 123, high: 128, low: 120, close: 126, volume: 1900 },
+    { timestamp: Date.now(), open: 126, high: 130, low: 123, close: 128, volume: 2000 },
+  ];
   const isTablet = screenWidth >= 768 && screenWidth < 1024;
-  const isDesktop = screenWidth >= 1024;
 
   const traders = [
     {
@@ -91,7 +110,8 @@ export default function CopyTradingPage() {
   ];
 
   const handleCopyTrader = (traderId: string) => {
-    setSelectedTrader(traderId);
+    // TODO: Implement copy trading functionality
+    console.log('Copy trading started for trader:', traderId);
   };
 
   const handleViewProfile = (traderId: string) => {
@@ -147,12 +167,16 @@ export default function CopyTradingPage() {
         <Text style={[styles.chartTitle, { color: theme.colors.textPrimary }]}>
           Performance (6 months)
         </Text>
-        <View style={[styles.chartContainer, { height: isMobile ? 80 : 100 }]}>
-          <TradingChart 
-            data={trader.chartData} 
-            height={isMobile ? 80 : 100}
+        <View style={[styles.chartContainer, { height: isMobile ? 180 : 220 }]}>
+          <CandleChart 
+            data={traderCandleData} 
+            width={Math.min(screenWidth - 32, isMobile ? screenWidth - 16 : 500)}
+            height={isMobile ? 180 : 220}
             showGrid={true}
-            showLabels={!isMobile}
+            showVolume={false}
+            showXAxis={true}
+            showYAxis={true}
+            showAxisLabels={true}
           />
         </View>
       </View>
@@ -175,13 +199,10 @@ export default function CopyTradingPage() {
             </Text>
           </Pressable>
           <GradientPillButton
+            title="Copy Trade"
             onPress={() => handleCopyTrader(trader.id)}
-            colors={[accent.from, accent.to]}
             style={styles.copyButton}
-          >
-            <Copy size={16} color="#FFFFFF" />
-            <Text style={styles.copyButtonText}>Copy Trade</Text>
-          </GradientPillButton>
+          />
         </View>
       </View>
     </Card>
@@ -189,24 +210,26 @@ export default function CopyTradingPage() {
 
   const renderTraderProfile = (trader: any) => (
     <View style={[styles.profileContainer, { backgroundColor: theme.colors.bg }]}>
-      {/* Header */}
-      <View style={[styles.profileHeader, { paddingTop: insets.top + 12 }]}>
-        <Pressable 
-          onPress={() => setShowTraderProfile(null)}
-          style={styles.backButton}
-        >
-          <ArrowLeft size={24} color={theme.colors.textPrimary} />
-        </Pressable>
-        <Text style={[styles.profileTitle, { color: theme.colors.textPrimary }]}>
-          {trader.name} Profile
-        </Text>
-        <Pressable 
-          onPress={() => setShowTraderProfile(null)}
-          style={styles.closeButton}
-        >
-          <X size={24} color={theme.colors.textPrimary} />
-        </Pressable>
-      </View>
+      {/* Header - only show if not used as content component */}
+      {!onBack && (
+        <View style={[styles.profileHeader, { paddingTop: insets.top + 12 }]}>
+          <Pressable 
+            onPress={() => setShowTraderProfile(null)}
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={theme.colors.textPrimary} />
+          </Pressable>
+          <Text style={[styles.profileTitle, { color: theme.colors.textPrimary }]}>
+            {trader.name} Profile
+          </Text>
+          <Pressable 
+            onPress={() => setShowTraderProfile(null)}
+            style={styles.closeButton}
+          >
+            <X size={24} color={theme.colors.textPrimary} />
+          </Pressable>
+        </View>
+      )}
 
       <ScrollView style={styles.profileScroll}>
         {/* Trader Info */}
@@ -305,13 +328,10 @@ export default function CopyTradingPage() {
 
         {/* Copy Trade Button */}
         <GradientPillButton
+          title="Start Copy Trading"
           onPress={() => handleCopyTrader(trader.id)}
-          colors={[accent.from, accent.to]}
           style={styles.copyTradeButton}
-        >
-          <Copy size={20} color="#FFFFFF" />
-          <Text style={styles.copyTradeButtonText}>Start Copy Trading</Text>
-        </GradientPillButton>
+        />
       </ScrollView>
     </View>
   );
@@ -325,23 +345,31 @@ export default function CopyTradingPage() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable 
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <ArrowLeft size={24} color={theme.colors.textPrimary} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Copy Trading
-        </Text>
-        <View style={styles.placeholder} />
-      </View>
+      {/* Header - only show if not used as content component */}
+      {!onBack && (
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <Pressable 
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={theme.colors.textPrimary} />
+          </Pressable>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            Copy Trading
+          </Text>
+          <View style={styles.placeholder} />
+        </View>
+      )}
 
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 20 }]}
+        contentContainerStyle={[
+          styles.scrollContent, 
+          { 
+            paddingBottom: onBack ? 20 : insets.bottom + 20,
+            paddingTop: onBack ? 20 : 0
+          }
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Top Traders Section */}
@@ -533,7 +561,7 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     borderRadius: 8,
-    overflow: 'hidden',
+    // overflow: 'hidden', // Removed to prevent SVG clipping
   },
   traderFooter: {
     flexDirection: 'row',
@@ -637,9 +665,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   profileCard: {
-    padding: 20,
+    padding: 16,
     borderRadius: 16,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   profileInfo: {
     alignItems: 'center',
@@ -675,9 +703,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
   },
   portfolioCard: {
-    padding: 20,
+    padding: 16,
     borderRadius: 16,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   portfolioItem: {
     flexDirection: 'row',
@@ -704,9 +732,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
   },
   tradesCard: {
-    padding: 20,
+    padding: 16,
     borderRadius: 16,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   tradeItem: {
     flexDirection: 'row',
@@ -747,10 +775,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderRadius: 12,
     gap: 8,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   copyTradeButtonText: {
     fontSize: 16,

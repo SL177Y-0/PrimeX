@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
-import { Home, TrendingUp, Wallet, Settings, ArrowUpDown } from 'lucide-react-native';
+import { Home, TrendingUp, Wallet, Settings, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react-native';
 
 function CenterTradeButton({ focused }: { focused: boolean }) {
   const { theme } = useTheme();
@@ -110,6 +110,22 @@ export default function TabLayout() {
         options={{ 
           tabBarLabel: 'Settings',
           tabBarIcon: ({ color, size }) => <Settings size={24} color={color} />
+        }}
+      />
+      <Tabs.Screen 
+        name="deposit" 
+        options={{ 
+          tabBarLabel: 'Deposit',
+          tabBarIcon: ({ color, size }) => <ArrowUp size={24} color={color} />,
+          href: null // Hide from tab bar but keep accessible
+        }}
+      />
+      <Tabs.Screen 
+        name="withdraw" 
+        options={{ 
+          tabBarLabel: 'Withdraw',
+          tabBarIcon: ({ color, size }) => <ArrowDown size={24} color={color} />,
+          href: null // Hide from tab bar but keep accessible
         }}
       />
     </Tabs>

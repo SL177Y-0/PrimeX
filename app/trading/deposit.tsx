@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
-import { ArrowLeft, Copy, QrCode, CreditCard, Building, Check } from 'lucide-react-native';
+import { Copy, QrCode, CreditCard, Building, Check } from 'lucide-react-native';
 
 interface DepositContentProps {
   onBack: () => void;
@@ -14,7 +13,6 @@ interface DepositContentProps {
 export default function DepositContent({ onBack }: DepositContentProps) {
   const { theme } = useTheme();
   const accent = useAccent();
-  const insets = useSafeAreaInsets();
   const [depositType, setDepositType] = useState('crypto');
   const [selectedAsset, setSelectedAsset] = useState('BTC');
   const [copied, setCopied] = useState(false);
@@ -216,12 +214,10 @@ export default function DepositContent({ onBack }: DepositContentProps) {
                     </View>
                   </View>
                   <GradientPillButton
+                    title="Select"
                     onPress={() => {}}
-                    colors={[accent.from, accent.to]}
                     style={styles.methodButton}
-                  >
-                    <Text style={styles.methodButtonText}>Select</Text>
-                  </GradientPillButton>
+                  />
                 </Card>
               ))}
             </View>
@@ -276,12 +272,10 @@ export default function DepositContent({ onBack }: DepositContentProps) {
 
         {/* Confirm Deposit Button */}
         <GradientPillButton
+          title="Confirm Deposit"
           onPress={() => {}}
-          colors={[accent.from, accent.to]}
           style={styles.confirmButton}
-        >
-          <Text style={styles.confirmButtonText}>Confirm Deposit</Text>
-        </GradientPillButton>
+        />
       </ScrollView>
     </View>
   );

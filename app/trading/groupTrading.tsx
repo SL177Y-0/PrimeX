@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions, TextInput } from 'react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
-import { ArrowLeft, Users, MessageCircle, TrendingUp, Plus, UserPlus } from 'lucide-react-native';
+import { CandleChart } from '../../components/CandleChart';
+import { MessageCircle, UserPlus } from 'lucide-react-native';
+import { CandleData } from '../../data/mock';
 
 interface GroupTradingContentProps {
   onBack: () => void;
@@ -14,11 +13,42 @@ interface GroupTradingContentProps {
 
 export default function GroupTradingContent({ onBack }: GroupTradingContentProps) {
   const { theme } = useTheme();
-  const accent = useAccent();
-  const insets = useSafeAreaInsets();
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatMessages, setChatMessages] = useState([
+    { user: 'Alice', text: 'BTC looking bullish, thinking of adding more at 65k', time: '2m ago' },
+    { user: 'Bob', text: 'Agreed! I\'m setting a buy order at 64.5k', time: '1m ago' },
+  ]);
   const screenWidth = Dimensions.get('window').width;
   const isMobile = screenWidth < 768;
+
+  // Mock candlestick data for group portfolio
+  const portfolioCandleData: CandleData[] = [
+    { timestamp: Date.now() - 11 * 24 * 60 * 60 * 1000, open: 45, high: 48, low: 43, close: 47, volume: 1000 },
+    { timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000, open: 47, high: 52, low: 46, close: 51, volume: 1200 },
+    { timestamp: Date.now() - 9 * 24 * 60 * 60 * 1000, open: 51, high: 53, low: 49, close: 48, volume: 900 },
+    { timestamp: Date.now() - 8 * 24 * 60 * 60 * 1000, open: 48, high: 55, low: 47, close: 54, volume: 1100 },
+    { timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000, open: 54, high: 57, low: 52, close: 55, volume: 1300 },
+    { timestamp: Date.now() - 6 * 24 * 60 * 60 * 1000, open: 55, high: 62, low: 54, close: 61, volume: 1500 },
+    { timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000, open: 61, high: 65, low: 59, close: 63, volume: 1400 },
+    { timestamp: Date.now() - 4 * 24 * 60 * 60 * 1000, open: 63, high: 68, low: 61, close: 67, volume: 1600 },
+    { timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000, open: 67, high: 71, low: 65, close: 69, volume: 1700 },
+    { timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000, open: 69, high: 73, low: 67, close: 72, volume: 1800 },
+    { timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000, open: 72, high: 76, low: 70, close: 74, volume: 1900 },
+    { timestamp: Date.now(), open: 74, high: 78, low: 72, close: 76, volume: 2000 },
+  ];
+
+  const handleSendMessage = () => {
+    if (chatMessage.trim()) {
+      const newMessage = {
+        user: 'You',
+        text: chatMessage.trim(),
+        time: 'now'
+      };
+      setChatMessages(prev => [...prev, newMessage]);
+      setChatMessage('');
+    }
+  };
 
   const groups = [
     {
@@ -85,13 +115,10 @@ export default function GroupTradingContent({ onBack }: GroupTradingContentProps
           )}
         </View>
         <GradientPillButton
+          title="Join"
           onPress={() => setSelectedGroup(group.id)}
-          colors={[group.color, group.color]}
           style={styles.joinButton}
-        >
-          <Users size={16} color="#FFFFFF" />
-          <Text style={styles.joinButtonText}>Join</Text>
-        </GradientPillButton>
+        />
       </View>
     </Card>
   );
@@ -135,34 +162,35 @@ export default function GroupTradingContent({ onBack }: GroupTradingContentProps
             </Text>
             <Card style={[styles.chatCard, { backgroundColor: theme.colors.chip }]}>
               <View style={[styles.chatContainer, isMobile && styles.chatContainerMobile]}>
-                <View style={styles.chatMessage}>
-                  <Text style={[styles.chatUser, { color: theme.colors.textPrimary }]}>
-                    Alice
-                  </Text>
-                  <Text style={[styles.chatText, { color: theme.colors.textSecondary }]}>
-                    BTC looking bullish, thinking of adding more at 65k
-                  </Text>
-                  <Text style={[styles.chatTime, { color: theme.colors.textSecondary }]}>
-                    2m ago
-                  </Text>
-                </View>
-                <View style={styles.chatMessage}>
-                  <Text style={[styles.chatUser, { color: theme.colors.textPrimary }]}>
-                    Bob
-                  </Text>
-                  <Text style={[styles.chatText, { color: theme.colors.textSecondary }]}>
-                    Agreed! I'm setting a buy order at 64.5k
-                  </Text>
-                  <Text style={[styles.chatTime, { color: theme.colors.textSecondary }]}>
-                    1m ago
-                  </Text>
-                </View>
+                {chatMessages.map((message, index) => (
+                  <View key={index} style={styles.chatMessage}>
+                    <Text style={[styles.chatUser, { color: theme.colors.textPrimary }]}>
+                      {message.user}
+                    </Text>
+                    <Text style={[styles.chatText, { color: theme.colors.textSecondary }]}>
+                      {message.text}
+                    </Text>
+                    <Text style={[styles.chatTime, { color: theme.colors.textSecondary }]}>
+                      {message.time}
+                    </Text>
+                  </View>
+                ))}
               </View>
               <View style={styles.chatInput}>
-                <Text style={[styles.chatInputPlaceholder, { color: theme.colors.textSecondary }]}>
-                  Type a message...
-                </Text>
-                <MessageCircle size={20} color={theme.colors.textSecondary} />
+                <TextInput
+                  style={[styles.chatInputField, { 
+                    color: theme.colors.textPrimary,
+                    backgroundColor: theme.colors.bg 
+                  }]}
+                  placeholder="Type a message..."
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={chatMessage}
+                  onChangeText={setChatMessage}
+                  multiline={false}
+                />
+                <Pressable onPress={handleSendMessage} style={styles.sendButton}>
+                  <MessageCircle size={20} color={theme.colors.accentFrom} />
+                </Pressable>
               </View>
             </Card>
           </View>
@@ -173,22 +201,27 @@ export default function GroupTradingContent({ onBack }: GroupTradingContentProps
               Shared Portfolio
             </Text>
             <Card style={[styles.portfolioCard, { backgroundColor: theme.colors.chip }]}>
-              <View style={[styles.mockChart, isMobile && styles.mockChartMobile]}>
-                <View style={styles.chartPrice}>
-                  <Text style={[styles.priceValue, { color: theme.colors.textPrimary }]}>
-                    {group?.roi}
-                  </Text>
-                  <Text style={[styles.priceChange, { color: theme.colors.positive }]}>
-                    Group performance
-                  </Text>
-                </View>
-                <View style={styles.chartGrid}>
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 3 }]} />
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 5, width: '60%' }]} />
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 7, width: '80%' }]} />
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 9, width: '95%' }]} />
-                  <View style={[styles.chartLine, { backgroundColor: theme.colors.positive, height: 11, width: '100%' }]} />
-                </View>
+              <View style={styles.portfolioHeader}>
+                <Text style={[styles.priceValue, { color: theme.colors.textPrimary }]}>
+                  {group?.roi}
+                </Text>
+                <Text style={[styles.priceChange, { color: theme.colors.positive }]}>
+                  Group performance
+                </Text>
+              </View>
+              <View style={[styles.chartContainer, { height: isMobile ? 200 : 240 }]}>
+                <CandleChart
+                  data={portfolioCandleData}
+                  width={Math.min(screenWidth - 32, isMobile ? screenWidth - 16 : 500)}
+                  height={isMobile ? 200 : 240}
+                  showGrid={true}
+                  showVolume={false}
+                  showXAxis={true}
+                  showYAxis={true}
+                  showAxisLabels={true}
+                />
+              </View>
+              <View style={styles.portfolioInfo}>
                 <Text style={[styles.mockChartText, { color: theme.colors.textSecondary }]}>
                   📊 Portfolio Performance
                 </Text>
@@ -223,53 +256,13 @@ export default function GroupTradingContent({ onBack }: GroupTradingContentProps
             </Card>
           </View>
 
-          {/* Group Trades */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-              Recent Group Trades
-            </Text>
-            <Card style={[styles.tradesCard, { backgroundColor: theme.colors.chip }]}>
-              {[
-                { pair: 'BTC/USDT', trader: 'Alice', action: 'Buy', amount: '0.5 BTC', time: '1h ago' },
-                { pair: 'ETH/USDT', trader: 'Bob', action: 'Sell', amount: '2.1 ETH', time: '2h ago' },
-                { pair: 'SOL/USDT', trader: 'Charlie', action: 'Buy', amount: '50 SOL', time: '3h ago' },
-              ].map((trade, index) => (
-                <View key={index} style={[styles.tradeItem, isMobile && styles.tradeItemMobile]}>
-                  <View style={styles.tradeInfo}>
-                    <Text style={[styles.tradePair, { color: theme.colors.textPrimary }]}>
-                      {trade.pair}
-                    </Text>
-                    <Text style={[styles.tradeTrader, { color: theme.colors.textSecondary }]}>
-                      by {trade.trader}
-                    </Text>
-                  </View>
-                  <View style={styles.tradeResult}>
-                    <Text style={[styles.tradeAction, { 
-                      color: trade.action === 'Buy' ? theme.colors.positive : theme.colors.negative 
-                    }]}>
-                      {trade.action}
-                    </Text>
-                    <Text style={[styles.tradeAmount, { color: theme.colors.textPrimary }]}>
-                      {trade.amount}
-                    </Text>
-                    <Text style={[styles.tradeTime, { color: theme.colors.textSecondary }]}>
-                      {trade.time}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </Card>
-          </View>
 
           {/* Propose Trade Button */}
           <GradientPillButton
+            title="Propose Trade"
             onPress={() => {}}
-            colors={[accent.from, accent.to]}
             style={styles.proposeButton}
-          >
-            <Plus size={20} color="#FFFFFF" />
-            <Text style={styles.proposeButtonText}>Propose Trade</Text>
-          </GradientPillButton>
+          />
         </ScrollView>
       </View>
     );
@@ -309,18 +302,15 @@ export default function GroupTradingContent({ onBack }: GroupTradingContentProps
                   Create Your Own Group
                 </Text>
                 <Text style={[styles.createGroupDescription, { color: theme.colors.textSecondary }]}>
-                  Start a trading group and invite friends to join
+                  Start a group and invite friends
                 </Text>
               </View>
             </View>
             <GradientPillButton
+              title="Create"
               onPress={() => {}}
-              colors={[theme.colors.purple, theme.colors.purple]}
               style={styles.createButton}
-            >
-              <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.createButtonText}>Create Group</Text>
-            </GradientPillButton>
+            />
           </Card>
         </View>
       </ScrollView>
@@ -463,11 +453,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   chatContainer: {
-    height: 200,
+    maxHeight: 200,
     marginBottom: 16,
   },
   chatContainerMobile: {
-    height: 150,
+    maxHeight: 150,
   },
   chatMessage: {
     marginBottom: 12,
@@ -489,7 +479,31 @@ const styles = StyleSheet.create({
   },
   chatInput: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  chatInputField: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+  },
+  sendButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  portfolioHeader: {
+    marginBottom: 16,
+  },
+  chartContainer: {
+    marginBottom: 16,
+  },
+  portfolioInfo: {
     alignItems: 'center',
     padding: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -556,14 +570,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   memberItemMobile: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 4,
+    paddingVertical: 6,
   },
   memberInfo: {
     flexDirection: 'row',
@@ -579,60 +591,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Bold',
   },
-  tradesCard: {
-    padding: 16,
-    borderRadius: 16,
-  },
-  tradeItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  tradeItemMobile: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 4,
-  },
-  tradeInfo: {
-    flex: 1,
-  },
-  tradePair: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    marginBottom: 2,
-  },
-  tradeTrader: {
-    fontSize: 12,
-    fontFamily: 'Inter-Medium',
-  },
-  tradeResult: {
-    alignItems: 'flex-end',
-  },
-  tradeAction: {
-    fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
-    marginBottom: 2,
-  },
-  tradeAmount: {
-    fontSize: 14,
-    fontFamily: 'Inter-Bold',
-    marginBottom: 2,
-  },
-  tradeTime: {
-    fontSize: 10,
-    fontFamily: 'Inter-Medium',
-  },
   proposeButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginTop: 20,
+    marginTop: 16,
   },
   proposeButtonText: {
     fontSize: 16,

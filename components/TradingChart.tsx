@@ -1,25 +1,35 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import Svg, { Polyline, Circle } from 'react-native-svg';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAccent } from '../theme/useAccent';
 
 interface TradingChartProps {
   data: number[];
   height?: number;
+  width?: number;
   showGrid?: boolean;
   showLabels?: boolean;
+  showXAxis?: boolean;
+  showYAxis?: boolean;
+  showAxisLabels?: boolean;
 }
 
 export function TradingChart({ 
   data, 
-  height = 120, 
+  height = 120,
+  width,
   showGrid = true, 
-  showLabels = true 
+  showLabels = true,
+  showXAxis = true,
+  showYAxis = true,
+  showAxisLabels = true
 }: TradingChartProps) {
   const { theme } = useTheme();
   const accent = useAccent();
   const screenWidth = Dimensions.get('window').width;
-  const chartWidth = screenWidth - 40; // Account for padding
+  const isMobile = screenWidth < 768;
+  const chartWidth = width || (screenWidth - (isMobile ? 32 : 40));
   
   // Normalize data to fit chart height
   const minValue = Math.min(...data);
@@ -77,31 +87,31 @@ export function TradingChart({
       {gridLines}
       {labels}
       
-      {/* Chart Line */}
-      <View style={styles.chartContainer}>
-        <View style={[styles.chartLine, { 
-          backgroundColor: accent.from,
-          height: 2,
-          width: chartWidth,
-          top: height - normalizedData[normalizedData.length - 1] - 1,
-          left: 0,
-        }]} />
+      {/* SVG Chart */}
+      <Svg height={height} width={chartWidth} style={styles.svgChart}>
+        {/* Chart Line */}
+        <Polyline
+          points={points}
+          fill="none"
+          stroke={accent.from}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
         
         {/* Data Points */}
         {normalizedData.map((value, index) => (
-          <View
+          <Circle
             key={index}
-            style={[
-              styles.dataPoint,
-              {
-                backgroundColor: accent.from,
-                left: (index / (data.length - 1)) * chartWidth - 3,
-                top: height - value - 3,
-              }
-            ]}
+            cx={(index / (data.length - 1)) * chartWidth}
+            cy={height - value}
+            r="3"
+            fill={accent.from}
+            stroke={theme.colors.bg}
+            strokeWidth="1"
           />
         ))}
-      </View>
+      </Svg>
     </View>
   );
 }
@@ -112,10 +122,10 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
   },
-  chartContainer: {
-    position: 'relative',
-    width: '100%',
-    height: '100%',
+  svgChart: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   gridLine: {
     position: 'absolute',
@@ -127,15 +137,5 @@ const styles = StyleSheet.create({
     right: 0,
     fontSize: 10,
     fontFamily: 'Inter-Medium',
-  },
-  chartLine: {
-    position: 'absolute',
-    borderRadius: 1,
-  },
-  dataPoint: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
   },
 });

@@ -1,20 +1,22 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppStore } from '../../store/useAppStore';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
 import { SoftButton } from '../../components/SoftButton';
-import { formatCurrency, formatNumber } from '../../utils/number';
-import { ArrowUpRight, ArrowDownLeft, MoreHorizontal, Bell } from 'lucide-react-native';
+import { formatCurrency } from '../../utils/number';
+import { ArrowUpRight, ArrowDownLeft, Bell } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 export default function WalletScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { portfolioValue, transactions, hideBalances } = useAppStore();
+  const { portfolioValue, hideBalances } = useAppStore();
+  const screenWidth = Dimensions.get('window').width;
+  const isMobile = screenWidth < 768;
   
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -51,19 +53,19 @@ export default function WalletScreen() {
           </View>
           
           {/* Quick Actions */}
-          <View style={styles.quickActions}>
+          <View style={[styles.quickActions, isMobile && styles.quickActionsMobile]}>
             <SoftButton
               title="Withdraw"
               size="medium"
-              onPress={() => router.push('/withdraw')}
-              style={{ flex: 1, marginRight: 8 }}
+              onPress={() => router.push('/(tabs)/withdraw')}
+              style={styles.actionButton}
             />
             <GradientPillButton
               title="Deposit"
               variant="primary"
               size="medium"
-              onPress={() => router.push('/deposit')}
-              style={{ flex: 1, marginLeft: 8 }}
+              onPress={() => router.push('/(tabs)/deposit')}
+              style={styles.actionButton}
             />
           </View>
         </Card>
@@ -255,13 +257,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   balanceCard: {
-    marginBottom: 32,
-    padding: 24,
-    borderRadius: 20,
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 16,
   },
   balanceHeader: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   balanceLabel: {
     fontSize: 16,
@@ -273,6 +275,10 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
   },
   section: {
     marginBottom: 24,
@@ -378,5 +384,10 @@ const styles = StyleSheet.create({
   transactionStatus: {
     fontSize: 12,
     fontFamily: 'Inter-Medium',
+  },
+  // Responsive styles
+  quickActionsMobile: {
+    flexDirection: 'column',
+    gap: 12,
   },
 });

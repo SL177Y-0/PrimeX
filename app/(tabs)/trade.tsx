@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useAccent } from '../../theme/useAccent';
 import { useAppStore } from '../../store/useAppStore';
 import { Card } from '../../components/Card';
 import { formatCurrency } from '../../utils/number';
@@ -10,15 +9,13 @@ import {
   BarChart3, 
   Users, 
   Bell, 
-  TrendingUp, 
   Copy,
   ChevronRight,
   ArrowUpDown,
   DollarSign,
   Target,
   Shield,
-  ArrowLeft,
-  X
+  ArrowLeft
 } from 'lucide-react-native';
 
 // Import trading page components
@@ -51,15 +48,12 @@ const getResponsiveValue = (values: { xs?: any; sm?: any; md?: any; lg?: any; xl
 
 export default function TradeScreen() {
   const { theme } = useTheme();
-  const accent = useAccent();
   const insets = useSafeAreaInsets();
   const { portfolioValue, portfolioChange } = useAppStore();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   
-  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const { width: screenWidth } = Dimensions.get('window');
   const isMobile = screenWidth < BREAKPOINTS.md;
-  const isTablet = screenWidth >= BREAKPOINTS.md && screenWidth < BREAKPOINTS.lg;
-  const isDesktop = screenWidth >= BREAKPOINTS.lg;
   
   // Responsive spacing
   const spacing = {

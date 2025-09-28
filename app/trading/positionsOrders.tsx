@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
-import { ArrowLeft, TrendingUp, TrendingDown, Clock, X, Eye } from 'lucide-react-native';
+import { X, Eye } from 'lucide-react-native';
 
 interface PositionsOrdersContentProps {
   onBack: () => void;
@@ -14,7 +13,6 @@ interface PositionsOrdersContentProps {
 export default function PositionsOrdersContent({ onBack }: PositionsOrdersContentProps) {
   const { theme } = useTheme();
   const accent = useAccent();
-  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('positions');
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
   const screenWidth = Dimensions.get('window').width;
@@ -289,13 +287,10 @@ export default function PositionsOrdersContent({ onBack }: PositionsOrdersConten
 
           {/* Close Position Button */}
           <GradientPillButton
+            title="Close Position"
             onPress={() => setSelectedPosition(null)}
-            colors={[theme.colors.negative, theme.colors.negative]}
             style={styles.closePositionButton}
-          >
-            <X size={20} color="#FFFFFF" />
-            <Text style={styles.closePositionButtonText}>Close Position</Text>
-          </GradientPillButton>
+          />
         </ScrollView>
       </View>
     );
@@ -680,9 +675,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginTop: 20,
+    marginTop: 16,
   },
   closePositionButtonText: {
     fontSize: 16,
@@ -691,7 +686,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   emptyCard: {
-    padding: 32,
+    padding: 20,
     borderRadius: 16,
     alignItems: 'center',
   },

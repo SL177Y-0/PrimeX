@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Switch, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Switch, Pressable, ScrollView, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAppStore } from '../../store/useAppStore';
@@ -26,10 +26,11 @@ export default function SettingsScreen() {
     themeMode, 
     setThemeMode, 
     currency, 
-    setCurrency,
     hideBalances,
     setHideBalances 
   } = useAppStore();
+  const screenWidth = Dimensions.get('window').width;
+  const isMobile = screenWidth < 768;
   
   const themeOptions = [
     { value: 'light', label: 'Light', icon: Sun },
@@ -71,7 +72,7 @@ export default function SettingsScreen() {
                 </Text>
               </View>
             </View>
-            <View style={styles.themeOptions}>
+            <View style={[styles.themeOptions, isMobile && styles.themeOptionsMobile]}>
               {themeOptions.map((option) => {
                 const IconComponent = option.icon;
                 return (
@@ -292,14 +293,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   card: {
-    padding: 20,
+    padding: 16,
     borderRadius: 16,
   },
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
@@ -336,5 +337,10 @@ const styles = StyleSheet.create({
   themeOptionText: {
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
+  },
+  // Responsive styles
+  themeOptionsMobile: {
+    flexDirection: 'column',
+    gap: 8,
   },
 });

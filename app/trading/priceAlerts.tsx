@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions, Switch } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
-import { ArrowLeft, Bell, Plus, TrendingUp, TrendingDown, X } from 'lucide-react-native';
+import { Bell, TrendingUp, TrendingDown, X } from 'lucide-react-native';
 
 interface PriceAlertsContentProps {
   onBack: () => void;
@@ -14,7 +13,6 @@ interface PriceAlertsContentProps {
 export default function PriceAlertsContent({ onBack }: PriceAlertsContentProps) {
   const { theme } = useTheme();
   const accent = useAccent();
-  const insets = useSafeAreaInsets();
   const [showAddAlert, setShowAddAlert] = useState(false);
   const [newAlert, setNewAlert] = useState({
     asset: 'BTC',
@@ -256,13 +254,10 @@ export default function PriceAlertsContent({ onBack }: PriceAlertsContentProps) 
 
           {/* Create Alert Button */}
           <GradientPillButton
+            title="Create Alert"
             onPress={() => setShowAddAlert(false)}
-            colors={[accent.from, accent.to]}
             style={styles.createAlertButton}
-          >
-            <Bell size={20} color="#FFFFFF" />
-            <Text style={styles.createAlertButtonText}>Create Alert</Text>
-          </GradientPillButton>
+          />
         </ScrollView>
       </View>
     );
@@ -288,13 +283,10 @@ export default function PriceAlertsContent({ onBack }: PriceAlertsContentProps) 
         {/* Add Alert Button */}
         <View style={styles.section}>
           <GradientPillButton
+            title="Add Price Alert"
             onPress={() => setShowAddAlert(true)}
-            colors={[accent.from, accent.to]}
             style={styles.addAlertButton}
-          >
-            <Plus size={20} color="#FFFFFF" />
-            <Text style={styles.addAlertButtonText}>Add Price Alert</Text>
-          </GradientPillButton>
+          />
         </View>
 
         {/* Alerts List */}
@@ -468,9 +460,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginTop: 20,
+    marginTop: 16,
   },
   createAlertButtonText: {
     fontSize: 16,
@@ -573,7 +565,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   emptyCard: {
-    padding: 32,
+    padding: 20,
     borderRadius: 16,
     alignItems: 'center',
   },
