@@ -14,7 +14,6 @@ export default function CopyTradingPage() {
   const { theme } = useTheme();
   const accent = useAccent();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const [selectedTrader, setSelectedTrader] = useState<string | null>(null);
   const [showTraderProfile, setShowTraderProfile] = useState<string | null>(null);
   const screenWidth = Dimensions.get('window').width;
@@ -325,23 +324,9 @@ export default function CopyTradingPage() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable 
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <ArrowLeft size={24} color={theme.colors.textPrimary} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          Copy Trading
-        </Text>
-        <View style={styles.placeholder} />
-      </View>
-
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 20 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 20, paddingTop: 20 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Top Traders Section */}
@@ -421,24 +406,6 @@ export default function CopyTradingPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 8,
-  },
-  title: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
-  },
-  placeholder: {
-    width: 40,
   },
   scrollView: {
     flex: 1,

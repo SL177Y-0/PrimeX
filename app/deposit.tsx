@@ -293,59 +293,6 @@ export default function DepositPage() {
           <Text style={styles.confirmButtonText}>Deposit Now</Text>
         </GradientPillButton>
       </ScrollView>
-      
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNav, { 
-        backgroundColor: theme.colors.surface,
-        paddingBottom: insets.bottom,
-        borderTopColor: theme.colors.border,
-        borderTopWidth: 1
-      }]}>
-        <Pressable 
-          style={styles.navItem}
-          onPress={() => router.push('/(tabs)')}
-        >
-          <Home size={20} color={theme.colors.textSecondary} />
-          <Text style={[styles.navLabel, { color: theme.colors.textSecondary }]}>Home</Text>
-        </Pressable>
-        
-        <Pressable 
-          style={styles.navItem}
-          onPress={() => router.push('/(tabs)/market')}
-        >
-          <TrendingUp size={20} color={theme.colors.textSecondary} />
-          <Text style={[styles.navLabel, { color: theme.colors.textSecondary }]}>Market</Text>
-        </Pressable>
-        
-        <Pressable 
-          style={[styles.navItem, styles.centerNavItem]}
-          onPress={() => router.push('/(tabs)/trade')}
-        >
-          <View style={[styles.centerButton, { backgroundColor: accent.from }]}>
-            <View style={styles.centerButtonIcon}>
-              <View style={[styles.arrowUp, { backgroundColor: '#FFFFFF' }]} />
-              <View style={[styles.arrowDown, { backgroundColor: '#FFFFFF' }]} />
-            </View>
-          </View>
-          <Text style={[styles.navLabel, { color: theme.colors.textSecondary }]}>Trade</Text>
-        </Pressable>
-        
-        <Pressable 
-          style={styles.navItem}
-          onPress={() => router.push('/(tabs)/wallet')}
-        >
-          <Wallet size={20} color={theme.colors.textSecondary} />
-          <Text style={[styles.navLabel, { color: theme.colors.textSecondary }]}>Wallet</Text>
-        </Pressable>
-        
-        <Pressable 
-          style={styles.navItem}
-          onPress={() => router.push('/(tabs)/settings')}
-        >
-          <Settings size={20} color={theme.colors.textSecondary} />
-          <Text style={[styles.navLabel, { color: theme.colors.textSecondary }]}>Settings</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -601,55 +548,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
     textAlign: 'center',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingTop: 8,
-    paddingHorizontal: 16,
-    height: 61,
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingVertical: 4,
-  },
-  centerNavItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  centerButtonIcon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 24,
-    height: 24,
-  },
-  arrowUp: {
-    width: 8,
-    height: 8,
-    borderRadius: 1,
-    transform: [{ rotate: '45deg' }],
-    marginBottom: 2,
-  },
-  arrowDown: {
-    width: 8,
-    height: 8,
-    borderRadius: 1,
-    transform: [{ rotate: '45deg' }],
-  },
-  navLabel: {
-    fontSize: 10,
-    fontFamily: 'Inter-Medium',
-    marginTop: 2,
   },
 });
