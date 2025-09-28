@@ -249,8 +249,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 }));
 
 // Mock websocket updates
-setInterval(() => {
+const updateInterval = setInterval(() => {
   const state = useAppStore.getState();
+  
+  // Only update if there are subscribers to prevent unnecessary updates
+  if (useAppStore.getState === undefined) {
+    clearInterval(updateInterval);
+    return;
+  }
+  
   const updatedTickers = state.tickers.map(ticker => ({
     ...ticker,
     price: ticker.price * (1 + (Math.random() - 0.5) * 0.002), // ±0.2% change
@@ -258,4 +265,4 @@ setInterval(() => {
   }));
   
   useAppStore.setState({ tickers: updatedTickers });
-}, 2000); // Update every 2 seconds
+}, 3000); // Update every 3 seconds (reduced frequency for better performance)
