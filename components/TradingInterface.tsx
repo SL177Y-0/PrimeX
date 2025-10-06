@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView, Dimensions, Modal, Switch } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -10,7 +10,10 @@ import { useWallet } from '../app/providers/WalletProvider';
 import { useMerkleTrading, PlaceOrderParams } from '../hooks/useMerkleTrading';
 import { useMerklePositions } from '../hooks/useMerklePositions';
 import { useMerkleEvents } from '../hooks/useMerkleEvents';
-import { 
+import { TRADING_CONSTANTS } from '../config/constants';
+import { priceService, PriceData } from '../utils/priceService';
+import { MARKETS, MarketName } from '../config/constants';
+import {
   Wallet, 
   TrendingUp, 
   TrendingDown, 
@@ -53,20 +56,14 @@ export const TradingInterface: React.FC = () => {
   
   const { connected, account, connectExtension, connectDeepLink, disconnect, connecting, isExtensionAvailable } = useWallet();
   const { placeOrder, loading: tradingLoading, error: tradingError } = useMerkleTrading();
-  const { positions, totalPnL, loading: positionsLoading } = useMerklePositions();
+  const { positions, portfolio, totalPnL, loading: positionsLoading } = useMerklePositions();
   const { events, loading: eventsLoading } = useMerkleEvents();
 
   // Available Merkle trading pairs on testnet
-  const AVAILABLE_MARKETS = [
-    'APT/USD',
-    'BTC/USD',
-    'ETH/USD',
-    'SOL/USD',
-    'DOGE/USD'
-  ];
+  const AVAILABLE_MARKETS = Object.keys(MARKETS) as MarketName[];
 
   // Form state
-  const [market, setMarket] = useState('APT/USD'); // Default to APT/USD for Aptos testnet
+  const [market, setMarket] = useState<MarketName>('APT/USD'); // Default to APT/USD for Aptos testnet
   const [showMarketSelector, setShowMarketSelector] = useState(false);
   const [side, setSide] = useState<'long' | 'short'>('long');
   const [size, setSize] = useState('100');
@@ -103,6 +100,30 @@ export const TradingInterface: React.FC = () => {
     xl: getResponsiveValue({ xs: 20, sm: 22, md: 24, lg: 26, xl: 28 }, screenWidth),
   };
 
+  // Fetch and subscribe to live price data
+  useEffect(() => {
+    let unsubscribe: () => void;
+
+    const fetchPrice = async () => {
+      const priceData = await priceService.getPrice(market);
+      if (priceData) {
+        setPrice(priceData.price.toString());
+      }
+    };
+
+    fetchPrice();
+
+    unsubscribe = priceService.subscribeToPriceUpdates(market, (priceData) => {
+      setPrice(priceData.price.toString());
+    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [market]);
+ 
   const handleConnectExtension = async () => {
     try {
       await connectExtension('Petra');
@@ -206,6 +227,38 @@ export const TradingInterface: React.FC = () => {
 
   const calculateMaxSlippage = () => {
     return parseFloat(size) * 0.001; // 0.1% max slippage
+  };
+
+  const calculateEstimatedFee = () => {
+    const positionSize = parseFloat(size);
+    if (isNaN(positionSize) || positionSize <= 0) return '0.00';
+    const fee = positionSize * TRADING_CONSTANTS.FEES.TAKER_FEE;
+    return fee.toFixed(4);
+  };
+
+  const calculateMarginUsage = () => {
+    const tradeCollateral = parseFloat(collateral);
+    if (isNaN(tradeCollateral) || !portfolio || portfolio.totalBalance <= 0) {
+      return '0.00%';
+    }
+    const usage = (tradeCollateral / portfolio.totalBalance) * 100;
+    return `${usage.toFixed(2)}%`;
+  };
+
+  const calculateAccountLeverage = () => {
+    if (!portfolio || portfolio.totalBalance <= 0) {
+      return '0.00x';
+    }
+    const totalPositionSize = positions.reduce((sum, pos) => sum + pos.size, 0);
+    const newPositionSize = parseFloat(size);
+    if (isNaN(newPositionSize)) {
+      return '0.00x';
+    }
+
+    const currentLeverage = totalPositionSize / portfolio.totalBalance;
+    const newLeverage = (totalPositionSize + newPositionSize) / portfolio.totalBalance;
+
+    return `${currentLeverage.toFixed(2)}x ~ ${newLeverage.toFixed(2)}x`;
   };
   
   const AnimatedButton: React.FC<{
@@ -1424,7 +1477,7 @@ export const TradingInterface: React.FC = () => {
                       fontSize: fontSize.md,
                       fontFamily: 'Inter-SemiBold',
                     }
-                  ]}>0.05 USDC</Text>
+                  ]}>{`${calculateEstimatedFee()} USDC`}</Text>
                 </View>
 
                 <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: spacing.md }} />
@@ -1462,7 +1515,7 @@ export const TradingInterface: React.FC = () => {
                       fontSize: fontSize.md,
                       fontFamily: 'Inter-SemiBold',
                     }
-                  ]}>Min: $10 ~ Max: $50,000 {market}</Text>
+                  ]}>{`Min: ${MARKETS[market]?.minSize || 0} ~ Max: ${MARKETS[market]?.maxLeverage * parseFloat(collateral)} ${market}`}</Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
@@ -1496,7 +1549,7 @@ export const TradingInterface: React.FC = () => {
                       fontSize: fontSize.md,
                       fontFamily: 'Inter-SemiBold',
                     }
-                  ]}>{((parseFloat(collateral) / 100000) * 100).toFixed(2)}%</Text>
+                  ]}>{calculateMarginUsage()}</Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
@@ -1513,7 +1566,7 @@ export const TradingInterface: React.FC = () => {
                       fontSize: fontSize.md,
                       fontFamily: 'Inter-Bold',
                     }
-                  ]}>3.7 ~ 7.32x</Text>
+                  ]}>{calculateAccountLeverage()}</Text>
                 </View>
               </View>
 

@@ -74,7 +74,7 @@ export const MARKETS = {
     baseAsset: 'APT',
     quoteAsset: 'USD',
     decimals: 8,
-    minSize: 1,
+    minSize: 0.01,
     maxLeverage: 50,
   },
   'BTC/USD': {
@@ -126,7 +126,7 @@ export const TRADING_CONSTANTS = {
     MIN_LEVERAGE: 1,
     MAX_LEVERAGE: 100,
     LIQUIDATION_THRESHOLD: 0.9, // 90%
-    MIN_COLLATERAL: 10, // USD
+    MIN_COLLATERAL: 1, // USD
     MAX_POSITION_SIZE: 1000000, // USD
   },
   
