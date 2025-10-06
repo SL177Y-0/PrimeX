@@ -27,6 +27,7 @@ import PositionsOrdersContent from '../trading/positionsOrders';
 import PriceAlertsContent from '../trading/priceAlerts';
 import DepositContent from '../trading/deposit';
 import WithdrawContent from '../trading/withdraw';
+import TradingInterface from '../../components/TradingInterface';
 
 // Responsive breakpoints following 2025 best practices
 const BREAKPOINTS = {
@@ -75,6 +76,13 @@ export default function TradeScreen() {
   };
   
   const tradingOptions = [
+    {
+      id: 'merkle-trading',
+      title: 'Leverage Trading',
+      subtitle: 'Trade with leverage using Merkle protocol',
+      icon: Target,
+      color: '#FF6B35',
+    },
     {
       id: 'spot-trading',
       title: 'Spot Trading',
@@ -138,6 +146,8 @@ export default function TradeScreen() {
 
   const renderContent = () => {
     switch (selectedOption) {
+      case 'merkle-trading':
+        return <TradingInterface />;
       case 'spot-trading':
         return <SpotTradingContent onBack={() => setSelectedOption(null)} />;
       case 'copy-trading':

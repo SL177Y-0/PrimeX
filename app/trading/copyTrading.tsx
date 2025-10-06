@@ -7,14 +7,39 @@ import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
 import { CandleChart } from '../../components/CandleChart';
-import { CandleData } from '../../data/mock';
+import { CandleData } from '../../components/CandleChart';
 import { ArrowLeft, Copy, TrendingUp, Users, Shield, X, Eye } from 'lucide-react-native';
 
 interface CopyTradingPageProps {
   onBack?: () => void;
 }
 
-export default function CopyTradingPage({ onBack }: CopyTradingPageProps = {}) {
+interface Trader {
+  id: string;
+  name: string;
+  avatar: string;
+  roi: string;
+  successRate: string;
+  riskLevel: string;
+  followers: string;
+  trades: string;
+  color: string;
+  chartData: number[];
+  portfolio: Array<{
+    symbol: string;
+    percentage: number;
+    color: string;
+  }>;
+  recentTrades: Array<{
+    pair: string;
+    amount: string;
+    type: string;
+    pnl: string;
+    time: string;
+  }>;
+}
+
+export default function CopyTradingPage({ onBack }: CopyTradingPageProps) {
   const { theme } = useTheme();
   const accent = useAccent();
   const insets = useSafeAreaInsets();
@@ -24,20 +49,20 @@ export default function CopyTradingPage({ onBack }: CopyTradingPageProps = {}) {
   const isMobile = screenWidth < 768;
 
   // Mock candlestick data for trader performance - More data points for better visualization
-  const traderCandleData: CandleData[] = [
-    { timestamp: Date.now() - 12 * 30 * 24 * 60 * 60 * 1000, open: 85, high: 92, low: 82, close: 88, volume: 800 },
-    { timestamp: Date.now() - 11 * 30 * 24 * 60 * 60 * 1000, open: 88, high: 95, low: 85, close: 92, volume: 900 },
-    { timestamp: Date.now() - 10 * 30 * 24 * 60 * 60 * 1000, open: 92, high: 98, low: 88, close: 94, volume: 1000 },
-    { timestamp: Date.now() - 9 * 30 * 24 * 60 * 60 * 1000, open: 94, high: 102, low: 90, close: 96, volume: 1100 },
-    { timestamp: Date.now() - 8 * 30 * 24 * 60 * 60 * 1000, open: 96, high: 105, low: 93, close: 100, volume: 1200 },
-    { timestamp: Date.now() - 7 * 30 * 24 * 60 * 60 * 1000, open: 100, high: 108, low: 96, close: 104, volume: 1300 },
-    { timestamp: Date.now() - 6 * 30 * 24 * 60 * 60 * 1000, open: 104, high: 112, low: 100, close: 108, volume: 1400 },
-    { timestamp: Date.now() - 5 * 30 * 24 * 60 * 60 * 1000, open: 108, high: 115, low: 104, close: 112, volume: 1500 },
-    { timestamp: Date.now() - 4 * 30 * 24 * 60 * 60 * 1000, open: 112, high: 118, low: 108, close: 116, volume: 1600 },
-    { timestamp: Date.now() - 3 * 30 * 24 * 60 * 60 * 1000, open: 116, high: 122, low: 112, close: 120, volume: 1700 },
-    { timestamp: Date.now() - 2 * 30 * 24 * 60 * 60 * 1000, open: 120, high: 125, low: 116, close: 123, volume: 1800 },
-    { timestamp: Date.now() - 1 * 30 * 24 * 60 * 60 * 1000, open: 123, high: 128, low: 120, close: 126, volume: 1900 },
-    { timestamp: Date.now(), open: 126, high: 130, low: 123, close: 128, volume: 2000 },
+  const traderCandleData: any[] = [
+    { time: (Date.now() - 12 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 85, high: 92, low: 82, close: 88, value: 800, color: 'red' },
+    { time: (Date.now() - 11 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 88, high: 95, low: 85, close: 92, value: 900, color: 'green' },
+    { time: (Date.now() - 10 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 92, high: 98, low: 88, close: 94, value: 1000, color: 'green' },
+    { time: (Date.now() - 9 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 94, high: 102, low: 90, close: 96, value: 1100, color: 'green' },
+    { time: (Date.now() - 8 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 96, high: 105, low: 93, close: 100, value: 1200, color: 'green' },
+    { time: (Date.now() - 7 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 100, high: 108, low: 96, close: 104, value: 1300, color: 'green' },
+    { time: (Date.now() - 6 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 104, high: 112, low: 100, close: 108, value: 1400, color: 'green' },
+    { time: (Date.now() - 5 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 108, high: 115, low: 104, close: 112, value: 1500, color: 'green' },
+    { time: (Date.now() - 4 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 112, high: 118, low: 108, close: 116, value: 1600, color: 'green' },
+    { time: (Date.now() - 3 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 116, high: 122, low: 112, close: 120, value: 1700, color: 'green' },
+    { time: (Date.now() - 2 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 120, high: 125, low: 116, close: 123, value: 1800, color: 'green' },
+    { time: (Date.now() - 1 * 30 * 24 * 60 * 60 * 1000) / 1000, open: 123, high: 128, low: 120, close: 126, value: 1900, color: 'green' },
+    { time: Date.now() / 1000, open: 126, high: 130, low: 123, close: 128, value: 2000, color: 'green' },
   ];
   const isTablet = screenWidth >= 768 && screenWidth < 1024;
 
@@ -118,7 +143,7 @@ export default function CopyTradingPage({ onBack }: CopyTradingPageProps = {}) {
     setShowTraderProfile(traderId);
   };
 
-  const renderTraderCard = (trader: any) => (
+  const renderTraderCard = (trader: Trader) => (
     <Card key={trader.id} style={[
       styles.traderCard, 
       { 
@@ -208,7 +233,7 @@ export default function CopyTradingPage({ onBack }: CopyTradingPageProps = {}) {
     </Card>
   );
 
-  const renderTraderProfile = (trader: any) => (
+  const renderTraderProfile = (trader: Trader) => (
     <View style={[styles.profileContainer, { backgroundColor: theme.colors.bg }]}>
       {/* Header - only show if not used as content component */}
       {!onBack && (
@@ -278,7 +303,7 @@ export default function CopyTradingPage({ onBack }: CopyTradingPageProps = {}) {
           <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
             Portfolio Allocation
           </Text>
-          {trader.portfolio.map((item: any, index: number) => (
+          {trader.portfolio.map((item, index: number) => (
             <View key={index} style={styles.portfolioItem}>
               <View style={styles.portfolioInfo}>
                 <View style={[styles.portfolioDot, { backgroundColor: item.color }]} />
@@ -298,7 +323,7 @@ export default function CopyTradingPage({ onBack }: CopyTradingPageProps = {}) {
           <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
             Recent Trades
           </Text>
-          {trader.recentTrades.map((trade: any, index: number) => (
+          {trader.recentTrades.map((trade, index: number) => (
             <View key={index} style={styles.tradeItem}>
               <View style={styles.tradeInfo}>
                 <Text style={[styles.tradePair, { color: theme.colors.textPrimary }]}>
@@ -337,7 +362,7 @@ export default function CopyTradingPage({ onBack }: CopyTradingPageProps = {}) {
   );
 
   if (showTraderProfile) {
-    const trader = traders.find(t => t.id === showTraderProfile);
+    const trader = traders.find((t: Trader) => t.id === showTraderProfile);
     if (trader) {
       return renderTraderProfile(trader);
     }
@@ -767,5 +792,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: '#FFFFFF',
   },
-}
-)
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  title: {
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
+  },
+  backButton: {
+    padding: 8,
+  },
+  placeholder: {
+    width: 32,
+  },
+  profileDetails: {},
+})

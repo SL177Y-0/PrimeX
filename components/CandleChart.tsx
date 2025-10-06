@@ -2,7 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, Text, Dimensions } from 'react-native';
 import Svg, { Rect, Line, Text as SvgText, G, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useTheme } from '../theme/ThemeProvider';
-import { CandleData } from '../data/mock';
+import { CandleData as MockCandleData } from '../data/mock';
+
+export interface CandleData extends MockCandleData {
+  time: number;
+  value: number;
+  color: string;
+  timestamp: number;
+  volume: number;
+}
 import { formatCurrency } from '../utils/number';
 
 interface CandleChartProps {

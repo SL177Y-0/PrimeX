@@ -5,7 +5,7 @@ import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
 import { CandleChart } from '../../components/CandleChart';
 import { MessageCircle, UserPlus } from 'lucide-react-native';
-import { CandleData } from '../../data/mock';
+import { CandleData } from '../../components/CandleChart';
 
 interface GroupTradingContentProps {
   onBack: () => void;
@@ -23,19 +23,19 @@ export default function GroupTradingContent({ onBack }: GroupTradingContentProps
   const isMobile = screenWidth < 768;
 
   // Mock candlestick data for group portfolio
-  const portfolioCandleData: CandleData[] = [
-    { timestamp: Date.now() - 11 * 24 * 60 * 60 * 1000, open: 45, high: 48, low: 43, close: 47, volume: 1000 },
-    { timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000, open: 47, high: 52, low: 46, close: 51, volume: 1200 },
-    { timestamp: Date.now() - 9 * 24 * 60 * 60 * 1000, open: 51, high: 53, low: 49, close: 48, volume: 900 },
-    { timestamp: Date.now() - 8 * 24 * 60 * 60 * 1000, open: 48, high: 55, low: 47, close: 54, volume: 1100 },
-    { timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000, open: 54, high: 57, low: 52, close: 55, volume: 1300 },
-    { timestamp: Date.now() - 6 * 24 * 60 * 60 * 1000, open: 55, high: 62, low: 54, close: 61, volume: 1500 },
-    { timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000, open: 61, high: 65, low: 59, close: 63, volume: 1400 },
-    { timestamp: Date.now() - 4 * 24 * 60 * 60 * 1000, open: 63, high: 68, low: 61, close: 67, volume: 1600 },
-    { timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000, open: 67, high: 71, low: 65, close: 69, volume: 1700 },
-    { timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000, open: 69, high: 73, low: 67, close: 72, volume: 1800 },
-    { timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000, open: 72, high: 76, low: 70, close: 74, volume: 1900 },
-    { timestamp: Date.now(), open: 74, high: 78, low: 72, close: 76, volume: 2000 },
+  const portfolioCandleData: any[] = [
+    { time: (Date.now() - 11 * 24 * 60 * 60 * 1000) / 1000, open: 45, high: 48, low: 43, close: 47, value: 1000, color: 'green' },
+    { time: (Date.now() - 10 * 24 * 60 * 60 * 1000) / 1000, open: 47, high: 52, low: 46, close: 51, value: 1200, color: 'green' },
+    { time: (Date.now() - 9 * 24 * 60 * 60 * 1000) / 1000, open: 51, high: 53, low: 49, close: 48, value: 900, color: 'red' },
+    { time: (Date.now() - 8 * 24 * 60 * 60 * 1000) / 1000, open: 48, high: 55, low: 47, close: 54, value: 1100, color: 'green' },
+    { time: (Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000, open: 54, high: 57, low: 52, close: 55, value: 1300, color: 'green' },
+    { time: (Date.now() - 6 * 24 * 60 * 60 * 1000) / 1000, open: 55, high: 62, low: 54, close: 61, value: 1500, color: 'green' },
+    { time: (Date.now() - 5 * 24 * 60 * 60 * 1000) / 1000, open: 61, high: 65, low: 59, close: 63, value: 1400, color: 'green' },
+    { time: (Date.now() - 4 * 24 * 60 * 60 * 1000) / 1000, open: 63, high: 68, low: 61, close: 67, value: 1600, color: 'green' },
+    { time: (Date.now() - 3 * 24 * 60 * 60 * 1000) / 1000, open: 67, high: 71, low: 65, close: 69, value: 1700, color: 'green' },
+    { time: (Date.now() - 2 * 24 * 60 * 60 * 1000) / 1000, open: 69, high: 73, low: 67, close: 72, value: 1800, color: 'green' },
+    { time: (Date.now() - 1 * 24 * 60 * 60 * 1000) / 1000, open: 72, high: 76, low: 70, close: 74, value: 1900, color: 'green' },
+    { time: Date.now() / 1000, open: 74, high: 78, low: 72, close: 76, value: 2000, color: 'green' },
   ];
 
   const handleSendMessage = () => {
