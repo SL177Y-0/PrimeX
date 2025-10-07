@@ -65,7 +65,7 @@ export const TradingInterface: React.FC = () => {
   const AVAILABLE_MARKETS = Object.keys(MARKETS) as MarketName[];
 
   // Form state
-  const [market, setMarket] = useState<MarketName>('APT_USD'); // Default to APT/USD for Aptos
+  const [market, setMarket] = useState<MarketName>('APT_USD'); // Default to APT/USD
   const [showMarketSelector, setShowMarketSelector] = useState(false);
   const [side, setSide] = useState<'long' | 'short'>('long');
   // Get asset-specific limits and defaults based on Merkle Trade guide
@@ -105,6 +105,11 @@ export const TradingInterface: React.FC = () => {
   // Enhanced leverage trading features with asset-specific limits
   const [leverage, setLeverage] = useState(defaultValues.leverage);
   const [showOrderPreview, setShowOrderPreview] = useState(false);
+  
+  // Stop Loss and Take Profit features (like official Merkle.trade)
+  const [stopLoss, setStopLoss] = useState('');
+  const [takeProfit, setTakeProfit] = useState('');
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   
   // Chart and market data state (only candle charts)
   const [chartType] = useState<'candle'>('candle');
@@ -167,7 +172,7 @@ export const TradingInterface: React.FC = () => {
           close: candle.close,
           volume: candle.volume,
           value: candle.close,
-          color: candle.close > candle.open ? '#10b981' : '#ef4444',
+          color: candle.close > candle.open ? theme.colors.positive : theme.colors.negative,
           timestamp: candle.timestamp,
         }));
         setCandleData(formattedCandles);
@@ -237,14 +242,63 @@ export const TradingInterface: React.FC = () => {
       return;
     }
 
+    // Validate collateral requirements
+    const collateralValue = parseFloat(collateral);
+    if (collateralValue < 2) {
+      Alert.alert(
+        'Insufficient Collateral', 
+        `Minimum collateral required is 2 USDC. Current: ${collateralValue.toFixed(2)} USDC`
+      );
+      return;
+    }
+    
+    if (collateralValue > 10000) {
+      Alert.alert(
+        'Collateral Too Large', 
+        `Maximum collateral allowed is 10,000 USDC. Current: ${collateralValue.toFixed(2)} USDC`
+      );
+      return;
+    }
+
+    // Validate minimum position size
+    const sizeValue = parseFloat(size);
+    if (sizeValue < 2) { // Use fixed 2 USDC minimum like official Merkle
+      Alert.alert(
+        'Position Size Too Small', 
+        `Minimum position size is 2 USDC. Current: ${sizeValue.toFixed(2)} USDC`
+      );
+      return;
+    }
+
+    // Validate maximum position size (1.5M USDC = 10k collateral × 150x leverage)
+    if (sizeValue > 1500000) {
+      Alert.alert(
+        'Position Size Too Large', 
+        `Maximum position size is 1,500,000 USDC. Current: ${sizeValue.toFixed(2)} USDC`
+      );
+      return;
+    }
+
+    // Validate leverage is within bounds
+    const currentLeverage = leverage;
+    if (currentLeverage < 3 || currentLeverage > 150) {
+      Alert.alert(
+        'Invalid Leverage', 
+        `Leverage must be between 3x and 150x. Current: ${currentLeverage}x`
+      );
+      return;
+    }
+
     try {
       const orderParams: PlaceOrderParams = {
         market,
         side,
-        size: parseFloat(size),
-        collateral: parseFloat(collateral),
+        size: sizeValue,
+        collateral: collateralValue,
         orderType: 'market', // Always market orders
         price: undefined, // No limit price for market orders
+        stopLoss: stopLoss ? parseFloat(stopLoss) : undefined,
+        takeProfit: takeProfit ? parseFloat(takeProfit) : undefined,
       };
 
       const txHash = await placeOrder(orderParams);
@@ -261,52 +315,43 @@ export const TradingInterface: React.FC = () => {
     }).format(amount);
   };
 
-  // Helper functions for leverage calculations with asset-specific limits
+  // Helper functions with correlated calculations like official Merkle
   const handleLeverageChange = (value: number) => {
-    // Enforce asset-specific leverage limits
     const clampedLeverage = Math.max(assetLimits.minLeverage, Math.min(assetLimits.maxLeverage, value));
     setLeverage(clampedLeverage);
     
-    // Update position size based on Formula 1: Position Size = Collateral × Leverage
-    const currentCollateral = parseFloat(collateral) || assetLimits.minCollateral;
-    const newSize = merkleService.calculatePositionSize(currentCollateral, clampedLeverage);
+    // Update size based on current collateral and new leverage
+    const currentCollateral = parseFloat(collateral) || 2;
+    const newSize = currentCollateral * clampedLeverage;
     setSize(newSize.toFixed(2));
   };
 
   const handleSizeChange = (value: string) => {
     setSize(value);
-    if (value && parseFloat(value) > 0) {
-      const currentCollateral = parseFloat(collateral) || assetLimits.minCollateral;
-      // Formula 3: Leverage = Position Size / Collateral
-      const newLeverage = merkleService.calculateLeverage(parseFloat(value), currentCollateral);
-      const clampedLeverage = Math.max(assetLimits.minLeverage, Math.min(assetLimits.maxLeverage, Math.round(newLeverage)));
-      setLeverage(clampedLeverage);
-      
-      // Recalculate collateral to match the clamped leverage
-      const adjustedCollateral = parseFloat(value) / clampedLeverage;
-      setCollateral(adjustedCollateral.toFixed(2));
+    
+    // Update collateral based on current leverage and new size
+    const sizeValue = parseFloat(value) || 0;
+    if (sizeValue > 0 && leverage > 0) {
+      const newCollateral = sizeValue / leverage;
+      setCollateral(Math.max(2, newCollateral).toFixed(2));
     }
   };
 
   const handleCollateralChange = (value: string) => {
     setCollateral(value);
-    if (value && parseFloat(value) >= assetLimits.minCollateral) {
-      const currentSize = parseFloat(size) || assetLimits.minPositionSize;
-      // Formula 3: Leverage = Position Size / Collateral
-      const newLeverage = merkleService.calculateLeverage(currentSize, parseFloat(value));
-      const clampedLeverage = Math.max(assetLimits.minLeverage, Math.min(assetLimits.maxLeverage, Math.round(newLeverage)));
-      setLeverage(clampedLeverage);
-      
-      // Recalculate size to match the clamped leverage
-      const adjustedSize = merkleService.calculatePositionSize(parseFloat(value), clampedLeverage);
-      setSize(adjustedSize.toFixed(2));
+    
+    // Update size based on current leverage and new collateral
+    const collateralValue = parseFloat(value) || 0;
+    if (collateralValue > 0 && leverage > 0) {
+      const newSize = collateralValue * leverage;
+      setSize(newSize.toFixed(2));
     }
   };
 
   // Helper to suggest minimum leverage for small collateral amounts
   const getMinimumLeverageForTrade = () => {
     const collateralAmount = parseFloat(collateral);
-    const minPositionSize = 300; // Crypto: 300 USDC
+    const minPositionSize = 2; // 2 USDC minimum like official Merkle
     const minCollateral = 2; // Minimum: 2 USDC
     
     if (collateralAmount >= minCollateral && collateralAmount < minPositionSize) {
@@ -486,7 +531,7 @@ export const TradingInterface: React.FC = () => {
                 fontSize: fontSize.xl,
                 fontFamily: 'Inter-Bold'
               }
-            ]}>{market}</Text>
+            ]}>{MARKETS[market as keyof typeof MARKETS]?.displayName || MARKETS[market as keyof typeof MARKETS]?.name || market}</Text>
             <Text style={[
               styles.marketPrice,
               { 
@@ -741,9 +786,12 @@ export const TradingInterface: React.FC = () => {
               data={candleData}
               height={isMobile ? 250 : 350}
               width={screenWidth - (isMobile ? 32 : 64)}
-              accent={typeof accent === 'string' ? accent : '#6366f1'}
+              accent={typeof accent === 'string' ? accent : accent.from}
               showGrid={true}
               showVolume={true}
+              showXAxis={true}
+              showYAxis={true}
+              showAxisLabels={true}
             />
           )}
         </View>
@@ -945,8 +993,7 @@ export const TradingInterface: React.FC = () => {
                 {
                   backgroundColor: theme.colors.chip,
                   borderRadius: theme.borderRadius.md,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
+                  borderWidth: 0,
                   paddingHorizontal: spacing.md,
                   paddingVertical: spacing.md,
                   flexDirection: 'row',
@@ -963,7 +1010,7 @@ export const TradingInterface: React.FC = () => {
                   fontFamily: 'Inter-Medium',
                   flex: 1
                 }
-              ]}>{market}</Text>
+              ]}>{MARKETS[market as keyof typeof MARKETS]?.displayName || MARKETS[market as keyof typeof MARKETS]?.name}</Text>
               <ArrowUpDown size={18} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
@@ -985,8 +1032,7 @@ export const TradingInterface: React.FC = () => {
                   backgroundColor: theme.colors.surface,
                   borderRadius: theme.borderRadius.lg,
                   padding: spacing.lg,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
+                  borderWidth: 0,
                   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
                 }
               ]}>
@@ -1024,7 +1070,7 @@ export const TradingInterface: React.FC = () => {
                         fontSize: fontSize.md,
                         fontFamily: market === mkt ? 'Inter-Bold' : 'Inter-Medium'
                       }
-                    ]}>{mkt}</Text>
+                    ]}>{MARKETS[mkt as keyof typeof MARKETS]?.displayName || MARKETS[mkt as keyof typeof MARKETS]?.name || mkt}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -1146,8 +1192,7 @@ export const TradingInterface: React.FC = () => {
               backgroundColor: theme.colors.chip,
               padding: spacing.md,
               borderRadius: theme.borderRadius.md,
-              borderWidth: 1,
-              borderColor: theme.colors.border,
+              borderWidth: 0,
             }}>
               <Slider
                 value={leverage}
@@ -1222,8 +1267,7 @@ export const TradingInterface: React.FC = () => {
                 {
                   backgroundColor: theme.colors.chip,
                   borderRadius: theme.borderRadius.md,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
+                  borderWidth: 0,
                   flexDirection: 'row',
                   alignItems: 'center',
                   paddingHorizontal: spacing.md,
@@ -1237,12 +1281,14 @@ export const TradingInterface: React.FC = () => {
                       fontSize: fontSize.lg,
                       fontFamily: 'Inter-SemiBold',
                       flex: 1,
-                      paddingVertical: spacing.xs
+                      paddingVertical: spacing.xs,
+                      borderWidth: 0,
+                      outline: 'none'
                     }
                   ]}
                   value={size}
                   onChangeText={handleSizeChange}
-                  placeholder={`Min: ${assetLimits.minPositionSize} USDC`}
+                  placeholder="Min: 2 USDC"
                   placeholderTextColor={theme.colors.textSecondary}
                   keyboardType="numeric"
                 />
@@ -1257,7 +1303,7 @@ export const TradingInterface: React.FC = () => {
                 ]}>USDC</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm }}>
-                {[100, 200, 500, 1000, 5000].map((amt) => (
+                {[2, 6, 50, 100, 500].map((amt) => (
                   <Pressable
                     key={amt}
                     onPress={() => handleSizeChange(amt.toString())}
@@ -1295,8 +1341,7 @@ export const TradingInterface: React.FC = () => {
                 {
                   backgroundColor: theme.colors.chip,
                   borderRadius: theme.borderRadius.md,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
+                  borderWidth: 0,
                   flexDirection: 'row',
                   alignItems: 'center',
                   paddingHorizontal: spacing.md,
@@ -1313,7 +1358,9 @@ export const TradingInterface: React.FC = () => {
                       fontSize: fontSize.lg,
                       fontFamily: 'Inter-SemiBold',
                       flex: 1,
-                      paddingVertical: spacing.xs
+                      paddingVertical: spacing.xs,
+                      borderWidth: 0,
+                      outline: 'none'
                     }
                   ]}
                   value={collateral}
@@ -1335,6 +1382,147 @@ export const TradingInterface: React.FC = () => {
             </View>
           </View>
 
+          {/* Advanced Options - Stop Loss & Take Profit */}
+          <View style={{ marginTop: spacing.md }}>
+            <Pressable
+              onPress={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              style={[
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingVertical: spacing.sm,
+                  paddingHorizontal: spacing.md,
+                  backgroundColor: theme.colors.chip,
+                  borderRadius: theme.borderRadius.md,
+                  borderWidth: 0,
+                  borderColor: theme.colors.border
+                }
+              ]}
+            >
+              <Text style={[
+                {
+                  color: theme.colors.textPrimary,
+                  fontSize: fontSize.sm,
+                  fontFamily: 'Inter-SemiBold'
+                }
+              ]}>Advanced Options</Text>
+              <Text style={[
+                {
+                  color: theme.colors.textSecondary,
+                  fontSize: fontSize.xs,
+                  fontFamily: 'Inter-Medium'
+                }
+              ]}>{showAdvancedOptions ? '▼' : '▶'}</Text>
+            </Pressable>
+
+            {showAdvancedOptions && (
+              <View style={[
+                {
+                  backgroundColor: theme.colors.chip,
+                  padding: spacing.md,
+                  borderRadius: theme.borderRadius.md,
+                  marginTop: spacing.xs,
+                  borderWidth: 0
+                }
+              ]}>
+                {/* Stop Loss */}
+                <View style={{ marginBottom: spacing.md }}>
+                  <Text style={[
+                    {
+                      color: theme.colors.textSecondary,
+                      fontSize: fontSize.sm,
+                      fontFamily: 'Inter-Medium',
+                      marginBottom: spacing.sm
+                    }
+                  ]}>Stop Loss</Text>
+                  <View style={[
+                    {
+                      backgroundColor: theme.colors.bg,
+                      borderRadius: theme.borderRadius.md,
+                      borderWidth: 0,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: spacing.md,
+                      paddingVertical: spacing.sm
+                    }
+                  ]}>
+                    <TextInput
+                      style={[
+                        {
+                          color: theme.colors.textPrimary,
+                          fontSize: fontSize.md,
+                          fontFamily: 'Inter-Medium',
+                          flex: 1,
+                          paddingVertical: spacing.xs,
+                        }
+                      ]}
+                      value={stopLoss}
+                      onChangeText={setStopLoss}
+                      placeholder="Stop Loss Price"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      keyboardType="numeric"
+                    />
+                    <Text style={[
+                      {
+                        color: theme.colors.textSecondary,
+                        fontSize: fontSize.sm,
+                        fontFamily: 'Inter-Medium'
+                      }
+                    ]}>USDC</Text>
+                  </View>
+                </View>
+
+                {/* Take Profit */}
+                <View>
+                  <Text style={[
+                    {
+                      color: theme.colors.textSecondary,
+                      fontSize: fontSize.sm,
+                      fontFamily: 'Inter-Medium',
+                      marginBottom: spacing.sm
+                    }
+                  ]}>Take Profit</Text>
+                  <View style={[
+                    {
+                      backgroundColor: theme.colors.bg,
+                      borderRadius: theme.borderRadius.md,
+                      borderWidth: 0,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: spacing.md,
+                      paddingVertical: spacing.sm
+                    }
+                  ]}>
+                    <TextInput
+                      style={[
+                        {
+                          color: theme.colors.textPrimary,
+                          fontSize: fontSize.md,
+                          fontFamily: 'Inter-Medium',
+                          flex: 1,
+                          paddingVertical: spacing.xs,
+                        }
+                      ]}
+                      value={takeProfit}
+                      onChangeText={setTakeProfit}
+                      placeholder="Take Profit Price"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      keyboardType="numeric"
+                    />
+                    <Text style={[
+                      {
+                        color: theme.colors.textSecondary,
+                        fontSize: fontSize.sm,
+                        fontFamily: 'Inter-Medium'
+                      }
+                    ]}>USDC</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+
           {/* Trading Summary - Key Metrics from Merkle Guide */}
           {parseFloat(size) > 0 && parseFloat(collateral) > 0 && (
             <View style={[
@@ -1343,8 +1531,7 @@ export const TradingInterface: React.FC = () => {
                 padding: spacing.md,
                 borderRadius: theme.borderRadius.md,
                 marginTop: spacing.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border
+                borderWidth: 0
               }
             ]}>
               <Text style={[
@@ -1483,14 +1670,7 @@ export const TradingInterface: React.FC = () => {
             </View>
           )}
 
-          {/* Trading Guide for Small Amounts */}
-          {(() => {
-            const minPositionSize = 300; // Mainnet requirement
-            const minCollateral = 2; // Mainnet requirement
-            const collateralAmount = parseFloat(collateral);
-            
-            return collateralAmount < minPositionSize && collateralAmount >= minCollateral;
-          })() && (
+          {false && (
             <View style={[
               {
                 backgroundColor: `${theme.colors.blue}20`,
@@ -1520,7 +1700,7 @@ export const TradingInterface: React.FC = () => {
                       lineHeight: fontSize.xs * 1.4
                     }
                   ]}>
-                    Crypto pairs: 3× – 150× leverage • Min: 300 USDC position • With {collateral} USDC collateral, use {getMinimumLeverageForTrade()}× leverage minimum.
+                    Crypto pairs: 3× – 150× leverage • Min: 2 USDC position • With {collateral} USDC collateral, use {getMinimumLeverageForTrade()}× leverage minimum.
                   </Text>
                   <View style={{ flexDirection: 'row', marginTop: spacing.sm }}>
                     <Pressable
@@ -1563,10 +1743,10 @@ export const TradingInterface: React.FC = () => {
                         }
                       ]}
                       onPress={() => {
-                        // Setup for 3 USDC (your wallet balance)
-                        setCollateral('3');
-                        setLeverage(100); // 3 × 100 = 300 USDC position
-                        setSize('300');
+                        // Setup for 2 USDC minimum
+                        setCollateral('2');
+                        setLeverage(3); // 2 × 3 = 6 USDC position
+                        setSize('6');
                       }}
                     >
                       <Text style={[
@@ -1576,7 +1756,7 @@ export const TradingInterface: React.FC = () => {
                           fontFamily: 'Inter-SemiBold',
                           textAlign: 'center'
                         }
-                      ]}>Use 3 USDC (100x)</Text>
+                      ]}>Use 2 USDC (3x)</Text>
                     </Pressable>
                   </View>
                 </View>

@@ -16,7 +16,6 @@ export class MerkleService {
       // For now, we'll use our existing direct contract integration
       // TODO: Integrate official Merkle SDK when API is stable
       this.initialized = true;
-      console.log(`Merkle Service initialized for ${APTOS_CONFIG.network}`);
     } catch (error) {
       console.error('Failed to initialize Merkle Service:', error);
     }
@@ -36,36 +35,82 @@ export class MerkleService {
     isLong: boolean;
     isIncrease: boolean;
   }) {
+    // Validate all required parameters
+    if (!params.userAddress || params.userAddress === 'undefined') {
+      throw new Error('userAddress is required and cannot be undefined');
+    }
+    if (!params.sizeDelta || params.sizeDelta === 0n) {
+      throw new Error('sizeDelta is required and must be greater than 0');
+    }
+    if (!params.collateralDelta || params.collateralDelta === 0n) {
+      throw new Error('collateralDelta is required and must be greater than 0');
+    }
+
     // Get market configuration with correct type arguments
     const marketConfig = MARKETS[params.pair as MarketName];
     if (!marketConfig) {
       throw new Error(`Unsupported market: ${params.pair}`);
     }
 
-    // Convert to our existing transaction format
-    // place_order_v3 requires 11 parameters (excluding signer)
+    // Based on ABI: place_order_v3 actual function signature
+    // Params: &signer, address, u64, u64, u64, bool, bool, bool, u64, u64, bool
+    // Args: account_address, collateral_delta, size_delta, price, is_long, is_increase, is_market, stop_loss_price, take_profit_price, can_execute_above_price
+    
+    // Debug logging to identify undefined values
+    console.log('Market Order Parameters:', {
+      userAddress: params.userAddress,
+      sizeDelta: params.sizeDelta?.toString(),
+      collateralDelta: params.collateralDelta?.toString(),
+      isLong: params.isLong,
+      isIncrease: params.isIncrease,
+      pair: params.pair
+    });
+
+    // Validate all required parameters
+    if (!params.userAddress) {
+      throw new Error('userAddress is required');
+    }
+    if (!params.sizeDelta || params.sizeDelta <= 0n) {
+      throw new Error('sizeDelta must be greater than 0');
+    }
+    if (!params.collateralDelta || params.collateralDelta <= 0n) {
+      throw new Error('collateralDelta must be greater than 0');
+    }
+
     const args = [
-      params.userAddress,           // 1. account_address
-      params.collateralDelta.toString(), // 2. collateral_delta
-      params.sizeDelta.toString(),  // 3. size_delta
-      "0",                          // 4. price (0 for market orders)
-      params.isLong,                // 5. is_long
-      params.isIncrease,            // 6. is_increase
-      true,                         // 7. is_market
-      "0",                          // 8. stop_loss_price (0 = no SL)
-      "0",                          // 9. take_profit_price (0 = no TP)
-      true,                         // 10. can_execute_above_price
-      "0",                          // 11. tp_sl_percent (0 = no TP/SL percentage)
+      params.userAddress,               // 1. address: _user_address
+      params.sizeDelta.toString(),      // 2. u64: _size_delta (position size in microunits)
+      params.collateralDelta.toString(), // 3. u64: _collateral_delta (USDC amount in microunits)
+      "0",                              // 4. u64: _price (0 for market orders)
+      params.isLong,                    // 5. bool: _is_long
+      params.isIncrease,                // 6. bool: _is_increase
+      true,                             // 7. bool: _is_market (true for market orders)
+      "0",                              // 8. u64: _stop_loss_trigger_price (0 = no SL)
+      "0",                              // 9. u64: _take_profit_trigger_price (0 = no TP)
+      true,                             // 10. bool: _can_execute_above_price
+      "0x0",                           // 11. address: _referrer (use zero-address if none)
     ];
 
-    // Use market-specific type arguments [Collateral, Asset]
+    // Log final args array to see what's being passed
+    console.log('Final args array:', args);
+    console.log('Type arguments:', marketConfig.typeArguments);
+
+    // Use market-specific type arguments [APT, USDC] in correct order
     const typeArguments = [...marketConfig.typeArguments];
 
-    return buildMerkleTransaction(
-      TRADING_FUNCTIONS.PLACE_ORDER,
+    // Place the order via managed_trading entry
+    const orderTransaction = buildMerkleTransaction(
+      TRADING_FUNCTIONS.PLACE_ORDER_V3,
       typeArguments,
       args
     );
+
+    // Return the order transaction (no separate initialize call needed)
+    return {
+      orderTransaction,
+      requiresInit: false,
+      needsExecution: true // Flag indicating this order needs keeper execution
+    };
   }
 
   async placeLimitOrder(params: {
@@ -83,29 +128,38 @@ export class MerkleService {
       throw new Error(`Unsupported market: ${params.pair}`);
     }
 
-    // place_order_v3 requires 11 parameters (excluding signer)
+    // Based on ABI: place_order_v3 actual function signature
+    // Params: &signer, address, u64, u64, u64, bool, bool, bool, u64, u64, bool
+    // Args: account_address, collateral_delta, size_delta, price, is_long, is_increase, is_market, stop_loss_price, take_profit_price, can_execute_above_price
+    
     const args = [
-      params.userAddress,              // 1. account_address
-      params.collateralDelta.toString(), // 2. collateral_delta
-      params.sizeDelta.toString(),     // 3. size_delta
-      params.price.toString(),         // 4. price (limit price)
-      params.isLong,                   // 5. is_long
-      params.isIncrease,               // 6. is_increase
-      false,                           // 7. is_market (false for limit)
-      "0",                             // 8. stop_loss_price (0 = no SL)
-      "0",                             // 9. take_profit_price (0 = no TP)
-      params.isLong,                   // 10. can_execute_above_price (true for buy limit, false for sell limit)
-      "0",                             // 11. tp_sl_percent (0 = no TP/SL percentage)
+      params.userAddress,               // 1. address: _user_address
+      params.sizeDelta.toString(),      // 2. u64: _size_delta (position size in microunits)
+      params.collateralDelta.toString(), // 3. u64: _collateral_delta (USDC amount in microunits)
+      params.price.toString(),          // 4. u64: _price (limit price)
+      params.isLong,                    // 5. bool: _is_long
+      params.isIncrease,                // 6. bool: _is_increase
+      false,                            // 7. bool: _is_market (false for limit orders)
+      "0",                              // 8. u64: _stop_loss_trigger_price (0 = no SL)
+      "0",                              // 9. u64: _take_profit_trigger_price (0 = no TP)
+      params.isLong,                    // 10. bool: _can_execute_above_price (true for buy limit, false for sell limit)
+      "0x0",                           // 11. address: _referrer (zero-address)
     ];
 
     // Use market-specific type arguments [Collateral, Asset]
     const typeArguments = [...marketConfig.typeArguments];
 
-    return buildMerkleTransaction(
-      TRADING_FUNCTIONS.PLACE_ORDER,
+    const orderTransaction = buildMerkleTransaction(
+      TRADING_FUNCTIONS.PLACE_ORDER_V3,
       typeArguments,
       args
     );
+
+    return {
+      orderTransaction,
+      requiresInit: false,
+      needsExecution: true // Flag indicating this order needs keeper execution
+    };
   }
 
   // Market Constraints Validation
@@ -167,7 +221,7 @@ export class MerkleService {
 
   getMinPositionSize(pair: string): number {
     // Crypto only: Official Merkle Trade requirements
-    return 300; // All crypto pairs: 300 USDC minimum
+    return 2; // All crypto pairs: 2 USDC minimum like official Merkle
   }
 
   getMaxLeverage(pair: string): number {
@@ -289,6 +343,67 @@ export class MerkleService {
 
   markTradeExecuted() {
     this.lastTradeTime = Date.now();
+  }
+
+  // Execute order function - simulates keeper execution
+  async executeOrder(params: {
+    pair: string;
+    orderId: string;
+    indexPrice: bigint;
+    executorAddress: string;
+  }) {
+    // Get market configuration
+    const marketConfig = MARKETS[params.pair as MarketName];
+    if (!marketConfig) {
+      throw new Error(`Unsupported market: ${params.pair}`);
+    }
+
+    // Build execute_order transaction for managed_trading entry
+    const args = [
+      params.orderId,                    // u64: _order_id
+      params.indexPrice.toString(),      // u64: _fast_price (oracle price)
+      [],                                // vector<u8>: _pyth_vaa (empty placeholder)
+    ];
+
+    const typeArguments = [...marketConfig.typeArguments];
+
+    return buildMerkleTransaction(
+      TRADING_FUNCTIONS.EXECUTE_ORDER,
+      typeArguments,
+      args
+    );
+  }
+
+  // Get all executable market orders for a pair (stub for future indexer)
+  async getExecutableOrders(pair: string) {
+    const marketConfig = MARKETS[pair as MarketName];
+    if (!marketConfig) {
+      throw new Error(`Unsupported market: ${pair}`);
+    }
+    console.log(`Getting executable orders for ${pair}`);
+    return [];
+  }
+
+  // Simulate keeper execution for market orders (local debug only)
+  async simulateKeeperExecution(params: { pair: string; orderId: string; currentPrice: bigint; }) {
+    console.log(`Simulating keeper execution for order ${params.orderId} at price ${params.currentPrice}`);
+    return { success: true, message: `Order ${params.orderId} would be executed at ${params.currentPrice}`, executionPrice: params.currentPrice };
+  }
+
+  // Helper to extract order ID from transaction events
+  extractOrderIdFromEvents(transactionResponse: any): string | null {
+    try {
+      const events = transactionResponse?.events || [];
+      for (const event of events) {
+        if (event.type?.includes('PlaceOrderEvent')) {
+          return event.data?.order_id || event.data?.uid;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error extracting order ID from events:', error);
+      return null;
+    }
   }
 }
 

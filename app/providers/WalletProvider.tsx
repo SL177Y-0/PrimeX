@@ -198,7 +198,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         await AsyncStorage.setItem('lastConnectedWallet', `${walletName}-extension`);
       }
     } catch (error) {
-      console.error('Failed to connect to extension:', error);
       throw error;
     } finally {
       setConnecting(false);
@@ -236,7 +235,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         }, 2000);
       }
     } catch (error) {
-      console.error('Failed to connect wallet via deep link:', error);
       throw error;
     } finally {
       setConnecting(false);
@@ -256,7 +254,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       setLastConnectedWallet(null);
       await AsyncStorage.removeItem('lastConnectedWallet');
     } catch (error) {
-      console.error('Failed to disconnect wallet:', error);
       throw error;
     }
   };
@@ -268,11 +265,18 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     try {
       if (wallet?.connectionMethod === 'extension' && window.aptos) {
-        // Use extension for transaction signing
-        return await window.aptos.signAndSubmitTransaction(transaction);
+        // Use the modern Aptos SDK format for Petra wallet
+        const payload = {
+          type: "entry_function_payload",
+          function: transaction.function,
+          type_arguments: transaction.type_arguments || [],
+          arguments: transaction.arguments || [],
+        };
+        
+        // Sending transaction to Petra
+        return await window.aptos.signAndSubmitTransaction(payload);
       } else {
         // Use deep link method (mock implementation)
-        console.log('Signing transaction via deep link:', transaction);
         
         // Simulate transaction submission
         return new Promise((resolve) => {
@@ -284,7 +288,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         });
       }
     } catch (error) {
-      console.error('Failed to sign transaction:', error);
       throw error;
     }
   };
@@ -300,7 +303,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         return await window.aptos.signMessage(message);
       } else {
         // Use deep link method (mock implementation)
-        console.log('Signing message via deep link:', message);
         
         return new Promise((resolve) => {
           setTimeout(() => {
@@ -311,13 +313,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         });
       }
     } catch (error) {
-      console.error('Failed to sign message:', error);
       throw error;
     }
   };
 
   const handleDeepLink = (url: string) => {
-    console.log('Received deep link:', url);
     
     if (url.startsWith('prismx://')) {
       try {
@@ -345,10 +345,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           }
         } else if (params.get('type') === 'transaction') {
           // Handle transaction response
-          console.log('Transaction response received');
+          // Wallet connected successfully
         }
       } catch (error) {
-        console.error('Error parsing deep link:', error);
+        // Error parsing deep link
       }
     }
   };
@@ -389,7 +389,6 @@ export const openPetraWallet = async () => {
       await Linking.openURL(storeUrl);
     }
   } catch (err) {
-    console.error('Failed to open Petra wallet:', err);
     throw err;
   }
 };

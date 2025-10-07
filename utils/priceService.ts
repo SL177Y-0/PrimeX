@@ -48,10 +48,11 @@ interface CoinGeckoHistoricalData {
 }
 
 // Supported markets on Merkle Trade
+// Using underscore format to match MARKETS keys in constants.ts
 export const SUPPORTED_MARKETS: MarketInfo[] = [
   {
     id: 0,
-    symbol: 'BTC/USD',
+    symbol: 'BTC_USD',
     name: 'Bitcoin',
     baseAsset: 'BTC',
     quoteAsset: 'USD',
@@ -59,7 +60,7 @@ export const SUPPORTED_MARKETS: MarketInfo[] = [
   },
   {
     id: 1,
-    symbol: 'ETH/USD',
+    symbol: 'ETH_USD',
     name: 'Ethereum',
     baseAsset: 'ETH',
     quoteAsset: 'USD',
@@ -67,7 +68,7 @@ export const SUPPORTED_MARKETS: MarketInfo[] = [
   },
   {
     id: 2,
-    symbol: 'APT/USD',
+    symbol: 'APT_USD',
     name: 'Aptos',
     baseAsset: 'APT',
     quoteAsset: 'USD',
@@ -75,7 +76,7 @@ export const SUPPORTED_MARKETS: MarketInfo[] = [
   },
   {
     id: 3,
-    symbol: 'SOL/USD',
+    symbol: 'SOL_USD',
     name: 'Solana',
     baseAsset: 'SOL',
     quoteAsset: 'USD',
@@ -83,7 +84,7 @@ export const SUPPORTED_MARKETS: MarketInfo[] = [
   },
   {
     id: 4,
-    symbol: 'DOGE/USD',
+    symbol: 'DOGE_USD',
     name: 'Dogecoin',
     baseAsset: 'DOGE',
     quoteAsset: 'USD',
@@ -96,12 +97,13 @@ const priceCache = new Map<string, { data: PriceData; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 seconds
 
 // Fallback prices for when APIs are unavailable
+// Using underscore format to match MARKETS keys
 const FALLBACK_PRICES: Record<string, number> = {
-  'BTC/USD': 43250.50,
-  'ETH/USD': 2650.75,
-  'APT/USD': 12.45,
-  'SOL/USD': 98.20,
-  'DOGE/USD': 0.085,
+  'BTC_USD': 43250.50,
+  'ETH_USD': 2650.75,
+  'APT_USD': 12.45,
+  'SOL_USD': 98.20,
+  'DOGE_USD': 0.085,
 };
 
 class PriceService {
@@ -222,11 +224,11 @@ class PriceService {
   // Private methods
   private mapSymbolsToCoinGeckoIds(symbols: string[]): string[] {
     const mapping: Record<string, string> = {
-      'BTC/USD': 'bitcoin',
-      'ETH/USD': 'ethereum',
-      'APT/USD': 'aptos',
-      'SOL/USD': 'solana',
-      'DOGE/USD': 'dogecoin',
+      'BTC_USD': 'bitcoin',
+      'ETH_USD': 'ethereum',
+      'APT_USD': 'aptos',
+      'SOL_USD': 'solana',
+      'DOGE_USD': 'dogecoin',
     };
 
     return symbols
@@ -236,11 +238,11 @@ class PriceService {
 
   private mapSymbolToCoinGeckoId(symbol: string): string | null {
     const mapping: Record<string, string> = {
-      'BTC/USD': 'bitcoin',
-      'ETH/USD': 'ethereum',
-      'APT/USD': 'aptos',
-      'SOL/USD': 'solana',
-      'DOGE/USD': 'dogecoin',
+      'BTC_USD': 'bitcoin',
+      'ETH_USD': 'ethereum',
+      'APT_USD': 'aptos',
+      'SOL_USD': 'solana',
+      'DOGE_USD': 'dogecoin',
     };
 
     return mapping[symbol] || null;
@@ -248,11 +250,11 @@ class PriceService {
 
   private processCoinGeckoData(data: CoinGeckoResponse, symbols: string[]): PriceData[] {
     const idToSymbol: Record<string, string> = {
-      'bitcoin': 'BTC/USD',
-      'ethereum': 'ETH/USD',
-      'aptos': 'APT/USD',
-      'solana': 'SOL/USD',
-      'dogecoin': 'DOGE/USD',
+      'bitcoin': 'BTC_USD',
+      'ethereum': 'ETH_USD',
+      'aptos': 'APT_USD',
+      'solana': 'SOL_USD',
+      'dogecoin': 'DOGE_USD',
     };
 
     return Object.entries(data).map(([coinId, priceData]: [string, CoinGeckoPriceData]) => {

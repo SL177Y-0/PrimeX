@@ -1,4 +1,4 @@
-import { Aptos, AptosConfig, Network, Account, Ed25519PrivateKey } from '@aptos-labs/ts-sdk';
+import { Aptos, AptosConfig, Network, Account, Ed25519PrivateKey, InputSubmitTransactionData } from '@aptos-labs/ts-sdk';
 import { APTOS_CONFIG, MERKLE_CONFIG, TRADING_CONSTANTS, buildFunctionId } from '../config/constants';
 
 // Type definitions for better type safety
@@ -48,13 +48,15 @@ export const aptosClient = new Aptos(aptosConfig);
 // Merkle Trade contract configuration
 export const MERKLE_CONTRACT_ADDRESS = MERKLE_CONFIG.contractAddress;
 
-// Trading function identifiers - using managed_trading module for entry functions
+// Trading function identifiers - using trading module for entry functions
 export const TRADING_FUNCTIONS = {
-  PLACE_ORDER: buildFunctionId('place_order_v3', 'managed_trading'),
-  CANCEL_ORDER: buildFunctionId('cancel_order_v3', 'managed_trading'),
-  CLOSE_POSITION: buildFunctionId('execute_exit_position_v3', 'managed_trading'),
-  UPDATE_POSITION_TP_SL: buildFunctionId('update_position_tp_sl_v3', 'managed_trading'),
-  INITIALIZE_USER: buildFunctionId('initialize_user_if_needed', 'managed_trading'),
+  PLACE_ORDER: 'place_order_v3',
+  PLACE_ORDER_V3: 'place_order_v3',
+  CANCEL_ORDER: 'cancel_order_v3',
+  CLOSE_POSITION: 'execute_exit_position_v3',
+  UPDATE_POSITION_TP_SL: 'update_position_tp_sl_v3',
+  INITIALIZE_USER: 'initialize_user_if_needed',
+  EXECUTE_ORDER: 'execute_order',
 };
 
 // Market configuration
@@ -102,17 +104,20 @@ export const getMarketId = (market: string): number => {
 };
 
 // Build transaction payload for Merkle functions
-export const buildMerkleTransaction = (
+export function buildMerkleTransaction(
   functionName: string,
-  typeArguments: string[] = [],
-  functionArguments: (string | number | boolean)[] = []
-): TransactionPayload => {
-  return {
-    function: functionName,
-    type_arguments: typeArguments,
-    arguments: functionArguments,
+  typeArguments: string[],
+  args: any[]
+) {
+  const payload = {
+    function: `${MERKLE_CONFIG.contractAddress}::managed_trading::${functionName}`,
+    type_arguments: typeArguments || [],
+    arguments: args || [],
   };
-};
+  
+  console.log('Built transaction payload:', payload);
+  return payload;
+}
 
 // Get account balance (USDC)
 export const getAccountBalance = async (accountAddress: string): Promise<number> => {

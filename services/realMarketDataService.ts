@@ -36,12 +36,13 @@ class RealMarketDataService {
   private subscribers: Map<string, Set<(data: RealMarketData) => void>> = new Map();
 
   // Symbol mapping for different APIs
+  // Using underscore format to match MARKETS keys in constants.ts
   private readonly SYMBOL_MAPPING = {
-    'APT/USD': { coingecko: 'aptos', binance: 'APTUSDT', symbol: 'APT' },
-    'BTC/USD': { coingecko: 'bitcoin', binance: 'BTCUSDT', symbol: 'BTC' },
-    'ETH/USD': { coingecko: 'ethereum', binance: 'ETHUSDT', symbol: 'ETH' },
-    'SOL/USD': { coingecko: 'solana', binance: 'SOLUSDT', symbol: 'SOL' },
-    'DOGE/USD': { coingecko: 'dogecoin', binance: 'DOGEUSDT', symbol: 'DOGE' },
+    'APT_USD': { coingecko: 'aptos', binance: 'APTUSDT', symbol: 'APT', display: 'APT/USD' },
+    'BTC_USD': { coingecko: 'bitcoin', binance: 'BTCUSDT', symbol: 'BTC', display: 'BTC/USD' },
+    'ETH_USD': { coingecko: 'ethereum', binance: 'ETHUSDT', symbol: 'ETH', display: 'ETH/USD' },
+    'SOL_USD': { coingecko: 'solana', binance: 'SOLUSDT', symbol: 'SOL', display: 'SOL/USD' },
+    'DOGE_USD': { coingecko: 'dogecoin', binance: 'DOGEUSDT', symbol: 'DOGE', display: 'DOGE/USD' },
   };
 
   // Get real market data from CoinGecko API

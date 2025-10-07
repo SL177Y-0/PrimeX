@@ -21,7 +21,7 @@ export const APTOS_CONFIG = {
 // Merkle Contract Configuration
 export const MERKLE_CONFIG = {
   contractAddress: process.env.EXPO_PUBLIC_MERKLE_CONTRACT_ADDRESS || '0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06',
-  tradingModule: 'trading',
+  tradingModule: 'managed_trading',
   tradingCalcModule: 'trading_calc',
 } as const;
 
@@ -67,18 +67,20 @@ export const EVENT_TYPES = {
   UPDATE_TPSL_EVENT: 'UpdateTPSLEvent',
 } as const;
 
-// Merkle Asset Type Arguments (from Merkle Trade mainnet deployment)
+// Merkle Asset Type Arguments (from successful mainnet transaction analysis)
 export const MERKLE_ASSET_TYPES = {
-  // Base asset type address
-  ASSET_ADDRESS: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset',
+  // Base asset type address - using standard Aptos types
+  ASSET_ADDRESS: '0x1::aptos_coin',
   
-  // Supported assets
-  APT: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::APT',
-  BTC: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::BTC',
-  ETH: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::ETH',
-  SOL: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::SOL',
-  DOGE: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::DOGE',
-  USDC: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC',
+  // Pair types - using correct Merkle Trade pair_types module structure
+  APT_USD: '0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06::pair_types::APT_USD',
+  BTC_USD: '0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06::pair_types::BTC_USD',
+  ETH_USD: '0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06::pair_types::ETH_USD',
+  SOL_USD: '0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06::pair_types::SOL_USD',
+  DOGE_USD: '0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06::pair_types::DOGE_USD',
+  
+  // Collateral types - using fa_box wrapper types
+  USDC: '0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06::fa_box::W_USDC',
 } as const;
 
 // Market Configuration
@@ -86,54 +88,65 @@ export const MERKLE_ASSET_TYPES = {
 export const MARKETS = {
   'APT_USD': {
     id: '1',
-    name: 'APT/USD',
+    name: 'APT/USDC',
+    displayName: 'APT/USDC',
     baseAsset: 'APT',
-    quoteAsset: 'USD',
+    quoteAsset: 'USDC',
     decimals: 8,
-    minSize: 0.01,
+    minSize: 2, // 2 USDC minimum like official Merkle
     maxLeverage: 150,
-    // Merkle type arguments: [Collateral, Asset]
-    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.APT],
+    minLeverage: 3,
+    // Correct order from official Merkle.trade: [PairType, CollateralType] - APT_USD pair, USDC collateral
+    typeArguments: [MERKLE_ASSET_TYPES.APT_USD, MERKLE_ASSET_TYPES.USDC],
   },
   'BTC_USD': {
     id: '2',
-    name: 'BTC/USD',
+    name: 'BTC/USDC',
+    displayName: 'BTC/USDC',
     baseAsset: 'BTC',
-    quoteAsset: 'USD',
+    quoteAsset: 'USDC',
     decimals: 8,
-    minSize: 0.001,
+    minSize: 2, // 2 USDC minimum like official Merkle
     maxLeverage: 150,
-    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.BTC],
+    minLeverage: 3,
+    // Merkle type arguments: [PairType, CollateralType] - BTC_USD pair, USDC collateral
+    typeArguments: [MERKLE_ASSET_TYPES.BTC_USD, MERKLE_ASSET_TYPES.USDC],
   },
   'ETH_USD': {
     id: '3',
-    name: 'ETH/USD',
+    name: 'ETH/USDC',
+    displayName: 'ETH/USDC',
     baseAsset: 'ETH',
-    quoteAsset: 'USD',
+    quoteAsset: 'USDC',
     decimals: 8,
-    minSize: 0.01,
+    minSize: 2, // 2 USDC minimum like official Merkle
     maxLeverage: 150,
-    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.ETH],
+    minLeverage: 3,
+    typeArguments: [MERKLE_ASSET_TYPES.ETH_USD, MERKLE_ASSET_TYPES.USDC],
   },
   'SOL_USD': {
     id: '4',
-    name: 'SOL/USD',
+    name: 'SOL/USDC',
+    displayName: 'SOL/USDC',
     baseAsset: 'SOL',
-    quoteAsset: 'USD',
+    quoteAsset: 'USDC',
     decimals: 8,
-    minSize: 0.1,
+    minSize: 2, // 2 USDC minimum like official Merkle
     maxLeverage: 150,
-    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.SOL],
+    minLeverage: 3,
+    typeArguments: [MERKLE_ASSET_TYPES.SOL_USD, MERKLE_ASSET_TYPES.USDC],
   },
   'DOGE_USD': {
     id: '5',
-    name: 'DOGE/USD',
+    name: 'DOGE/USDC',
+    displayName: 'DOGE/USDC',
     baseAsset: 'DOGE',
-    quoteAsset: 'USD',
+    quoteAsset: 'USDC',
     decimals: 8,
-    minSize: 1,
+    minSize: 2, // 2 USDC minimum like official Merkle
     maxLeverage: 150,
-    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.DOGE],
+    minLeverage: 3,
+    typeArguments: [MERKLE_ASSET_TYPES.DOGE_USD, MERKLE_ASSET_TYPES.USDC],
   },
 } as const;
 
@@ -163,17 +176,18 @@ export const TRADING_CONSTANTS = {
   
   // Risk Parameters
   RISK: {
-    MIN_LEVERAGE: 1,
-    MAX_LEVERAGE: 100,
+    MIN_LEVERAGE: 3,
+    MAX_LEVERAGE: 150,
     LIQUIDATION_THRESHOLD: 0.9, // 90%
-    MIN_COLLATERAL: 1, // USD
-    MAX_POSITION_SIZE: 1000000, // USD
+    MIN_COLLATERAL: 2, // USDC minimum like official Merkle.trade
+    MAX_COLLATERAL: 10000, // 10k USDC maximum to match position limits
+    MAX_POSITION_SIZE: 1500000, // 1.5M USD maximum (10k collateral × 150x leverage)
   },
   
-  // Fee Structure
+  // Fee Structure - Official Merkle Trade Rates
   FEES: {
-    MAKER_FEE: 0.0005, // 0.05%
-    TAKER_FEE: 0.001,  // 0.1%
+    MAKER_FEE: 0.0003, // 0.03% for BTC/ETH (official Merkle rate)
+    TAKER_FEE: 0.0006, // 0.06% for BTC/ETH (official Merkle rate)
     FUNDING_RATE_INTERVAL: 3600, // 1 hour in seconds
   },
 } as const;

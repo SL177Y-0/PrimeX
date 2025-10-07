@@ -45,17 +45,14 @@ export function CandleChart({
   // Memoize calculations for performance
   const chartData = useMemo(() => {
     if (!data || data.length === 0) {
-      console.log('CandleChart: No data available');
       return null;
     }
     
-    console.log('CandleChart: Rendering with', data.length, 'data points');
-    
-    // Responsive padding based on screen size and axis requirements
-    const leftPadding = showYAxis ? (isMobile ? 20 : 30) : (isMobile ? 8 : 12);
-    const rightPadding = isMobile ? 8 : 12;
-    const topPadding = isMobile ? 8 : 12;
-    const bottomPadding = showXAxis ? (isMobile ? 20 : 25) : (isMobile ? 8 : 12);
+    // Professional padding for proper alignment
+    const leftPadding = showYAxis ? (isMobile ? 50 : 60) : (isMobile ? 12 : 16);
+    const rightPadding = isMobile ? 12 : 16;
+    const topPadding = isMobile ? 16 : 20;
+    const bottomPadding = showXAxis ? (isMobile ? 28 : 35) : (isMobile ? 12 : 16);
     
     const chartWidth = width - leftPadding - rightPadding;
     const chartHeight = height - topPadding - bottomPadding;
@@ -65,16 +62,19 @@ export function CandleChart({
     const maxPrice = Math.max(...prices);
     const priceRange = maxPrice - minPrice || 1;
     
-    // Professional candlestick spacing - minimal gaps like professional trading platforms
-    const availableWidth = chartWidth * 0.98; // Use 98% of available width
-    const candleWidth = Math.max(2.5, Math.min(10, availableWidth / data.length));
-    const candleGap = Math.max(0.2, (availableWidth - (data.length * candleWidth)) / Math.max(1, data.length - 1));
+    // Professional candlestick spacing
+    const availableWidth = chartWidth * 0.95;
+    const candleWidth = Math.max(3, Math.min(12, availableWidth / data.length));
+    const candleGap = Math.max(0.5, Math.min(2, (availableWidth - (data.length * candleWidth)) / Math.max(1, data.length - 1)));
     
-    // Generate Y-axis price levels
-    const numYLevels = isMobile ? 4 : 6;
-    const priceStep = priceRange / (numYLevels - 1);
+    // Generate Y-axis price levels with 5% padding
+    const paddedMin = minPrice - (priceRange * 0.05);
+    const paddedMax = maxPrice + (priceRange * 0.05);
+    const paddedRange = paddedMax - paddedMin;
+    const numYLevels = isMobile ? 5 : 7;
+    const priceStep = paddedRange / (numYLevels - 1);
     const yAxisLevels = Array.from({ length: numYLevels }, (_, i) => 
-      minPrice + (i * priceStep)
+      paddedMin + (i * priceStep)
     );
 
     // Generate X-axis time labels
@@ -98,9 +98,9 @@ export function CandleChart({
       bottomPadding,
       chartWidth,
       chartHeight,
-      minPrice,
-      maxPrice,
-      priceRange,
+      minPrice: paddedMin,
+      maxPrice: paddedMax,
+      priceRange: paddedRange,
       candleWidth,
       candleGap,
       yAxisLevels,
@@ -175,9 +175,8 @@ export function CandleChart({
                 y1={getY(price)}
                 x2={leftPadding + chartWidth}
                 y2={getY(price)}
-                stroke={theme.colors.border || 'rgba(255,255,255,0.08)'}
-                strokeWidth={0.5}
-                strokeDasharray="2,2"
+                stroke={theme.colors.border || 'rgba(255,255,255,0.1)'}
+                strokeWidth={0.8}
               />
             ))}
             {/* Vertical grid lines for X-axis */}
@@ -189,8 +188,7 @@ export function CandleChart({
                 x2={getX(label.index)}
                 y2={topPadding + chartHeight}
                 stroke={theme.colors.border || 'rgba(255,255,255,0.05)'}
-                strokeWidth={0.3}
-                strokeDasharray="1,1"
+                strokeWidth={0.5}
               />
             ))}
           </>
@@ -202,14 +200,15 @@ export function CandleChart({
             {yAxisLevels.map((price, i) => (
               <SvgText
                 key={`y-label-${i}`}
-                x={leftPadding - 8}
-                y={getY(price) + 4}
-                fontSize={isMobile ? 9 : 10}
-                fill={theme.colors.textSecondary || 'rgba(255,255,255,0.6)'}
+                x={leftPadding - 10}
+                y={getY(price) + 3}
+                fontSize={isMobile ? 10 : 11}
+                fill={theme.colors.textSecondary || 'rgba(255,255,255,0.7)'}
                 textAnchor="end"
+                fontFamily="monospace"
                 fontWeight="500"
               >
-                {formatCurrency(price)}
+                ${price.toFixed(2)}
               </SvgText>
             ))}
           </>
@@ -222,10 +221,11 @@ export function CandleChart({
               <SvgText
                 key={`x-label-${i}`}
                 x={getX(label.index) + candleWidth / 2}
-                y={height - bottomPadding + 16}
-                fontSize={isMobile ? 9 : 10}
-                fill={theme.colors.textSecondary || 'rgba(255,255,255,0.6)'}
+                y={height - bottomPadding + 18}
+                fontSize={isMobile ? 10 : 11}
+                fill={theme.colors.textSecondary || 'rgba(255,255,255,0.7)'}
                 textAnchor="middle"
+                fontFamily="monospace"
                 fontWeight="500"
               >
                 {label.label}

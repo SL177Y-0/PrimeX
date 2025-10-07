@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Account } from '@aptos-labs/ts-sdk';
 import { merkleService } from '../services/merkleService';
+import { aptosClient } from '../utils/aptosClient';
 import { useWallet } from '../app/providers/WalletProvider';
 
 // Transaction data interface
@@ -101,10 +102,26 @@ export const useMerkleTrading = () => {
       const sizeDelta = BigInt(Math.floor(params.size * 1e6));
       const collateralDelta = BigInt(Math.floor(params.collateral * 1e6));
       
+      // Debug logging to identify the source of undefined values
+      console.log('Hook Parameters:', {
+        account: account,
+        accountAddress: account?.address,
+        pair,
+        sizeDelta: sizeDelta.toString(),
+        collateralDelta: collateralDelta.toString(),
+        side: params.side,
+        isLong: params.side === 'long'
+      });
+
+      // Validate account exists and has address
+      if (!account || !account.address) {
+        throw new Error('Wallet not connected or account address is undefined');
+      }
+
       // Create order payload using Merkle SDK
-      let orderPayload;
+      let orderTransaction;
       if (params.orderType === 'market') {
-        orderPayload = await merkleService.placeMarketOrder({
+        const transactions = await merkleService.placeMarketOrder({
           pair,
           userAddress: account.address,
           sizeDelta,
@@ -112,9 +129,11 @@ export const useMerkleTrading = () => {
           isLong: params.side === 'long',
           isIncrease: true,
         });
+        // Use the order transaction as the main payload (no init step needed)
+        orderTransaction = transactions.orderTransaction;
       } else {
         const price = BigInt(Math.floor((params.price || 0) * 1e6));
-        orderPayload = await merkleService.placeLimitOrder({
+        const limitResult = await merkleService.placeLimitOrder({
           pair,
           userAddress: account.address,
           sizeDelta,
@@ -123,10 +142,11 @@ export const useMerkleTrading = () => {
           isLong: params.side === 'long',
           isIncrease: true,
         });
+        orderTransaction = limitResult.orderTransaction;
       }
 
-      // Submit transaction using wallet
-      const response = await signAndSubmitTransaction(orderPayload);
+      // Submit order placement transaction
+      const response = await signAndSubmitTransaction(orderTransaction);
       
       // Wait for transaction confirmation
       const aptos = merkleService.getAptos();
@@ -136,7 +156,26 @@ export const useMerkleTrading = () => {
         });
 
         if (!txResult.success) {
-          throw new Error(`Transaction failed: ${txResult.vm_status}`);
+          throw new Error(`Order placement failed: ${txResult.vm_status}`);
+        }
+
+        // Extract order ID from transaction events
+        const orderId = merkleService.extractOrderIdFromEvents(txResult);
+        
+        if (orderId && params.orderType === 'market') {
+          // For market orders, simulate keeper execution
+          console.log(`Market order ${orderId} placed, simulating keeper execution...`);
+          
+          // In a real implementation, this would be handled by an off-chain keeper
+          // For now, we'll just log the simulation
+          const currentPrice = BigInt(Math.floor(50 * 1e6)); // Mock current price
+          const keeperResult = await merkleService.simulateKeeperExecution({
+            pair,
+            orderId,
+            currentPrice
+          });
+          
+          console.log('Keeper execution simulation:', keeperResult);
         }
       }
 
@@ -198,7 +237,7 @@ export const useMerkleTrading = () => {
       const sizeDelta = BigInt(Math.floor(size * 1e6));
       
       // Create close order payload using Merkle service
-      const orderPayload = await merkleService.placeMarketOrder({
+      const orderResult = await merkleService.placeMarketOrder({
         pair,
         userAddress: account.address,
         sizeDelta,
@@ -207,8 +246,8 @@ export const useMerkleTrading = () => {
         isIncrease: false, // false for closing positions
       });
 
-      // Submit transaction using wallet
-      const response = await signAndSubmitTransaction(orderPayload);
+      // Submit close order transaction
+      const response = await signAndSubmitTransaction(orderResult.orderTransaction);
       
       // Wait for transaction confirmation
       const aptos = merkleService.getAptos();
@@ -218,7 +257,23 @@ export const useMerkleTrading = () => {
         });
 
         if (!txResult.success) {
-          throw new Error(`Transaction failed: ${txResult.vm_status}`);
+          throw new Error(`Close order placement failed: ${txResult.vm_status}`);
+        }
+
+        // Extract order ID and simulate keeper execution for market close orders
+        const orderId = merkleService.extractOrderIdFromEvents(txResult);
+        
+        if (orderId && orderType === 'market') {
+          console.log(`Market close order ${orderId} placed, simulating keeper execution...`);
+          
+          const currentPrice = BigInt(Math.floor(50 * 1e6)); // Mock current price
+          const keeperResult = await merkleService.simulateKeeperExecution({
+            pair,
+            orderId,
+            currentPrice
+          });
+          
+          console.log('Keeper execution simulation:', keeperResult);
         }
       }
 
