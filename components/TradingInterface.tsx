@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView, Dimensions, Modal, Switch } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView, Dimensions, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Slider } from '@react-native-assets/slider';
@@ -10,9 +10,13 @@ import { useWallet } from '../app/providers/WalletProvider';
 import { useMerkleTrading, PlaceOrderParams } from '../hooks/useMerkleTrading';
 import { useMerklePositions } from '../hooks/useMerklePositions';
 import { useMerkleEvents } from '../hooks/useMerkleEvents';
-import { TRADING_CONSTANTS } from '../config/constants';
+import { TRADING_CONSTANTS, APTOS_CONFIG } from '../config/constants';
 import { priceService, PriceData } from '../utils/priceService';
 import { MARKETS, MarketName } from '../config/constants';
+import { TradingChart } from './TradingChart';
+import { CandleChart, CandleData } from './CandleChart';
+import { merkleService } from '../services/merkleService';
+import { realMarketDataService, RealMarketData } from '../services/realMarketDataService';
 import {
   Wallet, 
   TrendingUp, 
@@ -20,12 +24,10 @@ import {
   Target, 
   Activity, 
   DollarSign,
-  Zap,
   Shield,
   AlertCircle,
   X,
   Info,
-  Percent,
   ArrowUpDown
 } from 'lucide-react-native';
 
@@ -63,24 +65,59 @@ export const TradingInterface: React.FC = () => {
   const AVAILABLE_MARKETS = Object.keys(MARKETS) as MarketName[];
 
   // Form state
-  const [market, setMarket] = useState<MarketName>('APT/USD'); // Default to APT/USD for Aptos testnet
+  const [market, setMarket] = useState<MarketName>('APT_USD'); // Default to APT/USD for Aptos
   const [showMarketSelector, setShowMarketSelector] = useState(false);
   const [side, setSide] = useState<'long' | 'short'>('long');
-  const [size, setSize] = useState('100');
-  const [collateral, setCollateral] = useState('10');
-  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+  // Get asset-specific limits and defaults based on Merkle Trade guide
+  const getAssetLimits = (marketPair: MarketName) => {
+    return {
+      minLeverage: merkleService.getMinLeverage(marketPair),
+      maxLeverage: merkleService.getMaxLeverage(marketPair),
+      minPositionSize: merkleService.getMinPositionSize(marketPair),
+      minCollateral: 2, // Always 2 USDC minimum
+    };
+  };
+
+  const getAssetDefaults = (marketPair: MarketName) => {
+    const limits = getAssetLimits(marketPair);
+    
+    // Calculate optimal starting values
+    const defaultCollateral = Math.max(limits.minCollateral, 10);
+    const defaultLeverage = Math.max(limits.minLeverage, Math.ceil(limits.minPositionSize / defaultCollateral));
+    const defaultSize = defaultCollateral * defaultLeverage;
+    
+    return {
+      size: defaultSize.toString(),
+      collateral: defaultCollateral.toString(),
+      leverage: defaultLeverage
+    };
+  };
+
+  // Get current asset limits
+  const assetLimits = getAssetLimits(market);
+  
+  const defaultValues = getAssetDefaults(market);
+  const [size, setSize] = useState(defaultValues.size);
+  const [collateral, setCollateral] = useState(defaultValues.collateral);
+  // Simplified - always market orders like Merkle (no order type selector)
   const [price, setPrice] = useState('6.25');
   
-  // Enhanced leverage trading features
-  const [leverage, setLeverage] = useState(10);
-  const [marginMode, setMarginMode] = useState<'cross' | 'isolated'>('isolated');
-  const [stopLoss, setStopLoss] = useState('0');
-  const [stopLossPercent, setStopLossPercent] = useState('0');
-  const [takeProfit, setTakeProfit] = useState('900');
-  const [takeProfitPercent, setTakeProfitPercent] = useState('900');
-  const [tpslEnabled, setTpslEnabled] = useState(false);
-  const [reduceOnly, setReduceOnly] = useState(false);
+  // Enhanced leverage trading features with asset-specific limits
+  const [leverage, setLeverage] = useState(defaultValues.leverage);
   const [showOrderPreview, setShowOrderPreview] = useState(false);
+  
+  // Chart and market data state (only candle charts)
+  const [chartType] = useState<'candle'>('candle');
+  const [timeframe, setTimeframe] = useState<'1m' | '5m' | '15m' | '1h' | '4h' | '1d'>('15m');
+  const [priceHistory, setPriceHistory] = useState<number[]>([]);
+  const [candleData, setCandleData] = useState<CandleData[]>([]);
+  const [marketData, setMarketData] = useState<RealMarketData | null>(null);
+  const [fundingRate, setFundingRate] = useState<number>(0);
+  const [nextFundingTime, setNextFundingTime] = useState<number>(0);
+  const [longOpenInterest, setLongOpenInterest] = useState<number>(0);
+  const [shortOpenInterest, setShortOpenInterest] = useState<number>(0);
+  const [dataLoading, setDataLoading] = useState<boolean>(true);
+  const [dataError, setDataError] = useState<string | null>(null);
   
   // Responsive spacing
   const spacing = {
@@ -100,29 +137,75 @@ export const TradingInterface: React.FC = () => {
     xl: getResponsiveValue({ xs: 20, sm: 22, md: 24, lg: 26, xl: 28 }, screenWidth),
   };
 
-  // Fetch and subscribe to live price data
-  useEffect(() => {
-    let unsubscribe: () => void;
+  // Fetch real market data
+  const fetchMarketData = useCallback(async () => {
+    try {
+      setDataLoading(true);
+      setDataError(null);
 
-    const fetchPrice = async () => {
-      const priceData = await priceService.getPrice(market);
-      if (priceData) {
-        setPrice(priceData.price.toString());
+      // Fetch current market data
+      const currentData = await realMarketDataService.getDetailedMarketData(market);
+      if (currentData) {
+        setMarketData(currentData);
+        setPrice(currentData.price.toFixed(2));
       }
-    };
 
-    fetchPrice();
+      // Fetch price history for line chart
+      const priceHistoryData = await realMarketDataService.getPriceHistory(market, 1);
+      if (priceHistoryData.length > 0) {
+        setPriceHistory(priceHistoryData);
+      }
 
-    unsubscribe = priceService.subscribeToPriceUpdates(market, (priceData) => {
-      setPrice(priceData.price.toString());
+      // Fetch candlestick data
+      const candlestickData = await realMarketDataService.getCandlestickData(market, 1);
+      if (candlestickData.length > 0) {
+        const formattedCandles: CandleData[] = candlestickData.map(candle => ({
+          time: candle.timestamp,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+          volume: candle.volume,
+          value: candle.close,
+          color: candle.close > candle.open ? '#10b981' : '#ef4444',
+          timestamp: candle.timestamp,
+        }));
+        setCandleData(formattedCandles);
+      }
+
+      // Fetch funding rate data
+      const fundingData = await realMarketDataService.getFundingRate(market);
+      if (fundingData) {
+        setFundingRate(fundingData.fundingRate);
+        setNextFundingTime(fundingData.nextFundingTime);
+      }
+
+      // Set mock open interest data (would come from futures exchanges in production)
+      setLongOpenInterest(Math.random() * 10000000);
+      setShortOpenInterest(Math.random() * 10000000);
+
+    } catch (error) {
+      console.error('Error fetching market data:', error);
+      setDataError('Failed to load market data');
+    } finally {
+      setDataLoading(false);
+    }
+  }, [market]);
+
+  // Initialize market data and set up real-time updates
+  useEffect(() => {
+    fetchMarketData();
+
+    // Subscribe to real-time price updates
+    const unsubscribe = realMarketDataService.subscribeToPrice(market, (data) => {
+      setMarketData(data);
+      setPrice(data.price.toFixed(2));
     });
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      unsubscribe();
     };
-  }, [market]);
+  }, [fetchMarketData, market]);
  
   const handleConnectExtension = async () => {
     try {
@@ -160,8 +243,8 @@ export const TradingInterface: React.FC = () => {
         side,
         size: parseFloat(size),
         collateral: parseFloat(collateral),
-        orderType,
-        price: orderType === 'limit' ? parseFloat(price) : undefined,
+        orderType: 'market', // Always market orders
+        price: undefined, // No limit price for market orders
       };
 
       const txHash = await placeOrder(orderParams);
@@ -178,51 +261,106 @@ export const TradingInterface: React.FC = () => {
     }).format(amount);
   };
 
-  // Helper functions for leverage calculations
+  // Helper functions for leverage calculations with asset-specific limits
   const handleLeverageChange = (value: number) => {
-    setLeverage(value);
-    const newCollateral = parseFloat(size) / value;
-    setCollateral(newCollateral.toFixed(2));
+    // Enforce asset-specific leverage limits
+    const clampedLeverage = Math.max(assetLimits.minLeverage, Math.min(assetLimits.maxLeverage, value));
+    setLeverage(clampedLeverage);
+    
+    // Update position size based on Formula 1: Position Size = Collateral × Leverage
+    const currentCollateral = parseFloat(collateral) || assetLimits.minCollateral;
+    const newSize = merkleService.calculatePositionSize(currentCollateral, clampedLeverage);
+    setSize(newSize.toFixed(2));
   };
 
   const handleSizeChange = (value: string) => {
     setSize(value);
     if (value && parseFloat(value) > 0) {
-      const newCollateral = parseFloat(value) / leverage;
-      setCollateral(newCollateral.toFixed(2));
+      const currentCollateral = parseFloat(collateral) || assetLimits.minCollateral;
+      // Formula 3: Leverage = Position Size / Collateral
+      const newLeverage = merkleService.calculateLeverage(parseFloat(value), currentCollateral);
+      const clampedLeverage = Math.max(assetLimits.minLeverage, Math.min(assetLimits.maxLeverage, Math.round(newLeverage)));
+      setLeverage(clampedLeverage);
+      
+      // Recalculate collateral to match the clamped leverage
+      const adjustedCollateral = parseFloat(value) / clampedLeverage;
+      setCollateral(adjustedCollateral.toFixed(2));
     }
   };
 
   const handleCollateralChange = (value: string) => {
     setCollateral(value);
-    if (value && parseFloat(value) > 0) {
-      const newLeverage = parseFloat(size) / parseFloat(value);
-      if (newLeverage >= 1 && newLeverage <= 100) {
-        setLeverage(Math.round(newLeverage));
-      }
+    if (value && parseFloat(value) >= assetLimits.minCollateral) {
+      const currentSize = parseFloat(size) || assetLimits.minPositionSize;
+      // Formula 3: Leverage = Position Size / Collateral
+      const newLeverage = merkleService.calculateLeverage(currentSize, parseFloat(value));
+      const clampedLeverage = Math.max(assetLimits.minLeverage, Math.min(assetLimits.maxLeverage, Math.round(newLeverage)));
+      setLeverage(clampedLeverage);
+      
+      // Recalculate size to match the clamped leverage
+      const adjustedSize = merkleService.calculatePositionSize(parseFloat(value), clampedLeverage);
+      setSize(adjustedSize.toFixed(2));
     }
   };
 
-  const setStopLossFromPercent = (percent: number) => {
-    setStopLossPercent(percent.toString());
-    setStopLoss(percent.toString());
+  // Helper to suggest minimum leverage for small collateral amounts
+  const getMinimumLeverageForTrade = () => {
+    const collateralAmount = parseFloat(collateral);
+    const minPositionSize = 300; // Crypto: 300 USDC
+    const minCollateral = 2; // Minimum: 2 USDC
+    
+    if (collateralAmount >= minCollateral && collateralAmount < minPositionSize) {
+      return Math.ceil(minPositionSize / collateralAmount);
+    }
+    return 3; // Minimum leverage for crypto
   };
 
-  const setTakeProfitFromPercent = (percent: number) => {
-    setTakeProfitPercent(percent.toString());
-    setTakeProfit(percent.toString());
+  const getSuggestedTradeSetup = () => {
+    const collateralAmount = parseFloat(collateral) || 2;
+    const minLeverage = getMinimumLeverageForTrade();
+    const suggestedSize = collateralAmount * minLeverage;
+    
+    return {
+      collateral: Math.max(2, collateralAmount),
+      leverage: minLeverage,
+      size: suggestedSize
+    };
   };
+
+  // Removed TP/SL functions - simplified like Merkle Trade
 
   const calculateExecutionPrice = () => {
-    return orderType === 'limit' ? parseFloat(price) : parseFloat(price) * 1.001;
+    // Always market orders now
+    return parseFloat(price) * 1.001;
   };
 
+  // Formula 4: Liquidation Price calculation from guide
   const calculateEstimatedLiqPrice = () => {
     const entryPrice = calculateExecutionPrice();
-    const liqPrice = side === 'long' 
-      ? entryPrice * (1 - 1 / leverage)
-      : entryPrice * (1 + 1 / leverage);
-    return liqPrice;
+    return merkleService.calculateLiquidationPrice({
+      entryPrice,
+      leverage,
+      isLong: side === 'long'
+    });
+  };
+
+  // Calculate price impact based on trade size
+  const calculatePriceImpact = () => {
+    const tradeSize = parseFloat(size) || 0;
+    const currentSkew = 0; // Would come from market data in production
+    return merkleService.calculatePriceImpact(currentSkew, tradeSize);
+  };
+
+  // Calculate trading fees
+  const calculateTradingFees = () => {
+    const positionSize = parseFloat(size) || 0;
+    return merkleService.calculateTradingFee(positionSize);
+  };
+
+  // Calculate profit cap for TP/SL validation
+  const calculateProfitCap = () => {
+    const collateralAmount = parseFloat(collateral) || 0;
+    return merkleService.calculateProfitCap(collateralAmount);
   };
 
   const calculateMaxSlippage = () => {
@@ -324,6 +462,293 @@ export const TradingInterface: React.FC = () => {
       contentContainerStyle={{ paddingBottom: spacing.xl }}
       showsVerticalScrollIndicator={false}
     >
+      {/* Market Overview & Chart Section */}
+      <Card style={[
+        styles.section, 
+        { 
+          backgroundColor: theme.colors.card,
+          padding: isMobile ? spacing.sm : spacing.lg,
+          marginHorizontal: isMobile ? spacing.xs : spacing.md,
+          marginBottom: isMobile ? spacing.md : spacing.lg,
+          borderRadius: theme.borderRadius.lg
+        }
+      ]}>
+        {/* Market Header */}
+        <View style={[
+          styles.marketHeader,
+          isMobile && { marginBottom: spacing.sm }
+        ]}>
+          <View style={styles.marketInfo}>
+            <Text style={[
+              styles.marketSymbol,
+              { 
+                color: theme.colors.textPrimary,
+                fontSize: fontSize.xl,
+                fontFamily: 'Inter-Bold'
+              }
+            ]}>{market}</Text>
+            <Text style={[
+              styles.marketPrice,
+              { 
+                color: theme.colors.textPrimary,
+                fontSize: fontSize.lg,
+                fontFamily: 'Inter-SemiBold'
+              }
+            ]}>
+              {dataLoading ? 'Loading...' : marketData ? `$${marketData.price.toFixed(2)}` : 'N/A'}
+            </Text>
+            <Text style={[
+              styles.marketChange,
+              { 
+                color: marketData && marketData.changePercent24h >= 0 ? theme.colors.positive : theme.colors.negative,
+                fontSize: fontSize.md,
+                fontFamily: 'Inter-Medium'
+              }
+            ]}>
+              {dataLoading ? '...' : marketData ? 
+                `${marketData.changePercent24h >= 0 ? '+' : ''}${marketData.changePercent24h.toFixed(2)}%` : 
+                'N/A'
+              }
+            </Text>
+          </View>
+          
+          {/* Market Stats - Compact Mobile Layout */}
+          <View style={[
+            styles.marketStats,
+            isMobile && {
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: spacing.xs,
+              marginBottom: spacing.sm
+            }
+          ]}>
+            <View style={[styles.statItem, isMobile && { 
+              flex: 0, 
+              minWidth: '48%',
+              backgroundColor: theme.colors.chip,
+              padding: spacing.xs,
+              borderRadius: 8
+            }]}>
+              <Text style={[styles.statLabel, { 
+                color: theme.colors.textSecondary, 
+                fontSize: isMobile ? fontSize.xs : fontSize.xs,
+                textAlign: 'center',
+                marginBottom: 2
+              }]}>
+                24h Volume
+              </Text>
+              <Text style={[styles.statValue, { 
+                color: theme.colors.textPrimary, 
+                fontSize: isMobile ? fontSize.xs : fontSize.sm,
+                textAlign: 'center',
+                fontFamily: 'Inter-SemiBold'
+              }]}>
+                {dataLoading ? '...' : marketData ? `$${(marketData.volume24h / 1e6).toFixed(1)}M` : 'N/A'}
+              </Text>
+            </View>
+            <View style={[styles.statItem, isMobile && { 
+              flex: 0, 
+              minWidth: '48%',
+              backgroundColor: theme.colors.chip,
+              padding: spacing.xs,
+              borderRadius: 8
+            }]}>
+              <Text style={[styles.statLabel, { 
+                color: theme.colors.textSecondary, 
+                fontSize: isMobile ? fontSize.xs : fontSize.xs,
+                textAlign: 'center',
+                marginBottom: 2
+              }]}>
+                Funding Rate
+              </Text>
+              <Text style={[
+                styles.statValue, 
+                { 
+                  color: fundingRate >= 0 ? theme.colors.positive : theme.colors.negative,
+                  fontSize: isMobile ? fontSize.xs : fontSize.sm,
+                  textAlign: 'center',
+                  fontFamily: 'Inter-SemiBold'
+                }
+              ]}>
+                {(fundingRate * 100).toFixed(3)}%
+              </Text>
+            </View>
+            <View style={[styles.statItem, isMobile && { 
+              flex: 0, 
+              minWidth: '48%',
+              backgroundColor: theme.colors.chip,
+              padding: spacing.xs,
+              borderRadius: 8
+            }]}>
+              <Text style={[styles.statLabel, { 
+                color: theme.colors.textSecondary, 
+                fontSize: isMobile ? fontSize.xs : fontSize.xs,
+                textAlign: 'center',
+                marginBottom: 2
+              }]}>
+                Long OI
+              </Text>
+              <Text style={[styles.statValue, { 
+                color: theme.colors.positive, 
+                fontSize: isMobile ? fontSize.xs : fontSize.sm,
+                textAlign: 'center',
+                fontFamily: 'Inter-SemiBold'
+              }]}>
+                ${(longOpenInterest / 1e6).toFixed(1)}M
+              </Text>
+            </View>
+            <View style={[styles.statItem, isMobile && { 
+              flex: 0, 
+              minWidth: '48%',
+              backgroundColor: theme.colors.chip,
+              padding: spacing.xs,
+              borderRadius: 8
+            }]}>
+              <Text style={[styles.statLabel, { 
+                color: theme.colors.textSecondary, 
+                fontSize: isMobile ? fontSize.xs : fontSize.xs,
+                textAlign: 'center',
+                marginBottom: 2
+              }]}>
+                Short OI
+              </Text>
+              <Text style={[styles.statValue, { 
+                color: theme.colors.negative, 
+                fontSize: isMobile ? fontSize.xs : fontSize.sm,
+                textAlign: 'center',
+                fontFamily: 'Inter-SemiBold'
+              }]}>
+                ${(shortOpenInterest / 1e6).toFixed(1)}M
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Chart Controls - Compact */}
+        <View style={[
+          styles.chartControls,
+          isMobile && {
+            marginBottom: spacing.xs,
+            paddingHorizontal: 0
+          }
+        ]}>
+          <Text style={[
+            {
+              color: theme.colors.textPrimary,
+              fontSize: isMobile ? fontSize.sm : fontSize.md,
+              fontFamily: 'Inter-SemiBold'
+            }
+          ]}>Candlestick Chart</Text>
+          
+          <View style={[
+            styles.timeframeSelector,
+            isMobile && {
+              gap: spacing.xs
+            }
+          ]}>
+            {(['1h', '4h', '1d'] as const).map((tf) => (
+              <Pressable
+                key={tf}
+                style={[
+                  styles.timeframeButton,
+                  timeframe === tf && styles.timeframeButtonActive,
+                  { 
+                    backgroundColor: timeframe === tf ? (typeof accent === 'string' ? accent : '#6366f1') : 'transparent',
+                    paddingHorizontal: isMobile ? spacing.sm : spacing.md,
+                    paddingVertical: isMobile ? spacing.xs : spacing.sm,
+                    borderRadius: 6,
+                    minWidth: isMobile ? 40 : 50
+                  }
+                ]}
+                onPress={() => setTimeframe(tf)}
+              >
+                <Text style={[
+                  styles.timeframeText,
+                  { 
+                    color: timeframe === tf ? '#FFFFFF' : theme.colors.textSecondary,
+                    fontSize: isMobile ? fontSize.xs : fontSize.sm,
+                    fontFamily: 'Inter-Medium',
+                    textAlign: 'center'
+                  }
+                ]}>{tf}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Chart Component */}
+        <View style={styles.chartContainer}>
+          {dataError ? (
+            <View style={{ 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              height: isMobile ? 200 : 300,
+              backgroundColor: theme.colors.chip,
+              borderRadius: theme.borderRadius.md,
+              padding: spacing.lg
+            }}>
+              <AlertCircle size={48} color={theme.colors.negative} />
+              <Text style={[
+                {
+                  color: theme.colors.textSecondary,
+                  fontSize: fontSize.md,
+                  fontFamily: 'Inter-Medium',
+                  marginTop: spacing.md,
+                  textAlign: 'center'
+                }
+              ]}>{dataError}</Text>
+              <Pressable
+                style={[
+                  {
+                    backgroundColor: typeof accent === 'string' ? accent : '#6366f1',
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.sm,
+                    borderRadius: theme.borderRadius.md,
+                    marginTop: spacing.md
+                  }
+                ]}
+                onPress={fetchMarketData}
+              >
+                <Text style={[
+                  {
+                    color: '#FFFFFF',
+                    fontSize: fontSize.sm,
+                    fontFamily: 'Inter-SemiBold'
+                  }
+                ]}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : dataLoading ? (
+            <View style={{ 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              height: isMobile ? 200 : 300,
+              backgroundColor: theme.colors.chip,
+              borderRadius: theme.borderRadius.md
+            }}>
+              <Activity size={32} color={theme.colors.textSecondary} />
+              <Text style={[
+                {
+                  color: theme.colors.textSecondary,
+                  fontSize: fontSize.md,
+                  fontFamily: 'Inter-Medium',
+                  marginTop: spacing.md
+                }
+              ]}>Loading chart data...</Text>
+            </View>
+          ) : (
+            <CandleChart
+              data={candleData}
+              height={isMobile ? 250 : 350}
+              width={screenWidth - (isMobile ? 32 : 64)}
+              accent={typeof accent === 'string' ? accent : '#6366f1'}
+              showGrid={true}
+              showVolume={true}
+            />
+          )}
+        </View>
+      </Card>
+
       {/* Wallet Connection Section */}
       <Card style={[
         styles.section, 
@@ -679,165 +1104,6 @@ export const TradingInterface: React.FC = () => {
             </View>
           </View>
 
-          {/* Order Type */}
-          <View style={styles.inputGroup}>
-            <Text style={[
-              styles.label,
-              {
-                color: theme.colors.textSecondary,
-                fontSize: fontSize.sm,
-                fontFamily: 'Inter-Medium',
-                marginBottom: spacing.sm
-              }
-            ]}>Order Type</Text>
-            <View style={[
-              styles.segmentedControl,
-              {
-                backgroundColor: theme.colors.chip,
-                borderRadius: theme.borderRadius.md,
-                padding: 4,
-                flexDirection: 'row'
-              }
-            ]}>
-              <Pressable
-                style={[
-                  styles.segment,
-                  {
-                    flex: 1,
-                    paddingVertical: spacing.md,
-                    borderRadius: theme.borderRadius.xs,
-                    backgroundColor: orderType === 'market' ? theme.colors.purple : 'transparent'
-                  }
-                ]}
-                onPress={() => setOrderType('market')}
-              >
-                <View style={styles.segmentContent}>
-                  <Zap size={18} color={orderType === 'market' ? '#FFFFFF' : theme.colors.purple} />
-                  <Text style={[
-                    styles.segmentText,
-                    {
-                      color: orderType === 'market' ? '#FFFFFF' : theme.colors.textPrimary,
-                      fontSize: fontSize.md,
-                      fontFamily: 'Inter-SemiBold',
-                      marginLeft: spacing.xs
-                    }
-                  ]}>Market</Text>
-                </View>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.segment,
-                  {
-                    flex: 1,
-                    paddingVertical: spacing.md,
-                    borderRadius: theme.borderRadius.xs,
-                    backgroundColor: orderType === 'limit' ? theme.colors.blue : 'transparent'
-                  }
-                ]}
-                onPress={() => setOrderType('limit')}
-              >
-                <View style={styles.segmentContent}>
-                  <Target size={18} color={orderType === 'limit' ? '#FFFFFF' : theme.colors.blue} />
-                  <Text style={[
-                    styles.segmentText,
-                    {
-                      color: orderType === 'limit' ? '#FFFFFF' : theme.colors.textPrimary,
-                      fontSize: fontSize.md,
-                      fontFamily: 'Inter-SemiBold',
-                      marginLeft: spacing.xs
-                    }
-                  ]}>Limit</Text>
-                </View>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Margin Mode Selection */}
-          <View style={styles.inputGroup}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
-              <Text style={[
-                styles.label,
-                {
-                  color: theme.colors.textSecondary,
-                  fontSize: fontSize.sm,
-                  fontFamily: 'Inter-Medium',
-                }
-              ]}>Margin Mode</Text>
-              <Pressable style={{ marginLeft: spacing.xs }}>
-                <Info size={14} color={theme.colors.textSecondary} />
-              </Pressable>
-            </View>
-            <View style={[
-              styles.segmentedControl,
-              {
-                backgroundColor: theme.colors.chip,
-                borderRadius: theme.borderRadius.md,
-                padding: 4,
-                flexDirection: 'row'
-              }
-            ]}>
-              <Pressable
-                style={[
-                  styles.segment,
-                  {
-                    flex: 1,
-                    paddingVertical: spacing.md,
-                    borderRadius: theme.borderRadius.xs,
-                    backgroundColor: marginMode === 'cross' ? theme.colors.purple : 'transparent'
-                  }
-                ]}
-                onPress={() => setMarginMode('cross')}
-              >
-                <View style={styles.segmentContent}>
-                  <Text style={[
-                    styles.segmentText,
-                    {
-                      color: marginMode === 'cross' ? '#FFFFFF' : theme.colors.textPrimary,
-                      fontSize: fontSize.md,
-                      fontFamily: 'Inter-SemiBold',
-                    }
-                  ]}>Cross</Text>
-                </View>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.segment,
-                  {
-                    flex: 1,
-                    paddingVertical: spacing.md,
-                    borderRadius: theme.borderRadius.xs,
-                    backgroundColor: marginMode === 'isolated' ? theme.colors.blue : 'transparent'
-                  }
-                ]}
-                onPress={() => setMarginMode('isolated')}
-              >
-                <View style={styles.segmentContent}>
-                  <Text style={[
-                    styles.segmentText,
-                    {
-                      color: marginMode === 'isolated' ? '#FFFFFF' : theme.colors.textPrimary,
-                      fontSize: fontSize.md,
-                      fontFamily: 'Inter-SemiBold',
-                    }
-                  ]}>Isolated</Text>
-                </View>
-              </Pressable>
-            </View>
-            <Text style={[
-              {
-                color: theme.colors.textSecondary,
-                fontSize: fontSize.xs,
-                fontFamily: 'Inter-Regular',
-                marginTop: spacing.xs,
-                fontStyle: 'italic'
-              }
-            ]}>
-              {marginMode === 'cross' 
-                ? '* Trading of margin modes only applies to the selected contract.' 
-                : '* Higher leverage increases risk. Manage it wisely.'}
-            </Text>
-          </View>
-
           {/* Leverage Slider */}
           <View style={styles.inputGroup}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
@@ -886,8 +1152,8 @@ export const TradingInterface: React.FC = () => {
               <Slider
                 value={leverage}
                 onValueChange={handleLeverageChange}
-                minimumValue={1}
-                maximumValue={100}
+                minimumValue={assetLimits.minLeverage}
+                maximumValue={assetLimits.maxLeverage}
                 step={1}
                 minimumTrackTintColor={theme.colors.purple}
                 maximumTrackTintColor={theme.colors.border}
@@ -905,7 +1171,19 @@ export const TradingInterface: React.FC = () => {
                 }}
               />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm }}>
-                {[1, 25, 50, 75, 100].map((val) => (
+                {(() => {
+                  // Generate asset-specific leverage presets
+                  const { minLeverage, maxLeverage } = assetLimits;
+                  const range = maxLeverage - minLeverage;
+                  const presets = [
+                    minLeverage,
+                    Math.round(minLeverage + range * 0.25),
+                    Math.round(minLeverage + range * 0.5),
+                    Math.round(minLeverage + range * 0.75),
+                    maxLeverage
+                  ];
+                  return presets;
+                })().map((val) => (
                   <Pressable
                     key={val}
                     onPress={() => handleLeverageChange(val)}
@@ -964,7 +1242,7 @@ export const TradingInterface: React.FC = () => {
                   ]}
                   value={size}
                   onChangeText={handleSizeChange}
-                  placeholder="5.500"
+                  placeholder={`Min: ${assetLimits.minPositionSize} USDC`}
                   placeholderTextColor={theme.colors.textSecondary}
                   keyboardType="numeric"
                 />
@@ -1040,7 +1318,7 @@ export const TradingInterface: React.FC = () => {
                   ]}
                   value={collateral}
                   onChangeText={handleCollateralChange}
-                  placeholder="0.001"
+                  placeholder={`Min: ${assetLimits.minCollateral} USDC`}
                   placeholderTextColor={theme.colors.textSecondary}
                   keyboardType="numeric"
                 />
@@ -1057,242 +1335,75 @@ export const TradingInterface: React.FC = () => {
             </View>
           </View>
 
-          {/* Price Input (for limit orders) */}
-          {orderType === 'limit' && (
-            <View style={styles.inputGroup}>
+          {/* Trading Summary - Key Metrics from Merkle Guide */}
+          {parseFloat(size) > 0 && parseFloat(collateral) > 0 && (
+            <View style={[
+              {
+                backgroundColor: theme.colors.chip,
+                padding: spacing.md,
+                borderRadius: theme.borderRadius.md,
+                marginTop: spacing.md,
+                borderWidth: 1,
+                borderColor: theme.colors.border
+              }
+            ]}>
               <Text style={[
-                styles.label,
                 {
-                  color: theme.colors.textSecondary,
+                  color: theme.colors.textPrimary,
                   fontSize: fontSize.sm,
-                  fontFamily: 'Inter-Medium',
+                  fontFamily: 'Inter-SemiBold',
                   marginBottom: spacing.sm
                 }
-              ]}>Price (USD)</Text>
-              <View style={[
-                styles.inputContainer,
-                {
-                  backgroundColor: theme.colors.chip,
-                  borderRadius: theme.borderRadius.md,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border
-                }
-              ]}>
-                <Target size={20} color={theme.colors.textSecondary} style={{ marginLeft: spacing.md }} />
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      color: theme.colors.textPrimary,
-                      fontSize: fontSize.md,
-                      fontFamily: 'Inter-Medium',
-                      flex: 1,
-                      paddingHorizontal: spacing.md,
-                      paddingVertical: spacing.md
-                    }
-                  ]}
-                  value={price}
-                  onChangeText={setPrice}
-                  placeholder="6.25"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  keyboardType="numeric"
-                />
+              ]}>📊 Trade Summary</Text>
+              
+              <View style={{ }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                  <Text style={[{ color: theme.colors.textSecondary, fontSize: fontSize.xs, fontFamily: 'Inter-Medium' }]}>
+                    Position Size
+                  </Text>
+                  <Text style={[{ color: theme.colors.textPrimary, fontSize: fontSize.xs, fontFamily: 'Inter-SemiBold' }]}>
+                    ${parseFloat(size).toFixed(2)} USDC
+                  </Text>
+                </View>
+                
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                  <Text style={[{ color: theme.colors.textSecondary, fontSize: fontSize.xs, fontFamily: 'Inter-Medium' }]}>
+                    Liquidation Price
+                  </Text>
+                  <Text style={[{ color: theme.colors.negative, fontSize: fontSize.xs, fontFamily: 'Inter-SemiBold' }]}>
+                    ${calculateEstimatedLiqPrice().toFixed(4)}
+                  </Text>
+                </View>
+                
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                  <Text style={[{ color: theme.colors.textSecondary, fontSize: fontSize.xs, fontFamily: 'Inter-Medium' }]}>
+                    Trading Fee
+                  </Text>
+                  <Text style={[{ color: theme.colors.textPrimary, fontSize: fontSize.xs, fontFamily: 'Inter-SemiBold' }]}>
+                    ${calculateTradingFees().toFixed(2)}
+                  </Text>
+                </View>
+                
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs }}>
+                  <Text style={[{ color: theme.colors.textSecondary, fontSize: fontSize.xs, fontFamily: 'Inter-Medium' }]}>
+                    Price Impact
+                  </Text>
+                  <Text style={[{ color: theme.colors.textPrimary, fontSize: fontSize.xs, fontFamily: 'Inter-SemiBold' }]}>
+                    {(calculatePriceImpact() * 100).toFixed(3)}%
+                  </Text>
+                </View>
+                
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={[{ color: theme.colors.textSecondary, fontSize: fontSize.xs, fontFamily: 'Inter-Medium' }]}>
+                    Profit Cap (900%)
+                  </Text>
+                  <Text style={[{ color: theme.colors.textPrimary, fontSize: fontSize.xs, fontFamily: 'Inter-SemiBold' }]}>
+                    ${calculateProfitCap().toFixed(2)}
+                  </Text>
+                </View>
               </View>
             </View>
           )}
-
-          {/* Stop Loss & Take Profit Section */}
-          <View style={styles.inputGroup}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm }}>
-              <Text style={[
-                styles.label,
-                {
-                  color: theme.colors.textSecondary,
-                  fontSize: fontSize.sm,
-                  fontFamily: 'Inter-Medium',
-                }
-              ]}>Stop Loss</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={[
-                  {
-                    color: theme.colors.textSecondary,
-                    fontSize: fontSize.xs,
-                    fontFamily: 'Inter-Regular',
-                    marginRight: spacing.xs
-                  }
-                ]}>USDC</Text>
-                <Pressable>
-                  <Percent size={14} color={theme.colors.textSecondary} />
-                </Pressable>
-              </View>
-            </View>
-            <View style={[
-              styles.inputContainer,
-              {
-                backgroundColor: theme.colors.chip,
-                borderRadius: theme.borderRadius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border
-              }
-            ]}>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    color: theme.colors.textPrimary,
-                    fontSize: fontSize.md,
-                    fontFamily: 'Inter-Medium',
-                    flex: 1,
-                    paddingHorizontal: spacing.md,
-                    paddingVertical: spacing.md
-                  }
-                ]}
-                value={stopLoss}
-                onChangeText={setStopLoss}
-                placeholder="0"
-                placeholderTextColor={theme.colors.textSecondary}
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm }}>
-              {[0, -10, -25, -50, -75].map((percent) => (
-                <Pressable
-                  key={percent}
-                  onPress={() => setStopLossFromPercent(percent)}
-                  style={{
-                    backgroundColor: percent === 0 ? theme.colors.chip : `${theme.colors.negative}20`,
-                    paddingHorizontal: spacing.sm,
-                    paddingVertical: spacing.xs,
-                    borderRadius: theme.borderRadius.xs,
-                    borderWidth: percent === 0 ? 0 : 1,
-                    borderColor: percent === 0 ? 'transparent' : theme.colors.negative,
-                  }}
-                >
-                  <Text style={[
-                    {
-                      color: percent === 0 ? theme.colors.textSecondary : theme.colors.negative,
-                      fontSize: fontSize.xs,
-                      fontFamily: 'Inter-SemiBold',
-                    }
-                  ]}>{percent === 0 ? '0%' : `${percent}%`}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm }}>
-              <Text style={[
-                styles.label,
-                {
-                  color: theme.colors.textSecondary,
-                  fontSize: fontSize.sm,
-                  fontFamily: 'Inter-Medium',
-                }
-              ]}>Take Profit</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={[
-                  {
-                    color: theme.colors.textSecondary,
-                    fontSize: fontSize.xs,
-                    fontFamily: 'Inter-Regular',
-                    marginRight: spacing.xs
-                  }
-                ]}>USDC</Text>
-                <Pressable>
-                  <Percent size={14} color={theme.colors.textSecondary} />
-                </Pressable>
-              </View>
-            </View>
-            <View style={[
-              styles.inputContainer,
-              {
-                backgroundColor: theme.colors.chip,
-                borderRadius: theme.borderRadius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border
-              }
-            ]}>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    color: theme.colors.textPrimary,
-                    fontSize: fontSize.md,
-                    fontFamily: 'Inter-Medium',
-                    flex: 1,
-                    paddingHorizontal: spacing.md,
-                    paddingVertical: spacing.md
-                  }
-                ]}
-                value={takeProfit}
-                onChangeText={setTakeProfit}
-                placeholder="900"
-                placeholderTextColor={theme.colors.textSecondary}
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm }}>
-              {[25, 50, 100, 300, 900].map((percent) => (
-                <Pressable
-                  key={percent}
-                  onPress={() => setTakeProfitFromPercent(percent)}
-                  style={{
-                    backgroundColor: `${theme.colors.positive}20`,
-                    paddingHorizontal: spacing.sm,
-                    paddingVertical: spacing.xs,
-                    borderRadius: theme.borderRadius.xs,
-                    borderWidth: 1,
-                    borderColor: theme.colors.positive,
-                  }}
-                >
-                  <Text style={[
-                    {
-                      color: theme.colors.positive,
-                      fontSize: fontSize.xs,
-                      fontFamily: 'Inter-SemiBold',
-                    }
-                  ]}>{percent}%</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* TP/SL and Reduce Only Toggles */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: spacing.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Switch
-                value={tpslEnabled}
-                onValueChange={setTpslEnabled}
-                trackColor={{ false: theme.colors.border, true: theme.colors.positive }}
-                thumbColor={tpslEnabled ? '#FFFFFF' : theme.colors.textSecondary}
-              />
-              <Text style={[
-                {
-                  color: theme.colors.textPrimary,
-                  fontSize: fontSize.sm,
-                  fontFamily: 'Inter-Medium',
-                  marginLeft: spacing.sm
-                }
-              ]}>TP/SL</Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Switch
-                value={reduceOnly}
-                onValueChange={setReduceOnly}
-                trackColor={{ false: theme.colors.border, true: theme.colors.blue }}
-                thumbColor={reduceOnly ? '#FFFFFF' : theme.colors.textSecondary}
-              />
-              <Text style={[
-                {
-                  color: theme.colors.textPrimary,
-                  fontSize: fontSize.sm,
-                  fontFamily: 'Inter-Medium',
-                  marginLeft: spacing.sm
-                }
-              ]}>Reduce only</Text>
-            </View>
-          </View>
 
           {/* Preview Order Button */}
           <AnimatedButton
@@ -1368,6 +1479,107 @@ export const TradingInterface: React.FC = () => {
                     flex: 1
                   }
                 ]}>{tradingError}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Trading Guide for Small Amounts */}
+          {(() => {
+            const minPositionSize = 300; // Mainnet requirement
+            const minCollateral = 2; // Mainnet requirement
+            const collateralAmount = parseFloat(collateral);
+            
+            return collateralAmount < minPositionSize && collateralAmount >= minCollateral;
+          })() && (
+            <View style={[
+              {
+                backgroundColor: `${theme.colors.blue}20`,
+                padding: spacing.md,
+                borderRadius: theme.borderRadius.md,
+                marginTop: spacing.md,
+                borderWidth: 1,
+                borderColor: theme.colors.blue
+              }
+            ]}>
+              <View style={styles.errorContent}>
+                <Info size={20} color={theme.colors.blue} />
+                <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                  <Text style={[
+                    {
+                      color: theme.colors.blue,
+                      fontSize: fontSize.sm,
+                      fontFamily: 'Inter-SemiBold',
+                      marginBottom: spacing.xs
+                    }
+                  ]}>💡 Crypto Trading Guide</Text>
+                  <Text style={[
+                    {
+                      color: theme.colors.textSecondary,
+                      fontSize: fontSize.xs,
+                      fontFamily: 'Inter-Medium',
+                      lineHeight: fontSize.xs * 1.4
+                    }
+                  ]}>
+                    Crypto pairs: 3× – 150× leverage • Min: 300 USDC position • With {collateral} USDC collateral, use {getMinimumLeverageForTrade()}× leverage minimum.
+                  </Text>
+                  <View style={{ flexDirection: 'row', marginTop: spacing.sm }}>
+                    <Pressable
+                      style={[
+                        {
+                          backgroundColor: theme.colors.blue,
+                          paddingHorizontal: spacing.md,
+                          paddingVertical: spacing.xs,
+                          borderRadius: theme.borderRadius.md,
+                          flex: 1,
+                          marginRight: spacing.xs
+                        }
+                      ]}
+                      onPress={() => {
+                        const suggested = getSuggestedTradeSetup();
+                        setCollateral(suggested.collateral.toString());
+                        setLeverage(suggested.leverage);
+                        setSize(suggested.size.toString());
+                      }}
+                    >
+                      <Text style={[
+                        {
+                          color: '#FFFFFF',
+                          fontSize: fontSize.xs,
+                          fontFamily: 'Inter-SemiBold',
+                          textAlign: 'center'
+                        }
+                      ]}>Use {getMinimumLeverageForTrade()}x Leverage</Text>
+                    </Pressable>
+                    
+                    <Pressable
+                      style={[
+                        {
+                          backgroundColor: theme.colors.positive,
+                          paddingHorizontal: spacing.md,
+                          paddingVertical: spacing.xs,
+                          borderRadius: theme.borderRadius.md,
+                          flex: 1,
+                          marginLeft: spacing.xs
+                        }
+                      ]}
+                      onPress={() => {
+                        // Setup for 3 USDC (your wallet balance)
+                        setCollateral('3');
+                        setLeverage(100); // 3 × 100 = 300 USDC position
+                        setSize('300');
+                      }}
+                    >
+                      <Text style={[
+                        {
+                          color: '#FFFFFF',
+                          fontSize: fontSize.xs,
+                          fontFamily: 'Inter-SemiBold',
+                          textAlign: 'center'
+                        }
+                      ]}>Use 3 USDC (100x)</Text>
+                    </Pressable>
+                  </View>
+                </View>
               </View>
             </View>
           )}
@@ -2049,6 +2261,92 @@ const styles = StyleSheet.create({
   },
   marketOption: {
     // Dynamic styles applied inline
+  },
+  // Chart-related styles
+  marketHeader: {
+    marginBottom: 12,
+  },
+  marketInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  marketSymbol: {
+    // Dynamic styles applied inline
+  },
+  marketPrice: {
+    // Dynamic styles applied inline
+  },
+  marketChange: {
+    // Dynamic styles applied inline
+  },
+  marketStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  marketStatsMobile: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statLabel: {
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  statValue: {
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  chartControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  chartTypeSelector: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+    padding: 2,
+  },
+  chartTypeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  chartTypeButtonActive: {
+    // Background color applied inline
+  },
+  chartTypeText: {
+    fontWeight: '500',
+  },
+  timeframeSelector: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+    padding: 2,
+    gap: 2,
+  },
+  timeframeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  timeframeButtonActive: {
+    // Background color applied inline
+  },
+  timeframeText: {
+    fontWeight: '500',
+  },
+  chartContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
   },
 });
 

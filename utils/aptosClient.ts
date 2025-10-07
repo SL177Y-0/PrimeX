@@ -48,13 +48,13 @@ export const aptosClient = new Aptos(aptosConfig);
 // Merkle Trade contract configuration
 export const MERKLE_CONTRACT_ADDRESS = MERKLE_CONFIG.contractAddress;
 
-// Trading function identifiers
+// Trading function identifiers - using managed_trading module for entry functions
 export const TRADING_FUNCTIONS = {
-  PLACE_ORDER: buildFunctionId('place_order_v3'),
-  CANCEL_ORDER: buildFunctionId('cancel_order_v3'),
-  CLOSE_POSITION: buildFunctionId('execute_exit_position_v3'),
-  UPDATE_POSITION_TP_SL: buildFunctionId('update_position_tp_sl_v3'),
-  INITIALIZE_USER: buildFunctionId('initialize_user_if_needed'),
+  PLACE_ORDER: buildFunctionId('place_order_v3', 'managed_trading'),
+  CANCEL_ORDER: buildFunctionId('cancel_order_v3', 'managed_trading'),
+  CLOSE_POSITION: buildFunctionId('execute_exit_position_v3', 'managed_trading'),
+  UPDATE_POSITION_TP_SL: buildFunctionId('update_position_tp_sl_v3', 'managed_trading'),
+  INITIALIZE_USER: buildFunctionId('initialize_user_if_needed', 'managed_trading'),
 };
 
 // Market configuration

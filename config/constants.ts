@@ -7,8 +7,9 @@ export const APP_CONFIG = {
 } as const;
 
 // Aptos Network Configuration
+// NOTE: Merkle Trade only exists on MAINNET, not testnet
 export const APTOS_CONFIG = {
-  network: process.env.EXPO_PUBLIC_APTOS_NETWORK || 'mainnet',
+  network: process.env.EXPO_PUBLIC_APTOS_NETWORK || 'mainnet', // Force mainnet for Merkle Trade
   nodeUrl: process.env.EXPO_PUBLIC_APTOS_NODE_URL || 'https://fullnode.mainnet.aptoslabs.com/v1',
   testnetUrl: 'https://fullnode.testnet.aptoslabs.com/v1',
   apiKeys: {
@@ -66,34 +67,73 @@ export const EVENT_TYPES = {
   UPDATE_TPSL_EVENT: 'UpdateTPSLEvent',
 } as const;
 
+// Merkle Asset Type Arguments (from Merkle Trade mainnet deployment)
+export const MERKLE_ASSET_TYPES = {
+  // Base asset type address
+  ASSET_ADDRESS: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset',
+  
+  // Supported assets
+  APT: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::APT',
+  BTC: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::BTC',
+  ETH: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::ETH',
+  SOL: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::SOL',
+  DOGE: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::DOGE',
+  USDC: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC',
+} as const;
+
 // Market Configuration
+// NOTE: Keys use underscore format (APT_USD) to match Merkle's pair naming convention
 export const MARKETS = {
-  'APT/USD': {
+  'APT_USD': {
     id: '1',
     name: 'APT/USD',
     baseAsset: 'APT',
     quoteAsset: 'USD',
     decimals: 8,
     minSize: 0.01,
-    maxLeverage: 50,
+    maxLeverage: 150,
+    // Merkle type arguments: [Collateral, Asset]
+    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.APT],
   },
-  'BTC/USD': {
+  'BTC_USD': {
     id: '2',
     name: 'BTC/USD',
     baseAsset: 'BTC',
     quoteAsset: 'USD',
     decimals: 8,
     minSize: 0.001,
-    maxLeverage: 100,
+    maxLeverage: 150,
+    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.BTC],
   },
-  'ETH/USD': {
+  'ETH_USD': {
     id: '3',
     name: 'ETH/USD',
     baseAsset: 'ETH',
     quoteAsset: 'USD',
     decimals: 8,
     minSize: 0.01,
-    maxLeverage: 75,
+    maxLeverage: 150,
+    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.ETH],
+  },
+  'SOL_USD': {
+    id: '4',
+    name: 'SOL/USD',
+    baseAsset: 'SOL',
+    quoteAsset: 'USD',
+    decimals: 8,
+    minSize: 0.1,
+    maxLeverage: 150,
+    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.SOL],
+  },
+  'DOGE_USD': {
+    id: '5',
+    name: 'DOGE/USD',
+    baseAsset: 'DOGE',
+    quoteAsset: 'USD',
+    decimals: 8,
+    minSize: 1,
+    maxLeverage: 150,
+    typeArguments: [MERKLE_ASSET_TYPES.USDC, MERKLE_ASSET_TYPES.DOGE],
   },
 } as const;
 

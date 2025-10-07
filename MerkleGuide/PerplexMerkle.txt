@@ -1,0 +1,341 @@
+# Replicating Merkle Trade’s Leverage Trading (Aptos) in a React Native App with Petra Wallet (Updated October 2025)
+
+Key takeaway: The fastest, safest way to replicate Merkle Trade’s leveraged trading UX and features on Aptos in a React Native app is to use Merkle’s official TypeScript SDK for order payloads, REST/WebSocket APIs for data and realtime, Aptos Wallet Adapter/WalletConnect or Petra deep links for signing, and the trading module ABI for exact event streams. Build the interface around APTOS/USDC with Petra deep links you already have, then wire identical flows: fund, place market/limit, manage positions (add collateral, SL/TP), close/partial close, fetch feeds, funding, fees, skew, cooldown, and pair limits across testnet and mainnet. The sections below give precise, production-oriented steps for client and backend, with exact endpoints, payload patterns, and event types.
+
+## What Merkle Trade Offers (to replicate)
+
+- Market and Limit orders with leverage up to 150x (crypto), 1000x (forex). Minimum position/collateral rules and trade cooldown enforced on-chain. Funding, rollover fees, and price impact built in. Positions, Orders, and History tabs; position management actions include Add Collateral, Update SL/TP, Close and Partial Close with keep-leverage option. Pairs include crypto, forex, metals, with summary widgets showing Index price, Funding rate (per hour), Market skew, and leverage sliders.[1][2][3][4][5][6][7][8]
+
+- Trading constraints: minimum position size (Crypto 300 USDC; Commodities 600 USDC; Forex 1500 USDC), minimum collateral 2 USDC, profit cap around 900%, per-pair max OI and skew limits, trade cooldown ~60 seconds where profitable closes are blocked; TP activates after cooldown. Mark price includes price impact.[4]
+
+- Position lifecycle and management: open long/short, add collateral to reduce leverage/avoid liquidation, update TP/SL, full or partial close with keep-leverage collateral-return behavior.[5]
+
+- Developer resources: official TypeScript SDK offering trading payload builders, REST APIs for pairs, orders, positions, history, and WebSocket subscriptions for realtime price/account updates.[7]
+
+- On-chain contract/module: trading module (address below) exposes place/cancel/execute order, execute exit position, update TP/SL, and emits PlaceOrderEvent and PositionEvent; PairInfo/PairState define limits and state (OI, funding, fees).[9][10]
+
+## Smart Contract Anchor (Mainnet)
+
+- Merkle Trade core contract account (mainnet): 0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06. Trading module ABI exposes functions:
+  - place_order / place_order_v3 (user order creation)
+  - cancel_order / cancel_order_v3
+  - execute_order(_v2/_v3, all/self variants)
+  - execute_exit_position(_v2/_v3)
+  - update_position_tp_sl(_v3)
+  - initialize_user_if_needed
+  - Admin caps and param setters
+  - Structs: Order, Position, PairInfo, PairState
+  - Events: PlaceOrderEvent, CancelOrderEvent, PositionEvent, TradingEvents with event handles (place_order_events, cancel_order_events, position_events).[10][9]
+
+Note: The trading module exposes public functions (is_entry=false) and uses executors/keepers. Apps submit place_order and cancel_order as signed user calls; executors then execute orders and exits according to protocol rules (per audit).[10]
+
+## Networks and Environments
+
+- Mainnet REST: https://fullnode.mainnet.aptoslabs.com/v1 and WebSocket per your infra.
+- Testnet REST: https://fullnode.testnet.aptoslabs.com/v1.
+- Merkle SDK config: MerkleClientConfig.mainnet() and MerkleClientConfig.testnet() with built-in endpoints for Merkle APIs and WS.[7]
+- Petra Wallet: desktop web injection; for mobile RN use Wallet Adapter with deep links or WalletConnect v2; Petra Mobile deep-link spec is documented with connect, disconnect, signAndSubmit flows.[11][12][13][14]
+
+## Architecture Overview
+
+- Frontend (React Native):
+  - Wallet connect: Petra deep link or WalletConnect via Aptos Wallet Adapter; you already have Petra deep link in place, keep that and/or add WalletConnect for robustness.[12][14]
+  - Data: Merkle REST for pairs/positions/orders/history, Merkle WS for prices and account updates, price + index widgets, funding/skew display.[6][7]
+  - Trading: build payloads via Merkle TS SDK (market/limit, cancel, update TP/SL). For direct on-chain calls, follow ABI signatures precisely.[9][7]
+  - Compliance to trading constraints and cooldown UI states.[4][5]
+
+- Backend (Optional but recommended):
+  - Event indexer: subscribe to Merkle account events (PlaceOrderEvent, PositionEvent) for your users, store normalized ledger for portfolio/history, set webhooks to the app.
+  - Price/cache service: cache pair info, funding/skew, mark price, min/max leverage, min size/collateral, to accelerate UI.
+  - Risk checks: simulate with SDK calc functions (price impact, funding/rollover accrual, pnlWithoutFee) to power pre-trade previews.[7]
+  - Alerts: websockets → push notifications for TP/SL triggers or execution status.
+
+This split lets the RN app stay thin and responsive while the backend provides reliability, normalization, and analytics.
+
+## Detailed Implementation Guide
+
+### 1) Wallet Integration on Mobile (React Native)
+
+Two approaches work well:
+
+A. Petra Deep Linking (you already use this)
+- Petra mobile deep-link base: petra://api/v1 with endpoints /connect, /disconnect, /signAndSubmit. Data is base64-encoded JSON, with appInfo, redirectLink, and public encryption key. After /connect, establish shared encryption key (curve25519-nacl) to encrypt subsequent payloads. Use Linking.addEventListener to capture callbacks and decrypt payloads. Use /signAndSubmit to deliver encrypted entry function payloads to Petra and get tx result.[14]
+- Benefits: direct Petra UX, minimal dependencies.
+- Considerations: implement encryption/nonces correctly and store shared key securely; handle approval/rejection flows and errors.[14]
+
+B. WalletConnect v2 via Aptos Wallet Adapter
+- For RN, use the Aptos Wallet Adapter with a WalletConnect-compatible Petra mobile flow. This gives standard connect, signAndSubmitTransaction, onAccountChange/onNetworkChange events. It also simplifies multi-wallet support.[15][16][17][12]
+- Benefits: standard AIP-62 interface, event listeners, multi-wallet.
+- Considerations: configure deeplinkProvider/mobile support in adapter, handle network selection (mainnet/testnet).[17][12]
+
+Recommendation: Keep Petra deep link as primary and add Wallet Adapter for WalletConnect as fallback to improve reliability on both Android/iOS.[12][14]
+
+### 2) Pair Data, Index Price, Funding, Skew, and Constraints
+
+- Use Merkle SDK REST to fetch:
+  - getSummary, getPairInfo, getAllPairInfos, getPairState (includes long/short OI, funding rate, acc fees, next_order_id; PairInfo includes min/max leverage, maker/taker fees, rollover per timestamp, skew factor, max OI, market depth, liquidation threshold, minimums).[9][7]
+- UI should show:
+  - Index price, mark price, 24h change (from SDK or WS), Funding rate (per hour), Market skew, Pair min/max leverage; display “Safe” to “Degen” leverage scale; minimum position and collateral checks on form.[6][4][7]
+- Price/Feed:
+  - Use SDK subscribePriceFeed for realtime. Mark price includes price impact; if simulating, calc via SDK calcPriceImpact and calcNewPrice.[4][7]
+
+### 3) Orders and Positions
+
+- Market order payload (SDK): merkle.payloads.placeMarketOrder({ pair: "APT_USDC" (or "APT_USD" per pair naming), userAddress, sizeDelta (position notional), collateralDelta, isLong, isIncrease }) → returns transaction payload to sign and submit via Petra mobile deep link or Wallet Adapter signAndSubmitTransaction. Similar for placeLimitOrder with target price.[7]
+- Cancel order: merkle.payloads.cancelOrder({ userAddress, orderId }).[7]
+- Update SL/TP: merkle.payloads.updateTPSL({ userAddress, pair, stopLoss, takeProfit }) with v3 where applicable; on-chain trading.update_position_tp_sl_v3 requires address + flags and u64 params.[9][7]
+- Partial close: exit via execute_exit_position_v3; in your UI offer percentage slider and keep-leverage toggle. “Keep leverage” sends collateral back to maintain same leverage on remaining position.[5][9]
+- Cooldown: enforce 60s profitable-close block on UI (submit close if loss is acceptable; TP active after 60s).[4]
+
+Mapping to ABI:
+- Orders: place_order/place_order_v3 require: (&signer, address (pair type registry or executor?), u64 sizeDelta, u64 collateralDelta, u64 price (for limit), bool is_long, bool is_increase, bool is_market, u64 stop_loss, u64 take_profit, bool can_execute_above_price) depending on version; prefer SDK to validate field meanings and scaling.[9][7]
+- Position changes: execute_exit_position(_v3) has (&signer, address, bool is_long, u64 order_id or position key, vector<u8> (oracle data), &ExecuteCapability/ExecuteCapabilityV3). Keepers/executors are used; SDK abstracts.[10][9]
+
+Events:
+- PlaceOrderEvent fields: user, order_id, size_delta, collateral_delta, price, is_long, is_increase, is_market; also pair_type/collateral_type TypeInfo.[9]
+- PositionEvent fields: user, order_id, is_long, price, original_size, size_delta, original_collateral, collateral_delta, is_increase, is_partial, pnl_without_fee, is_profit, entry_exit_fee, funding_fee, is_funding_fee_profit, rollover_fee, long_open_interest, short_open_interest. Use to build PnL and history without off-chain math for final values.[9]
+
+### 4) APTOS/USDC Pair and Wallet
+
+- Pair naming: Merkle UI shows APT pricing; SDK pair keys use underscores like "BTC_USD"; for APT typically "APT_USD" (USD settlement) or “APT_USDC” depending on SDK response. Confirm via getAllPairInfos and use the exact key returned in SDK/REST.[6][7]
+- Collateral type: Merkle runs single-sided USDC liquidity pool; positions are USDC-collateralized. In UI default PAY=USDC and show APT/USDC exposure.[6][4][7]
+- Wallet: Petra addresses are Aptos account addresses; both testnet and mainnet supported. For mobile, deep link flow documented above.[14]
+
+### 5) Client-Side Implementation (React Native)
+
+A. Dependencies
+- aptos or @aptos-labs/ts-sdk for chain client; @merkletrade/ts-sdk for payloads and APIs; linking or Wallet Adapter for wallet; victory-native for charts; any ws client for realtime.[12][7]
+
+B. Wallet connect
+- Petra Deep Link:
+  - Implement /connect and capture redirect to obtain shared key; persist it.
+  - For each trade: build payload (see below), encrypt as hex with shared key + random nonce, base64-encode deep-link data, open petra://api/v1/signAndSubmit?data=…; handle response on redirect.[14]
+- Or Wallet Adapter:
+  - Provide AptosWalletAdapterProvider; connect to Petra; use signAndSubmitTransaction({ data: entry_function_payload }).[16][12]
+
+C. Build trading flows with SDK
+- Place Market Order:
+  - Use merkle.payloads.placeMarketOrder({ pair, userAddress, sizeDelta (notional in 6 decimals), collateralDelta (USDC in 6 decimals), isLong, isIncrease }) → returns Aptos payload. Sign via selected wallet. Wait for finalization and refresh positions/orders.[7]
+- Place Limit Order:
+  - merkle.payloads.placeLimitOrder({ ... price }).[7]
+- Cancel:
+  - merkle.payloads.cancelOrder({ userAddress, orderId }).[7]
+- Update TP/SL:
+  - merkle.payloads.updateTPSL({ userAddress, pair, stopLoss, takeProfit }).[7]
+- Get data:
+  - merkle.getPairInfo / getPairState / getPositions(user) / getOrders(user) / getTradingHistory(user).[7]
+
+D. Realtime
+- Use SDK subscribePriceFeed(pair) to render chart/mark price and subscribeAccountFeed(userAddress) for positions/orders updates without polling. Reconnect logic and heartbeats recommended.[7]
+
+E. UI enforcement
+- Respect constraints: min position size, min collateral, min/max leverage, profit cap warning, max OI/skew denial. Disable profitable close within 60s; show countdown. Show funding/rollover impact and fees preview via calc utils.[5][4][7]
+
+F. Error handling
+- Display detailed execution failures: max skew reached, min size, insufficient collateral, cooldown, or oracle data lag. Provide “Include Fees” toggle to show inclusive PnL like Merkle UI.[5][6][7]
+
+### 6) Backend Service (Recommended)
+
+- Event Indexer:
+  - Poll Aptos REST by account for events under Merkle’s TradingEvents handle or per-user UserTradingEvents if exposed; at minimum, index PlaceOrderEvent, PositionEvent for each connected user address to build history and state. Persist tx version, sequence numbers for idempotency.[9]
+  - Alternatively, integrate Merkle SDK REST getOrders/getPositions and reconcile against chain versions.[7]
+
+- Price/Pair Cache:
+  - Regularly cache getAllPairInfos and getAllPairStates. Provide a compact JSON for your app including index price, funding rate, skew, OI, min/max leverage, fees, liquidation threshold, execution_fee. Update every few seconds.[9][7]
+
+- Realtime:
+  - Server WS that bridges Merkle subscribePriceFeed and account feed, pushing to your app with your auth.
+
+- Pre-trade Simulations:
+  - Use SDK calc utils: calcPriceImpact, calcPnlWithoutFee, calcFundingFee, calcRolloverFee, calcAccFundingFeePerSize; serve previews to client.[7]
+
+- Notifications:
+  - Monitor PositionEvent for SL/TP or liquidation signatures (event_type and pnl flags). Push notifications to the app.
+
+- Security:
+  - Do not sign on behalf of users; wallets must sign. Never store private keys. Only store address mappings and public data.
+
+### 7) Testnet and Mainnet Setup
+
+A. Testnet
+- Configure SDK: new MerkleClient(await MerkleClientConfig.testnet()).[7]
+- Wallet: set network testnet in Wallet Adapter, or Petra deep link to testnet app; verify chainId and faucet funds if needed. SDK has testnetFaucet helper for trading UX validation.[7]
+- Pairs: fewer pairs and different OI caps; fetch with getAllPairInfos to list available pairs and show APT pair first.[7]
+- Procedures: open small positions (min 2 USDC collateral but min position size for crypto is 300 USDC notional). Validate cooldown, TP activation after 60s, add collateral, partial close, and event indexing.[4][5][7]
+
+B. Mainnet
+- Switch SDK to MerkleClientConfig.mainnet(); ensure your Aptos client points to mainnet and use Petra on mainnet.[12][7]
+- Enable production list of pairs and production websockets. Add robust error handling for rejections due to max skew/OI and parameter violations.[6][7]
+
+### 8) APTOS/USDC + Petra RN Integration Checklist
+
+- Wallet:
+  - Petra deep link connect, store shared key; signAndSubmit transaction deep links encrypted.[14]
+  - Or Wallet Adapter connect(Petra), signAndSubmitTransaction.[16][12]
+- Pairs:
+  - Use SDK getPairInfo("APT_USD" or as returned), display index, mark, funding/hour, skew, leverage slider 3x–150x; show Safe–Degen labels.[6][7]
+- Order form:
+  - Inputs: Collateral (USDC), Leverage, Side (Long/Short), Order type (Market/Limit), optional price for limit.
+  - Derived: Position size = collateral * leverage; estimated entry/liq; fees; slippage/price impact; validation vs min/max.[4][7]
+- Submit:
+  - Use merkle.payloads.placeMarketOrder/placeLimitOrder; sign via wallet; wait finalization; refresh orders/positions.[7]
+- Manage:
+  - Update SL/TP per pair; Add Collateral; Close/Partial Close with keep lever toggles; show cooldown timer and block profitable close before 60s.[5][4][7]
+- Data:
+  - subscribePriceFeed("APT_USD") for realtime; subscribeAccountFeed(user) for positions and orders; also poll Merkle REST as fallback.[7]
+
+### 9) Direct ABI/Event References for Advanced Integrations
+
+- Trading module (address above):
+  - place_order/ place_order_v3: signature includes (signer, address, u64 size_delta, u64 collateral_delta, u64 price, bool is_long, bool is_increase, bool is_market, u64 sl, u64 tp, bool can_execute_above_price) for v3; exact ordering per ABI.[9]
+  - cancel_order(_v3): cancel by id and possibly address with v3.[9]
+  - execute_exit_position(_v3): (signer, address, bool is_long, u64, vector<u8>, &ExecuteCapabilityV3) executed by executors; you will typically rely on SDK/executors.[10][9]
+  - update_position_tp_sl(_v3): (signer, address, bool is_long, u64 stop_loss, u64 take_profit).[9]
+  - PairInfo/PairState: min/max leverage, fees, market depth, liquidate_threshold; OI, funding rates, accumulators, tables for orders and positions.[9]
+  - Events:
+    - PlaceOrderEvent: user, order_id, size_delta, collateral_delta, price, is_long, is_increase, is_market (+ pair/collateral types).[9]
+    - PositionEvent: includes pnl_without_fee, fees, OI after execution, is_partial flag.[9]
+
+Use Aptos REST events API under the Merkle account to read TradingEvents handles for place_order_events and position_events (or use the SDK account feeds).[9][7]
+
+### 10) Production Notes and Best Practices
+
+- Decimal scaling: SDK uses bigint in 6 decimals for USDC; ensure correct conversion in UI. Keep consistent units for prices (often in 1e6 precision).[9][7]
+- Liquidation and TP/SL bounds: validate entry and TP/SL vs pair rules; forex and commodities may gap significantly; show warning (docs note TP/SL may execute at different prices due to market gaps).[4]
+- Profit cap: show warning when simulated PnL exceeds ~900% cap; ensure user expectations are set.[4]
+- Network guardrails: in RN, detect mainnet/testnet to avoid accidental submissions to wrong network; show connected network in header.[12]
+- Execution roles: end users place/cancel; execution is performed by protocol executors; poll order status and display “Pending execution” states.[10][7]
+- Index vs mark price: show both; mark price includes price impact; base liquidation and PnL on mark price shown in SDK calcs.[4][7]
+- Security audits: provide user reassurance; Merkle docs include audit references.[6]
+
+## Step-by-Step Build Script
+
+1) Install
+- npm i @merkletrade/ts-sdk @aptos-labs/ts-sdk
+- If using Wallet Adapter: npm i @aptos-labs/wallet-adapter-react petra-plugin-wallet-adapter (on web) or add WalletConnect + deeplink config for RN.[13][12][7]
+- RN deep link configuration for Petra: add intent filters and Linking handlers.[18][14]
+
+2) Initialize SDKs
+- const merkle = new MerkleClient(await MerkleClientConfig.testnet() | mainnet())
+- const aptos = new Aptos(merkle.config.aptosConfig).[7]
+
+3) Wallet Connect
+- Petra deep link /connect; establish shared key; store in secure RN storage; or
+- Wallet Adapter connect("Petra") and persist account.[12][14]
+
+4) Load Pairs and APT/USDC info
+- merkle.getAllPairInfos(); pick "APT_USD" (or SDK returned key); merkle.getPairState(pair) for OI/funding/skew.[7]
+
+5) Price Feed
+- merkle.ws.subscribePriceFeed(pair, cb) and merkle.ws.subscribeAccountFeed(user, cb) to drive UI.[7]
+
+6) Place order
+- Validate min size/collateral and leverage; build payload via merkle.payloads.placeMarketOrder or placeLimitOrder; sign and submit via Petra deep link /signAndSubmit or Wallet Adapter signAndSubmitTransaction; await finalization; refresh lists.[14][12][7]
+
+7) Manage position
+- Update SL/TP via merkle.payloads.updateTPSL; Add Collateral via SDK if exposed (or build place order with is_increase on collateral delta and size 0 if required by updated models); Close/Partial Close via exit payload; sign and submit.[5][7]
+
+8) History
+- merkle.getTradingHistory(user); also index Aptos events for PlaceOrderEvent and PositionEvent to compute advanced analytics.[9][7]
+
+9) Testnet/Mainnet switch
+- Toggle MerkleClientConfig.testnet/mainnet; ensure Petra/Wallet Adapter networks match.[12][14][7]
+
+10) Monitoring & alerts
+- Use account feed to show order executed, TP hit, SL hit, or liquidation; push notifications from backend.
+
+## Code/Configuration Nuggets
+
+- SDK quickstart includes exactly how to build market/limit orders and submit with Aptos TS SDK; use that pattern and merely swap signer to Petra mobile deep link flow in RN.[7]
+- Petra deep link payload for /signAndSubmit requires encrypting the entry function payload; follow mobile2mobile example for nacl.box.before and nonce usage; handle redirect and parse status.[14]
+- Aptos Wallet Adapter functions include connect, signAndSubmitTransaction, onAccountChange/onNetworkChange; mobile deep link support exists via deeplinkProvider in registry for undetected wallets.[17][12]
+
+## Final Notes on Feature Parity
+
+To reach “everything Merkle has”:
+- Implement pair discovery, funding/skew visualization, leverage rails, min/max constraints.[6][4][7]
+- Full position management, SL/TP editing, partial close with keep leverage, add collateral.[5][9][7]
+- Cooldown enforcement and profit-cap handling.[4]
+- Real-time feeds and robust order/position state with retries and offline cache.[7]
+- Competition/rewards, levels/gears, referral, MKL/MKLP staking and liquidity pool are outside core leverage scope but can be added later with Merkle docs sections (Rewards, Trader Levels & Gears, Liquidity Pool, MKL token).[3]
+
+If exact on-chain calls are needed without SDK, strictly follow ABI param order/types and event handles on the trading module; however, for speed and compatibility, prefer Merkle TS SDK payload builders and APIs.[9][7]
+
+## References and Evidence
+
+- Merkle docs: leverage, order types, SL/TP, constraints, cooldown, management, and resources including contract addresses and SDK.[8][19][3][5][6][4]
+- Merkle TS SDK: trading payloads (placeMarketOrder/placeLimitOrder/cancel/updateTPSL), REST APIs (positions, orders, trading history), and WebSocket APIs (price, account) with examples.[7]
+- Merkle trading UI features and pairs display with funding, skew, leverage, and tabs (Positions/Orders/History).[2][20][6]
+- Trading module ABI and events (PlaceOrderEvent, PositionEvent), PairInfo/PairState fields, function signatures including v3 variants.[9]
+- Audit notes on managed_trading executors and capabilities (keepers execute orders/exits).[10]
+- Petra wallet: web connect and mobile deep links specs for React Native.[11][14]
+- Aptos Wallet Adapter: standardized connect/sign flows, mobile/deeplink support notes.[16][17][12]
+
+[1](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/55609053/ff77ed05-d3b1-44f8-80ff-cc8df0583302/PrimeX-changes-2806f7c087dd8050b077fabed3f59be9.md)
+[2](https://docs.merkle.trade/trading/opening-a-trade#market-limit-order)
+[3](https://docs.merkle.trade/trading/opening-a-trade#take-profit-stop-loss)
+[4](https://docs.merkle.trade/trading/opening-a-trade#price-impact)
+[5](https://docs.merkle.trade/trading/opening-a-trade#trading-limitations)
+[6](https://docs.merkle.trade/trading/position-management#add-collateral)
+[7](https://github.com/merkle-trade/merkle-ts-sdk)
+[8](https://docs.merkle.trade)
+[9](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/55609053/46fe950a-4bff-4e84-adfd-5cd8d25bb9b2/abi.txt)
+[10](https://movebit.xyz/reports/Merkle-Trade-Smart-Contract-Audit-Report.pdf)
+[11](https://petra.app/docs/connect-to-petra)
+[12](https://aptos.dev/build/sdks/wallet-adapter/dapp)
+[13](https://github.com/aptos-labs/petra-plugin-wallet-adapter)
+[14](https://petra.app/docs/mobile-deeplinks)
+[15](https://github.com/aptos-labs/aptos-wallet-adapter)
+[16](https://www.npmjs.com/package/@aptos-labs/wallet-adapter-react)
+[17](https://aptos.dev/build/sdks/wallet-adapter)
+[18](https://reactnavigation.org/docs/deep-linking/)
+[19](https://docs.merkle.trade/getting-started)
+[20](https://docs.merkle.trade/trading/opening-a-trade#collateral-and-leverage)
+[21](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/55609053/1b8343d3-f81b-4df4-a20d-0f87f3ae357f/apt.txt)
+[22](https://docs.merkle.trade/trading/position-management#update-sl-tp)
+[23](https://docs.merkle.trade/trading/position-management#position-close-partial-close)
+[24](https://t.me/merkle_trade_dev)
+[25](https://github.com/merkle-trade/merkle-ts-sdk/blob/main/examples/place-order.ts)
+[26](https://github.com/merkle-trade/merkle-ts-sdk/blob/main/examples/ws.ts)
+[27](https://github.com/merkle-trade/merkle-ts-sdk/blob/main/src/calc)
+[28](https://xangle.io/en/research/detail/2212)
+[29](https://portal.thirdweb.com/references/typescript/v4/airdrop/generateMerkleTreeInfoERC721)
+[30](https://www.kraken.com/features/margin-trading/aptos)
+[31](https://coinsbench.com/exploring-the-power-of-solidity-merkle-trees-and-real-world-applications-fd19effefa6c)
+[32](https://portal.thirdweb.com/typescript/v5/airdrop/generateMerkleTreeInfoERC20)
+[33](https://aptosfoundation.org/currents/ecosystem-spotlight-backpack-exchange-bringing-professional-trading-to-aptos)
+[34](https://forum.aptosfoundation.org/t/merkle-trade-enters-into-a-data-partnership-with-token-terminal/14227)
+[35](https://radzion.com/blog/merkle-tree)
+[36](https://aptosfoundation.org/currents/ecosystem-spotlight-merkle-trade-seamless-leverage-trading-for-everyone)
+[37](https://github.com/merkle-trade/merkle-contract)
+[38](https://github.com/merkle-trade)
+[39](https://www.rapidinnovation.io/post/how-to-build-a-dapp-on-aptos-blockchain)
+[40](https://www.cyfrin.io/blog/what-is-a-merkle-tree-merkle-proof-and-merkle-root)
+[41](https://www.youtube.com/watch?v=NfxngwPBhz0)
+[42](https://www.aptos.com/blog/unlocking-hidden-potential-three-aptos-merchandising-capabilities-every-retailer-should-leverage)
+[43](https://coinsbench.com/merkle-trees-in-solidity-and-typescript-ba29d817eaa1)
+[44](https://blockchain.oodles.io/blog/aptos-blockchain-development/)
+[45](https://docs.privy.io/recipes/react-native/deeplinking-wallets)
+[46](https://www.npmjs.com/package/@walletconnect/react-native)
+[47](https://github.com/cawfree/react-native-walletconnect)
+[48](https://stackoverflow.com/questions/79562030/support-for-petra-wallet-in-reactnative)
+[49](https://www.jsdelivr.com/package/npm/@onestar/aptos-wallet-adapter)
+[50](https://blog.thirdweb.com/changelog/walletconnect-and-coinbase-wallet-support-in-react-native/)
+[51](https://codesandbox.io/s/aptos-connect-disconnect-use-aptos-labs-wallet-adapter-core-d96cp8)
+[52](https://www.linkedin.com/posts/naderdabit_the-new-react-native-walletconnect-sdk-v2-activity-7097954192648015872-TPG8)
+[53](https://www.jsdelivr.com/package/npm/@aptos-labs/wallet-adapter-ant-design)
+[54](https://perawallet.app)
+[55](https://www.dynamic.xyz/blog/multi-chain-wallet-connection-flow)
+[56](https://aptosfoundation.org/ecosystem/project/petra)
+[57](https://petra.app)
+[58](https://www.npmjs.com/~aptos-labs?activeTab=packages)
+[59](https://flow.com/engineering-blogs/verify-ethereum-smart-contract-state-with-proof)
+[60](https://docs.cdp.coinbase.com/coinbase-app/advanced-trade-apis/guides/websocket)
+[61](https://tradermade.com/docs/streaming-data-api)
+[62](https://kite.trade/docs/connect/v3/websocket/)
+[63](https://soliditydeveloper.com/merkle-tree)
+[64](https://www.tokenmetrics.com/blog/real-time-market-data-websocket-api-guide?0fad35da_page=25&74e29fd5_page=59%3F0fad35da_page%3D25&74e29fd5_page=58)
+[65](https://etherscan.io/address/0xe50b2ceac4f60e840ae513924033e753e2366487)
+[66](https://aptos.dev/build/sdks/wallet-adapter/wallets)
+[67](https://eodhd.com/financial-apis/new-real-time-data-api-websockets)
+[68](https://www.cointracker.io/learn/testnet)

@@ -1,0 +1,378 @@
+﻿Architecting and Implementing a Perpetual Futures DEX on Aptos: A Comprehensive Guide to Replicating Merkle Trade
+
+
+
+
+Section 1: Architectural Blueprint for a Hybrid On-Chain/Off-Chain Exchange
+
+
+This document provides a comprehensive technical guide for engineering teams tasked with building a decentralized perpetual futures exchange on the Aptos blockchain, modeled after the architecture and functionality of Merkle Trade. The analysis and implementation strategy presented herein are current as of October 2025 and are designed to provide a complete roadmap, from on-chain protocol interaction to the deployment of a full-stack, mobile-first trading application using React Native and the Petra Wallet.
+
+
+1.1. The Anatomy of a Modern Perpetual DEX on Aptos
+
+
+A foundational understanding of Merkle Trade's architecture reveals that it is not a purely on-chain protocol. Instead, it employs a sophisticated hybrid model that strategically combines the immutable security and self-custody of on-chain smart contracts with the high performance and real-time responsiveness of centralized, off-chain services. This architectural paradigm is the most critical concept to grasp before undertaking development, as it directly influences every component of the system.
+The decision to adopt a hybrid model is a direct response to the inherent limitations of blockchain technology when applied to high-frequency trading environments. A purely on-chain order book, for instance, would be subject to network latency, variable block times, and significant gas costs for every action (placing, canceling, or modifying an order), resulting in a poor user experience characterized by slow execution and high slippage. Merkle Trade's architecture circumvents these issues by delegating specific tasks to the layer best suited for them. The Aptos blockchain serves as the trust and settlement layer—the ultimate, verifiable source of truth for user funds, position states, and final trade settlement. In contrast, the off-chain infrastructure handles real-time data processing, order matching, and transaction orchestration, providing the fluid, CEX-like experience that modern traders expect.1
+This separation of concerns is most evident in the protocol's "two-step execution process".2 A user does not directly execute a trade on-chain. Instead, they submit a transaction that registers their
+intent to trade, creating an Order object within the smart contract. This on-chain record is then detected by off-chain services known as "Keepers." These Keepers monitor a real-time price feed from an oracle network (e.g., Pyth) and, when market conditions permit the order's execution, they construct and submit a second, separate transaction to the blockchain to finalize the trade. This design elegantly solves two of the most persistent problems in decentralized exchanges: front-running and unpredictable slippage. The final execution price is determined by the oracle at the moment the Keeper acts, not by the potentially disadvantageous price that exists when the user's initial transaction is eventually included in a block. The existence of a dedicated TypeScript SDK with clients for both a REST API and a WebSocket service further solidifies the fact that the protocol is designed to be consumed through this managed off-chain layer, not solely through direct smart contract interactions.3
+
+
+1.2. Core Components Overview: A Three-Pillar System
+
+
+To successfully replicate the Merkle Trade platform, the development effort must be structured around three distinct but interconnected pillars. Each pillar represents a core component of the hybrid architecture, and a failure in any one will compromise the entire system.
+Pillar 1: Aptos Smart Contracts (The On-Chain Trust Layer)
+This is the decentralized backbone of the exchange. Written in the Move language, these smart contracts are deployed on the Aptos blockchain and serve as the ultimate arbiter of ownership and logic. They are responsible for securely holding all user collateral, recording the state of every order and position, and executing the financial calculations for profit, loss, and fees in a transparent and verifiable manner. This on-chain layer is the source of the protocol's trustlessness; users retain self-custody of their funds within the contracts at all times. The primary modules include trading, which manages state and core logic, and trading_calc, which handles complex financial computations.2
+Pillar 2: Backend Services (The Off-Chain Engine)
+This is the high-performance middleware that orchestrates the entire trading experience. It functions as the central nervous system of the platform, responsible for all tasks that are too slow, expensive, or complex to run on-chain in real-time. This pillar is itself composed of several microservices:
+* Data Indexer: Continuously monitors the Aptos blockchain, specifically listening for events emitted by the trading smart contracts. It parses this on-chain data and stores it in a structured, highly-performant database for fast querying.
+* API Server: Exposes a set of RESTful endpoints that the client application consumes to fetch user data, trading history, market information, and other aggregated states.
+* WebSocket Server: Provides real-time, bidirectional communication with the client application. It pushes live price updates, position changes, and order fill notifications to the user's device.
+* Keeper Bots: A fleet of automated agents that perform critical protocol functions. They monitor pending orders and market prices to trigger trade executions, and they watch open positions to enforce take-profits, stop-losses, and liquidations.2
+Pillar 3: React Native Client (The User Gateway)
+This is the mobile application through which users interact with the platform. It serves as the primary gateway to the trading ecosystem. Critically, the client's main communication channel is with the backend services (Pillar 2), not directly with the Aptos blockchain for data retrieval. It fetches all necessary data from the API and receives real-time updates via the WebSocket server. Its direct on-chain interaction is limited to one essential function: requesting transaction signatures from the user's wallet (e.g., Petra Wallet) via deep linking mechanisms and then submitting the signed transaction to an Aptos RPC node.5
+
+
+1.3. The Lifecycle of a Leveraged Trade: A System-Wide Data Flow
+
+
+To illustrate how these three pillars interact, consider the end-to-end lifecycle of a typical market order to open a leveraged long position on the APT/USDC pair.
+1. User Action & Payload Construction (Client): The user opens the React Native application, navigates to the APT/USDC market, and inputs their desired trade parameters: a 10x long position using 100 USDC as collateral. The application, leveraging the @merkletrade/ts-sdk, translates these inputs into a structured transaction payload for the place_order_v3 function on the trading smart contract.3
+2. Transaction Signing (Client & Wallet): The client application constructs a deep link URL pointing to the Petra mobile wallet. This URL contains the transaction payload. The operating system hands control over to the Petra app, which displays a confirmation screen detailing the transaction. The user reviews the details and approves the transaction by authenticating with their biometrics or PIN.6
+3. Transaction Submission & On-Chain Event (Client & Blockchain): Petra signs the transaction with the user's private key and returns the signed payload to the React Native app via a callback deep link. The client then submits this signed transaction to a public Aptos RPC node. The transaction is included in a block, and the trading smart contract executes the place_order_v3 function. This action creates an Order struct on-chain and emits a PlaceOrderEvent containing the order's details.4
+4. Event Indexing (Backend): The Data Indexer service, which is continuously scanning the blockchain, detects the PlaceOrderEvent. It parses the event data and saves a new record to its PostgreSQL database, marking the order as pending.
+5. Keeper Activation & Execution (Backend): An Order Execution Keeper bot, which is polling the indexer's database for new pending orders, finds the newly created order. It simultaneously subscribes to the Pyth Network's real-time price feed for APT/USDC. As it is a market order, the Keeper immediately constructs a new transaction, this time calling the execute_order_v3 function and passing the order_id along with the current, signed oracle price data from Pyth.2
+6. Sponsored Transaction (Backend): The Keeper does not sign this transaction with its own funds. Instead, it sends the transaction payload to a secure "gas station" or "fee payer" service within the backend. This service signs the transaction using the protocol's master fee-paying wallet. This is a crucial step that enables a "gasless" experience for the user, as the protocol sponsors the execution gas fees.1
+7. On-Chain Settlement (Blockchain): The Keeper submits the sponsored execute_order_v3 transaction to the Aptos network. The trading smart contract verifies the oracle price data, executes the logic, converts the pending Order into an active Position struct, and emits a PositionEvent to signal the successful trade execution.4
+8. Real-time Update (Backend & Client): The Data Indexer detects the PositionEvent, updates its database to reflect that the order is now filled and a new position is open. This database change triggers a message to be sent to the WebSocket Server. The WebSocket server then pushes the complete, updated position data through the account_feed:<user_address> channel. The React Native client, subscribed to this channel, receives the new data in real-time and updates the UI to show the user their active position, including the entry price, size, and unrealized PnL, completing the lifecycle.
+
+
+Section 2: On-Chain Protocol Analysis: Deconstructing Merkle Trade's Move Modules
+
+
+A thorough analysis of the Merkle Trade protocol's on-chain components is essential for a successful replication. While the Move source code is not publicly available, the Application Binary Interface (ABI) for the core trading module, which is accessible on-chain, provides a detailed blueprint of its public functions, data structures, and events. This section deconstructs that ABI to create a functional specification for the smart contract layer.
+
+
+2.1. The trading Module: State Management and Core Logic
+
+
+The trading module is the central smart contract that governs all trading activities. It is the on-chain vault and logic engine for the entire protocol.
+* Address (Mainnet): 0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06 4
+* Purpose: This module is responsible for maintaining the canonical state of the exchange. This includes managing the list of supported trading pairs, holding the liquidity pool's assets, storing all pending orders, tracking every open position, and handling the logic for order placement, execution, and closure.
+The architecture of the trading module's state is highly optimized for the gas model of the Aptos blockchain. Rather than using simple vectors, which would be inefficient to scale, it leverages Aptos's native Table data structure. A Table is an on-chain key-value store that allows for efficient, constant-time access to individual elements without needing to load the entire collection into memory. This design is critical for minimizing gas costs in a system that may hold thousands of orders and positions.
+Key State Structs (Inferred from ABI 4):
+* Order: This struct represents a user's unexecuted intent to trade. It is a temporary state object that exists from the moment a user places an order until a Keeper either executes or cancels it. Its fields likely include uid (unique ID), user (address), size_delta (the change in position size), collateral_delta (the amount of collateral committed), price (for limit orders), is_long, is_increase, and trigger prices for take-profit and stop-loss.
+* Position: This struct represents an active, open trade. It is the primary record of a user's market exposure. Its fields include uid, size, collateral, avg_price (the average entry price), last_execute_timestamp, and several accumulator fields (acc_rollover_fee_per_collateral, acc_funding_fee_per_size) used to calculate ongoing fees over time.
+* PairState: This is a global resource, one for each trading pair (e.g., APT/USDC). It serves as the master record for the market. It contains the total long_open_interest and short_open_interest, the current funding_rate, and, crucially, the Table objects that store all orders, long_positions, and short_positions for that specific pair.
+* UserStates: This is a resource stored directly under a user's account address. It contains vectors of keys (OrderKey, UserPositionKey) that point to that user's specific entries within the main PairState tables. This on-chain indexing mechanism is a clever optimization. To find a user's positions, the system can first read this small, user-specific resource to get the relevant keys, and then perform direct, efficient lookups into the large global tables, avoiding a costly and slow full-table scan.
+
+
+2.2. Key Function Deep Dive: The Trader's Lifecycle
+
+
+The public functions exposed by the trading module's ABI define the complete set of possible on-chain interactions. The following are the most critical functions involved in a typical trading lifecycle. The _v3 suffix on many functions indicates that these are likely the latest, most feature-complete versions, and should be the target for implementation.
+* place_order_v3(...): This is the primary function called by users to initiate a trade. It takes the user's signature and a comprehensive set of parameters detailing the desired trade. Its sole responsibility is to validate the inputs, create a new Order struct, and add it to the orders table within the relevant PairState. It does not execute the trade itself.
+* execute_order_v3(...): This function is designed to be called by an off-chain Keeper bot. It takes an order_id as an argument, along with signed price data from an oracle. The function fetches the corresponding Order from the table, verifies that the oracle price permits execution (e.g., the market price is at or better than a limit price), and then transforms the Order into a Position. This involves updating open interest, calculating entry fees, and moving the user's collateral into the position.
+* execute_exit_position_v3(...): This function is also called by a Keeper to close an existing position. This can be triggered by a take-profit, stop-loss, or liquidation event. It takes the user's address and position details as input, along with oracle price data. It calculates the final profit and loss (PnL), settles the fees, and returns the remaining collateral (plus profits or minus losses) to the user's available margin.
+* update_position_tp_sl_v3(...): This is a user-facing function that allows a trader to modify the take-profit and stop-loss trigger prices for one of their existing, open positions. It requires a signature from the user and directly modifies the take_profit_trigger_price and stop_loss_trigger_price fields in their Position struct.
+* cancel_order_v3(...): This user-facing function allows a trader to cancel a pending Order that has not yet been executed by a Keeper. It takes the order_id as an argument and removes the corresponding Order from the orders table, returning the committed collateral to the user's margin.
+The table below provides a detailed breakdown of the parameters for the place_order_v3 function, which is essential for constructing the correct transaction payload in the client application.
+Table 2.1: Parameter Breakdown for place_order_v3 Function
+Parameter Index
+	Name (Inferred)
+	ABI Type
+	Description
+	Example Value Mapping
+	0
+	signer
+	&signer
+	The user's account signing the transaction. This is implicitly provided by the wallet during the signing process.
+	Provided by Petra Wallet.
+	1
+	user_address
+	address
+	The address of the user for whom the order is being placed.
+	account.address from the connected wallet.
+	2
+	size_delta
+	u64
+	The change in position size, represented as a fixed-point decimal. For USDC, this is the dollar value with 6 decimals. A $1000 position size is represented as 1000000000.
+	$1000 position size -> 1000 * 10^6.
+	3
+	collateral_delta
+	u64
+	The amount of collateral (USDC) to be used for the trade, also with 6 decimals. A $100 collateral deposit is represented as 100000000.
+	$100 collateral -> 100 * 10^6.
+	4
+	price
+	u64
+	For limit orders, the desired execution price. For market orders, this is typically set to 0. The price is a fixed-point decimal, likely with 8 decimals of precision.
+	Limit buy at $70.50 APT -> 7050000000.
+	5
+	is_long
+	bool
+	A boolean flag indicating the direction of the trade. true for a long position (betting the price will go up), false for a short position.
+	User selects "Long" in the UI.
+	6
+	is_increase
+	bool
+	A boolean flag indicating whether the order is intended to open a new position or increase an existing one (true), or to close/decrease a position (false).
+	true for opening a new trade.
+	7
+	is_market
+	bool
+	A boolean flag specifying the order type. true for a market order (execute at the current best price), false for a limit order.
+	User selects "Market" order type.
+	8
+	stop_loss_price
+	u64
+	The trigger price at which the position should be automatically closed to limit losses. A value of 0 indicates no stop-loss. Represented with 8 decimals.
+	User sets SL at $65.00 -> 6500000000.
+	9
+	take_profit_price
+	u64
+	The trigger price at which the position should be automatically closed to secure profits. A value of 0 indicates no take-profit. Represented with 8 decimals.
+	User sets TP at $80.00 -> 8000000000.
+	10
+	can_execute_above_price
+	bool
+	A parameter for limit orders that defines the execution condition relative to the specified price. For a buy limit, this would be true (can execute at or below the price). For a sell limit, it would be false (can execute at or above the price).
+	true for a buy limit order.
+	
+
+2.3. The trading_calc Module: On-Chain Financial Calculations
+
+
+The trading_calc module is a library contract that contains pure, stateless functions for performing the complex financial mathematics required by the protocol. By separating these calculations from the state-mutating logic in the trading module, the codebase becomes cleaner, more modular, and easier to audit. These functions are called internally by the trading module during trade execution and settlement.
+Key Functions (from ABI 4):
+* calculate_pnl_without_fee(u64, u64, u64, bool): This function likely takes an average entry price, an exit price, a position size, and a boolean for is_long to calculate the raw profit or loss of the trade before any fees are applied. It returns the PnL amount and a boolean indicating if it's a profit.
+* calculate_funding_fee(...): This function calculates the periodic funding payment that is exchanged between long and short positions. Funding rates are a core mechanism of perpetual futures, ensuring the contract price tracks the underlying asset's spot price. This function likely uses the open interest skew (imbalance between longs and shorts) and time elapsed to determine the fee.
+* calculate_price_impact(u64, u64, bool, bool, u64, u64, u64): This function determines the price slippage a trade will incur. It takes into account the existing open interest for longs and shorts, the direction of the new trade, and the size of the trade to calculate a price impact fee. This fee disincentivizes trades that would significantly imbalance the market.
+* calculate_rollover_fee(u64, u64, u64): This function calculates the borrowing fee (also known as a rollover fee) for holding a leveraged position open. It is analogous to an interest payment on the borrowed capital. It likely takes the position's collateral, a fee rate, and the time elapsed since the last fee accrual to compute the fee amount.
+
+
+Section 3: Backend Infrastructure: The Off-Chain Engine
+
+
+Replicating the fluid, real-time user experience of Merkle Trade is impossible without a robust and performant backend infrastructure. This off-chain engine serves as the critical middleware that bridges the high-latency, asynchronous world of the blockchain with the high-immediacy expectations of a modern trading application. The backend is not an optional component; it is a mandatory prerequisite for the functionality of the entire system.
+
+
+3.1. Data Indexing Service
+
+
+The core purpose of the Data Indexing Service is to create a fast, queryable, and structured off-chain replica of all relevant on-chain trading activity. Directly querying the blockchain for historical data, user positions, or complex analytics is computationally expensive and slow, making it unsuitable for a responsive mobile application. The indexer solves this problem by processing blockchain data ahead of time.
+* Implementation Strategy: The most efficient way to build this service is to leverage the official Aptos Indexer API, which provides a GraphQL interface for querying indexed on-chain data.8 The service will subscribe to or periodically poll this API to fetch all transactions and events associated with the Merkle Trade smart contract address. Specifically, it must listen for key events defined in the ABI, such as
+PlaceOrderEvent, PositionEvent, CancelOrderEvent, and UpdateTPSLEvent.4 As these events are detected, the service will parse their data payloads and write structured records into a relational database, such as PostgreSQL. This database will serve as the single source of truth for the rest of the backend infrastructure. For applications requiring the absolute lowest latency, a self-hosted Aptos indexer node can be deployed, though this incurs significantly higher operational overhead.
+* Technology Stack: A service written in Node.js/TypeScript using a GraphQL client like Apollo Client is a strong choice for interacting with the Aptos Indexer API. For higher throughput and lower-level control, a Rust-based service could be developed. The chosen database should be PostgreSQL for its robustness, support for JSON data types, and powerful querying capabilities.
+
+
+3.2. API Service Layer
+
+
+The API Service Layer is the primary communication interface between the React Native client and the backend system. It exposes a series of RESTful or GraphQL endpoints that provide the client with processed, aggregated, and user-specific data sourced from the indexer's database.
+   * Core Responsibilities: This service is responsible for abstracting the complexity of the underlying data model. Instead of forcing the mobile client to piece together a user's state from raw event logs, the API provides clean, ready-to-consume data structures. It will handle user authentication (typically by verifying a signed message from the user's wallet) to secure user-specific endpoints.
+   * Essential Endpoints:
+   * GET /v1/pairs: Returns a list of all tradable pairs (e.g., APT/USDC), including static information like maximum leverage, minimum collateral, and fee rates, sourced from the on-chain PairInfo struct.4
+   * GET /v1/pairs/:pairSymbol/state: Provides real-time state for a specific market, such as current open interest, funding rate, and market skew, sourced from the on-chain PairState struct.4
+   * GET /v1/accounts/:userAddress/positions: An authenticated endpoint that returns all currently open positions for the specified user address. The response should be a rich object including entry price, current mark price, unrealized PnL, collateral, leverage, and liquidation price.
+   * GET /v1/accounts/:userAddress/orders: An authenticated endpoint that returns all pending (unexecuted) limit and trigger orders for the user.
+   * GET /v1/accounts/:userAddress/history?limit=100: An authenticated endpoint for fetching a user's trade history, including filled orders, cancellations, and liquidations.
+   * POST /v1/feepayer/sign: A secure internal endpoint used by Keeper bots to request a signature from the protocol's master gas wallet for sponsoring transactions.
+
+
+3.3. Keeper Bot Implementation
+
+
+The Keeper bots are the automated workhorses of the protocol. They are a fleet of server-side applications that monitor on-chain state and external data (like oracle prices) to trigger on-chain transactions. Their operation is fundamental to the two-step execution model of the exchange.2
+   * Logic for the Order Execution Keeper: This bot is responsible for filling user orders.
+   1. It continuously queries the indexer's database for orders with a pending status.
+   2. For each pending order, it subscribes to the Pyth Network's real-time price feed for the relevant asset.
+   3. It evaluates the execution condition. For a market order, it executes immediately. For a limit order, it checks if the current oracle price has crossed the order's trigger price.
+   4. Upon a valid execution condition, it constructs the payload for an execute_order_v3 transaction, including the order_id and the signed price data from the oracle.
+   5. It sends this payload to the internal fee payer service to get it signed by the protocol's gas wallet.
+   6. Finally, it submits the signed, sponsored transaction to an Aptos RPC node.
+   * Logic for the Position Management Keeper: This bot is responsible for managing the lifecycle of open positions.
+   1. It continuously queries the indexer's database for all active positions.
+   2. For each active position, it fetches the real-time oracle price.
+   3. It checks the price against the position's stop_loss_trigger_price and take_profit_trigger_price. If either is triggered, it initiates the closing process.
+   4. It independently calculates the position's current collateral ratio to determine the liquidation price. If the oracle mark price crosses the liquidation price, it initiates the closing process.
+   5. To close a position, it constructs the payload for an execute_exit_position_v3 transaction, gets it signed by the fee payer service, and submits it to the network.
+   * Operational Requirements: Keepers must be deployed in a highly available and fault-tolerant environment (e.g., a Kubernetes cluster with multiple replicas). They manage a hot wallet that holds APT for gas, and the security of this wallet's private key is paramount. Robust monitoring and alerting are non-negotiable to detect failures, such as a Keeper crashing or the gas wallet running low on funds.
+
+
+3.4. Real-time Data Service (WebSockets)
+
+
+To provide a truly interactive and modern trading experience, the application must receive live updates without resorting to inefficient HTTP polling. A WebSocket server is the ideal solution for this.
+   * Implementation: A Node.js server using a library like ws or Socket.IO can be used to manage persistent connections with all active clients. When the Data Indexing Service writes a new event to the database (e.g., a trade execution), it can publish a message to a message queue (like Redis Pub/Sub or RabbitMQ). The WebSocket server subscribes to this queue and, upon receiving a message, pushes the relevant data to the appropriate clients.
+   * Channels and Topics (based on Merkle Trade SDK 3):
+   * price_feed:<pair_symbol>: The server will stream live price updates from the Pyth oracle for a given trading pair (e.g., price_feed:APT_USD) to all clients viewing that market.
+   * account_feed:<user_address>: This is an authenticated channel. When a user's on-chain state changes (e.g., an order is filled, a position is closed, a TP/SL is updated), the backend will push a message containing the updated position or order data specifically to that user's client. This enables real-time updates of the user's portfolio, PnL, and order statuses.
+The "gasless" user experience heavily promoted by Merkle Trade is a direct result of Aptos's native support for Sponsored Transactions, also known as fee payer transactions.1 The user is only required to sign the transaction that signals their
+intent (place_order). The subsequent, more computationally intensive transactions that actually execute and manage the trade (execute_order, execute_exit_position) are initiated and paid for by the protocol's off-chain Keeper bots. The Merkle Trade SDK's inclusion of a postFeepayer API method is strong evidence of this off-chain coordination mechanism.3 This architecture is a significant competitive advantage, as it removes a major point of friction for users, who no longer need to worry about holding the native gas token (APT) or estimating gas fees for their trading activities. The protocol, in turn, covers these operational gas costs from the trading fees (maker/taker fees) it collects, creating a sustainable economic model. Implementing this requires the backend to include a secure, internally-accessible "gas station" service responsible for managing the protocol's master fee-paying wallet and signing transaction requests from the trusted Keeper bots.
+
+
+Section 4: Client-Side Implementation: A React Native Development Guide
+
+
+This section outlines the process for developing the React Native mobile application, which serves as the user's primary interface to the trading protocol. The guide focuses on integrating the necessary Aptos and Merkle Trade SDKs, handling the unique challenges of wallet communication in a mobile environment, and structuring the application for a real-time, data-driven user experience.
+
+
+4.1. Project Setup: Integrating Aptos and Merkle Trade SDKs
+
+
+A solid foundation begins with establishing the correct project structure and dependencies. The application will rely on a suite of specialized SDKs to handle blockchain interactions and protocol-specific logic.
+   * Core Dependencies:
+   * react-native: The foundational framework for building the mobile application.
+   * @aptos-labs/ts-sdk: The official TypeScript SDK from Aptos Labs. It provides the core data types (e.g., AccountAddress, TransactionPayload), BCS serialization tools, and a client for basic interactions with Aptos nodes.9
+   * @merkletrade/ts-sdk: The specialized SDK for Merkle Trade. This is the primary tool for the client, offering high-level functions to construct transaction payloads for trading actions (placeMarketOrder, cancelOrder, etc.) and utilities for client-side calculations like price impact estimation.3
+   * @aptos-connect/react-native-dapp-sdk: This is the crucial, official SDK for enabling communication between a React Native dApp and Aptos mobile wallets like Petra. It manages the complexities of deep linking for connection and transaction signing.11
+   * react-native-get-random-values & fast-text-encoding: These are essential polyfills required by the cryptographic libraries used within the Aptos SDKs. React Native's JavaScript environment lacks some built-in browser/Node.js APIs, and these packages provide the necessary functionality for tasks like key pair generation and message encoding.11
+   * A WebSocket client library, such as socket.io-client, to connect to the backend's real-time data service.
+
+
+4.2. Wallet Integration: Advanced Transaction Signing with Petra Wallet Deep Links
+
+
+The single greatest challenge in mobile dApp development compared to web development is wallet communication. React Native applications cannot directly interface with browser extensions. All communication must be brokered by the mobile operating system through a mechanism known as deep linking.
+   * Implementation Flow: The process follows a request-response pattern mediated by custom URL schemes.6
+   1. Configure Deep Linking: The first step is to register a unique URL scheme for the application within the native project configurations. For iOS, this is done in Info.plist, and for Android, in AndroidManifest.xml. For example, a scheme mytradingapp:// could be registered. This tells the operating system that any URL starting with this prefix should be handled by the application.12
+   2. Initiate Connection: The application will use the useReactNativeACDappClient hook from the @aptos-connect/react-native-dapp-sdk to get a client instance. Calling acDappClient.connect() will trigger the SDK to construct a specialized deep link URL, such as petra://api/v1/connect, containing information about the dApp (name, icon) and a callback URL (mytradingapp://aptos-connect/callback). The SDK then asks the OS to open this URL, which launches the Petra Wallet app.11
+   3. Handle Connection Callback: Inside Petra, the user is presented with a connection request prompt. If they approve, Petra uses the provided callback URL to deep link back to the React Native application. The application's deep link handler, configured using React Native's Linking API, will receive this callback. The @aptos-connect/react-native-dapp-sdk handles the parsing of the response, which contains the user's account address and public key, establishing a connected session.
+   4. Sign and Submit Transactions: When the user wants to execute a trade, the flow is similar.
+a. The application first uses the @merkletrade/ts-sdk to build the transaction payload for place_order_v3.
+b. This payload is passed to the acDappClient.signAndSubmitTransaction() function.
+c. The SDK again constructs a deep link, this time to petra://api/v1/signAndSubmit, embedding the transaction data.
+d. Petra opens, displays the transaction details for the user to review and approve.
+e. Upon approval, Petra signs the transaction, submits it to the Aptos network, and then deep links back to the application with the transaction hash as confirmation.
+This entire flow is orchestrated by the Aptos Connect SDK, but a proper native configuration of deep linking is a critical prerequisite for it to function correctly.
+
+
+4.3. Building the Core Trading Interface: From UI Inputs to On-Chain Payloads
+
+
+The trading interface is the heart of the application. Its design must be intuitive, and its logic must be robust to ensure that user inputs are correctly translated into valid on-chain transactions.
+      * UI Components: The interface will require standard form elements:
+      * A text input for the collateral amount (e.g., in USDC).
+      * A slider or text input for selecting leverage.
+      * Segmented controls or buttons for choosing position direction (Long/Short) and order type (Market/Limit).
+      * Optional input fields for setting take-profit and stop-loss prices.
+      * Client-Side Logic:
+      1. As the user interacts with the UI, the application should provide real-time feedback. For example, when the user adjusts the trade size or leverage, the app should use the calculation utilities provided by the @merkletrade/ts-sdk (e.g., calcPriceImpact, calcMakerTakerFee) to estimate the liquidation price, entry fees, and potential price impact. This "pre-flight check" is crucial for user transparency.
+      2. When the user presses the "Submit Order" button, the application's state (collateral amount, leverage, direction, etc.) is collected.
+      3. This state is then mapped directly to the arguments of the relevant function from the Merkle Trade SDK, such as merkle.payloads.placeMarketOrder({...}). The mapping must be precise, following the specifications outlined in Table 2.1, especially regarding the conversion of decimal numbers to their u64 fixed-point representations.
+      4. The transaction payload generated by the SDK is then passed to the wallet for signing and submission, as detailed in the previous section.
+
+
+4.4. State Management: Displaying Positions, Orders, and Trade History
+
+
+The client application must maintain a local representation of the user's on-chain state. A robust global state management solution is recommended.
+      * Data Fetching Strategy: The application's architecture must be "API-first." Upon a successful wallet connection, the client's primary action should be to make authenticated requests to the backend API service to fetch the user's complete state. It will call endpoints like GET /v1/accounts/:userAddress/positions and GET /v1/accounts/:userAddress/orders. This approach is far more efficient than attempting to query and assemble this data directly from an Aptos node on a mobile device.
+      * Local State Synchronization: The data fetched from the API should be stored in a global state management library like Redux Toolkit or Zustand. This central store becomes the single source of truth for the entire UI. Components throughout the app (e.g., the positions list, the order history panel) will subscribe to this store and reactively re-render whenever the data changes.
+
+
+4.5. Implementing Real-Time Data Feeds
+
+
+To achieve a dynamic and responsive user experience, the application must connect to the backend's WebSocket service for live data streams.
+      * Connection and Subscription:
+      1. Immediately after the initial state is fetched via the REST API, the application should establish a persistent WebSocket connection to the backend.
+      2. Once connected, it must subscribe to the necessary channels. This includes public channels, like price_feed:APT_USD, to display the live market price, and a private, user-specific channel, account_feed:<user_address>, which requires authentication (usually by sending the wallet address or a session token upon connection).
+      * Handling Real-Time Updates:
+      1. The application will have event listeners for messages received on its subscribed WebSocket channels.
+      2. When a new message arrives on the account_feed channel (e.g., a JSON object indicating an order has been filled), the application's logic will parse this message and dispatch an action to update the global state store.
+      3. This update to the central store will automatically propagate through the application, causing the UI to update in real-time. For example, a pending order in the "Orders" list will disappear and a new entry will appear in the "Positions" list, and the user's PnL will begin to fluctuate with the live price feed, all without requiring any manual refresh or polling from the user.
+This API-first architecture, where the client relies on the backend for all data and uses the wallet exclusively as a secure signing module, is the most effective pattern for building complex mobile dApps. It offloads the heavy lifting of data indexing and aggregation to the server, allowing the client to focus on what it does best: providing a fast, responsive, and engaging user interface.
+
+
+Section 5: Deployment and Operations: From Testnet to Mainnet
+
+
+Transitioning the completed application from a development environment to a live, production-ready system requires a meticulous approach to configuration, deployment, and ongoing operational management. This final section provides a practical checklist and key considerations for deploying the entire three-pillar system on both the Aptos Testnet for staging and the Aptos Mainnet for production.
+
+
+5.1. Network Configuration and Key Contract Addresses
+
+
+A common source of critical errors in dApp deployment is incorrect configuration of network-specific parameters, such as RPC endpoints and smart contract addresses. To mitigate this risk, all such variables must be externalized from the application code and managed in environment-specific configuration files. The following table serves as a central reference for these critical parameters.
+Table 5.1: Aptos Network Configuration and Contract Addresses
+
+
+Parameter
+	Mainnet Value
+	Testnet Value
+	Source / How to Find
+	RPC Endpoint
+	https://fullnode.mainnet.aptoslabs.com/v1
+	https://fullnode.testnet.aptoslabs.com/v1
+	Official Aptos Labs Documentation 9
+	Indexer API Endpoint
+	https://indexer.mainnet.aptoslabs.com/v1/graphql
+	https://indexer.testnet.aptoslabs.com/v1/graphql
+	Official Aptos Labs Documentation
+	Trading Contract Address
+	0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06
+	To be found via Testnet explorer
+	Mainnet address from ABI and explorers.4 The Testnet address must be located by searching for the contract on a Testnet explorer like AptoScan.
+	USDC Token Type
+	0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC
+	0x... (To be found via Testnet faucet)
+	The official bridged USDC (e.g., from LayerZero) address on Aptos Mainnet. The Testnet version will be different and can be obtained from a Testnet faucet or documentation.
+	APT Coin Type
+	0x1::aptos_coin::AptosCoin
+	0x1::aptos_coin::AptosCoin
+	Standard Aptos Framework address, same on all networks.
+	Pyth Oracle Price Feed ID (APT/USD)
+	0x... (To be found via Pyth docs)
+	0x... (To be found via Pyth docs)
+	The unique identifier for the specific price feed, provided in the official Pyth Network documentation for both Mainnet and Testnet.
+	
+
+5.2. A Checklist for Deploying Backend Infrastructure
+
+
+The backend services are the operational core of the exchange and require a production-grade deployment strategy focused on scalability, reliability, and security.
+      * Data Indexer Service:
+      * Deploy the service on a scalable, serverless platform (e.g., AWS Lambda, Google Cloud Functions) or a container orchestration platform (e.g., Kubernetes).
+      * Ensure the service has a resilient connection to its database, with automated backups and point-in-time recovery enabled.
+      * Implement a robust error handling and retry mechanism for fetching data from the Aptos Indexer API to handle transient network issues.
+      * API and WebSocket Servers:
+      * Deploy these services behind a load balancer (e.g., AWS ALB, Nginx) to distribute traffic across multiple instances, ensuring high availability and horizontal scalability.
+      * Implement security best practices: enable HTTPS, protect against DDoS attacks, and implement strict authentication and rate limiting on all endpoints to prevent abuse.
+      * Keeper Bots:
+      * Security is Paramount: Deploy the Keeper bots in a secure, isolated network environment (e.g., a private VPC with restricted ingress/egress).
+      * Key Management: The private keys for the Keeper hot wallets must be managed by a dedicated hardware security module (HSM) or a secure key management service (e.g., AWS KMS, HashiCorp Vault). Under no circumstances should private keys be stored in plaintext, configuration files, or environment variables.
+      * Redundancy: Run multiple instances of each Keeper bot in an active-passive or active-active configuration to ensure that order execution and liquidations are not halted by a single server failure.
+      * Monitoring and Alerting: Implement comprehensive monitoring to track the Keepers' performance. Set up alerts (e.g., via PagerDuty or Slack) to notify the operations team immediately if a Keeper fails to submit a transaction, if its transaction success rate drops, or if its gas wallet balance falls below a critical threshold.
+
+
+5.3. Operational Security and Maintenance
+
+
+Once deployed, the system requires continuous monitoring and maintenance to ensure smooth and secure operation.
+      * Gas Wallet Management: The protocol's Keeper and fee payer wallets require a constant supply of APT to pay for gas. This process should be automated. A monitoring script should track the balance of these hot wallets and, when a balance drops below a predefined threshold, automatically trigger a transfer from a secure, multi-signature cold storage wallet.
+      * Oracle Integrity Monitoring: The entire system's financial integrity depends on the accuracy and liveness of the Pyth price oracle. A dedicated monitoring service must constantly check the health of the oracle feed. This service should verify that prices are updating frequently and are within a reasonable deviation from other major exchanges. If the oracle feed becomes stale or provides anomalous data, the system should automatically trigger a "circuit breaker" that temporarily pauses all Keeper activity, preventing executions at incorrect prices.
+      * Smart Contract Upgrades: The ABI for the trading module includes functions like generate_admin_cap and various set_* functions (e.g., set_max_leverage, set_taker_fee) that require an AdminCapability.4 This indicates that the protocol is designed to be upgradeable and managed by a core team. The private keys corresponding to this
+AdminCapability must be stored in the most secure manner possible, ideally in a multi-signature wallet requiring signatures from multiple trusted parties to authorize any changes to the protocol's parameters or to execute a contract upgrade.
+
+
+5.4. Conclusion
+
+
+Replicating the functionality of a sophisticated perpetual futures DEX like Merkle Trade is a significant engineering undertaking that extends far beyond simply interacting with a smart contract. It requires the design, implementation, and operation of a complex, three-pillar system encompassing on-chain logic, a high-performance backend, and a polished mobile client. The hybrid architecture, which leverages off-chain services for speed and on-chain contracts for security, is the key to its success. By understanding the intricate data flow between these components—from a user's tap in a React Native app, through a deep-linked signature with Petra, to off-chain processing by Keeper bots, and final settlement on the Aptos blockchain—a development team can successfully build a platform that is not only functionally equivalent but also robust, scalable, and secure. The detailed analysis of the on-chain ABI, the architectural blueprint for the necessary backend services, and the specific guidance on mobile client development provided in this report offer a complete and actionable roadmap for achieving this goal.
+Works cited
+         1. Ecosystem Spotlight: Merkle Trade — Seamless Leverage Trading for Everyone | Aptos, accessed on October 6, 2025, https://aptosfoundation.org/currents/ecosystem-spotlight-merkle-trade-seamless-leverage-trading-for-everyone
+         2. Merkle Trade Contract - GitHub, accessed on October 6, 2025, https://github.com/merkle-trade/merkle-contract
+         3. @merkletrade/ts-sdk - npm, accessed on October 6, 2025, https://www.npmjs.com/package/@merkletrade/ts-sdk?activeTab=readme
+         4. abi.txt
+         5. Wallet Adapter for Dapp Builders - Aptos Documentation, accessed on October 6, 2025, https://aptos.dev/build/sdks/wallet-adapter/dapp
+         6. Deep Linking to Mobile App - Petra Wallet, accessed on October 6, 2025, https://petra.app/docs/mobile-deeplinks
+         7. Merkle Trade price today, MKL to USD live price, marketcap and chart - CoinMarketCap, accessed on October 6, 2025, https://coinmarketcap.com/currencies/merkle-trade/
+         8. Merkle Trade · GitHub, accessed on October 6, 2025, https://github.com/merkle-trade
+         9. TypeScript SDK - Aptos Documentation, accessed on October 6, 2025, https://aptos.dev/build/sdks/ts-sdk
+         10. aptos-labs/aptos-ts-sdk: An SDK for accessing the Aptos blockchain data, submitting transactions, and more! - GitHub, accessed on October 6, 2025, https://github.com/aptos-labs/aptos-ts-sdk
+         11. aptos-connect/react-native-dapp-sdk - NPM, accessed on October 6, 2025, https://www.npmjs.com/package/@aptos-connect/react-native-dapp-sdk
+         12. How to Set Up and Use Deep Linking in React Native - DEV Community, accessed on October 6, 2025, https://dev.to/aneeqakhan/how-to-set-up-and-use-deep-linking-in-react-native-5cop
+         13. Deep linking - React Navigation, accessed on October 6, 2025, https://reactnavigation.org/docs/deep-linking/

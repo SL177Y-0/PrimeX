@@ -1,0 +1,299 @@
+﻿1. STAKING
+
+
+1. Front Page Details
+* Third Party/Liquid (Amnis, Thala, Echo)
+* King Pool Add and Creator Add
+* Percentage Of Network Share (x)
+* Commission
+* Total Staked in Node(APT) 
+* Total Rewards Distributed 
+* Withdrawal Charges(if applicable)
+* Performance (
+* APR Chart
+
+
+* Delegate/Locked 
+* King Pool Add and Creator Add
+* Percentage Of Network Share
+* Performance
+* Commission
+* Total Staked in Node (APT)
+* Total Rewards Earned
+* Next Unlock Time
+* APR Chart
+
+
+A response that states whether the following pool is a liquid/locked staking pool.
+Name and Image to be hardcoded
+
+
+2. User Position Details
+* DELEGATE STAKING 
+* Example frontend https://explorer.aptoslabs.com/validators/delegation?network=testnet
+* Contracts https://explorer.aptoslabs.com/account/0x0000000000000000000000000000000000000000000000000000000000000001/modules/code/delegation_pool?network=mainnet
+* Data
+* total tokens deposited 
+* Token usd price at the time of deposit
+* Total Reward tokens received by the user 
+* Apr of staking, with apr history for chart
+* Total stakers
+* Staked tokens per pool
+
+
+* LIQUID STAKING
+* Amnis,Thala and Echo LST
+   * Thala https://revela.verichains.io/aptos/0xfaf4e633ae9eb31366c9ca24214231760926576c7b625313b3688b5e900731f6?rpc=mainnet&module=staking
+   * Amnis  https://revela.verichains.io/aptos/0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a?rpc=mainnet
+   * Echo - https://revela.verichains.io/aptos/0xa0281660ff6ca6c1b68b55fcb9b213c2276f90ad007ad27fd003cf2f3478e96e?rpc=mainnet&module=lsdmanage
+
+
+* Data
+* total tokens deposited 
+* Token usd price at the time of deposit
+* Total Reward tokens received by the user 
+* Apr of staking, with apr history for chart
+* Total stakers
+* Total apt staked
+
+
+
+
+
+
+
+
+
+
+2) Lend And Borrow
+Protocols - Echelon, Aries, Echo, Joule Finance, Meso, Superposition
+Aries - https://revela.verichains.io/aptos/0x9770fa9c725cbd97eb50b2be5f7416efdfd1f1554beb0750d4dae4c64e860da3?rpc=mainnet&module=borrow_type
+Echelon - https://revela.verichains.io/aptos/0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba?rpc=mainnet&module=lending
+Meso - 
+https://revela.verichains.io/aptos/0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7?rpc=mainnet&module=meso
+Superposition- https://revela.verichains.io/aptos/0xccd1a84ccea93531d7f165b90134aa0415feb30e8757ab1632dac68c0055f5c2?rpc=mainnet&module=lend
+1. Front Page Details
+* Paired Pools
+* Total Supply in crypto and USD value
+* Available Liquidity
+* Utilization Ratio
+* Supply APR and LP chart
+* Borrow APR and LP chart
+* Total Borrowed
+* Total Supplied
+* Max LTV
+* Liquidation Threshold
+* Liquidation Penalty
+* Emode Info (Max LTV, Liquidation Threshold, Liquidation Penalty)
+* Utilization Chart (Current Utilization, Optimal Utilization, Borrow Rate)
+
+
+* Isolated Pools
+* Total Deposit
+* Total Collateral and value in $
+* Total Supply and value in $
+* Supply APR
+* Borrow APR
+* Utilization
+* Lax LTV
+
+
+For Running Loops check if any additional data is needed
+Health Factor Changes while Withdrawing any amount
+
+
+2. User Position Details
+* Paired Pool
+* Assets Lent/Borrowed
+* Amount Lent and Amount Borrowed (in crypto and USD value of lent and borrowed)
+* Rewards Accumulated by the User  - token address and value
+* Health Factor
+* Net APR of positions 
+* Net Balance
+
+
+* Isolated Pool
+* Assets Lent in Collateral (in crypto and USD value of lent and borrowed)
+* Assets Lent/Borrowed in Liability (in crypto and USD value of lent and borrowed)
+* Health Factor
+
+
+
+
+3) Leverage Trading
+Protocols - Merkle Trade, Thetis, EthosX, Mirage
+Merkle - 2
+
+
+https://explorer.aptoslabs.com/account/0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06/transactions?network=mainnet
+
+
+https://revela.verichains.io/aptos/0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06?rpc=mainnet&module=blocked_user
+
+
+
+
+
+
+
+
+3. Front Page Details
+* LIMIT ORDER/MARKET ORDER WHILE EXECUTION
+   * Deposit amount
+   * Target price
+   * Leverage value
+   * Is open : bool (if its executed then false else its true)
+   * Liquidation Price
+   * Entry Price
+   * 24hr price change
+   * Pairs and tags
+   * Funding Rate
+   * Market Skew
+
+
+* MARKET ORDER OR LIMIT ORDER AFTER EXECUTION
+   * Position details:
+      * Market name ex: APT/USD, 
+      * Leverage value
+      * Usd amount deposited
+      * Entry price
+      * Fee value
+      * Liquidation price
+      * Stop Loss of Take Profit values (if exist)
+      * Add Collateral (changes in respective fields)
+      * Partial Close (changes in respective fields)
+
+
+There is a cooldown period before closing a position usually 1 min.
+
+
+
+
+4) Yield Aggregator
+Protocols: Liquidswap, Thala, Baptswap, Cellana, PancakeSwap, Merkle
+Functions : farms, LP, lock/vest, stake, incentivize, vote
+Dexes - 
+1. Cellana - 0x4bf51972879e3b95c4781a5cdcb9e1ee24ef483e7d22f2d903626f126df62bd1
+2. Liquidswap v0.5 - 0x190d44266241744264b964a37b8f09863167a12d3e70cda39376cfb4e3561e12
+3. Liquidswap v0 - 0x163df34fccbf003ce219d3f1d9e70d140b60622cb9dd47599c25fb2f797ba6e
+4. Pancakeswap - 0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa
+5. Sushiswap - 
+6. Baptswap - 0xe52923154e25c258d9befb0237a30b4001c63dc3bb73011c29cb3739befffcef
+7. Thala - https://docs.thala.fi/overview/operations/contracts
+
+
+
+
+1. LP (Liquidswap, Thala, Baptswap, Cellana, PancakeSwap, Merkle)
+* Front Page Details
+* Pair Symbol and Name
+* APR % and chart
+* Type (Farm, LP, Stake, etc.)
+* Single/Multi Coin Strategy
+* Which Dapp?
+* Total Number of Investors in the Pool
+* TVL and chart
+* Volume
+* Reserves in the Pool
+* LP Tokens that will be received while adding liquidity to the pool (simulation)
+
+
+* User Position Details
+* Amount of LP tokens held
+* Current Value Of LP tokens
+* Value of position(lp tokens) while depositing crypto tokens (ie. while providing Liquidity to the pool)
+* While Removing Liquidity (Simulation on how many tokens will be received)
+
+
+
+
+2. Farms (Liquidswap, Thala, PancakeSwap, Baptswap)
+* Front Page Details
+* Pair Symbol and Name
+* APR % and chart
+* Additional/Boosted Rewards
+* Type (Farm, LP, Stake, etc)
+* Which Dapp?
+* Total Number of Investors in the Pool
+* TVL and chart
+
+
+* User Position Details
+* Amount of LP tokens invested into the Farm
+* Rewards Accrued
+* Lock-In Duration
+* Current Value Of LP tokens
+* Value of position(lp tokens) while depositing crypto tokens (ie. while providing Liquidity to the pool)
+* While Removing Liquidity (Simulation on how many LP tokens will be received)
+
+
+3. Stake (Merkle)
+* Front Page Details
+* Pair Symbol and Name
+* APR % and chart
+* Type (Farm, LP, Stake, etc)
+* Single/Multi Coin
+* Which Dapp?
+* Total Number of Investors in the Pool
+* TVL and chart
+* veMKL that will be received while depositing (simulation)
+
+
+* User Position Details
+* veMKL balance and time till unlock
+* Rewards Accrued and claim them
+* veMKL balance and time till unlock if lock extended
+* Current Value Of MKL tokens and value while deposit
+* Total MKL/esMKL tokens deposited
+* Unstake timer and claim in 90 day period (for esMKL and maybe instant for MKL)
+
+
+4. Lock, Vest, Vote, Incentivize (Cellana)
+* User Position Details
+* Lock:
+   * Amount Of Cell Locked
+   * All ve nfts owned
+   * VeCell and Cell in each nft 
+   * Time remaining to unlock
+   * Option to merge / split / unlock ve nfts
+* Vote
+   * Rewards Accrued
+   * Pools voted on and rewards accrued in each pool
+
+
+4) Uptos Pump
+* Contract address - 0x4e5e85fd647c7e19560590831616a3c021080265576af3182535a1d19e8bc2b3
+* All launched coins
+* Mcap in apt
+* Price in apt
+* Volume in apt
+* All swap / trade transactions
+* Olhc chart
+* Bonding curve progress
+* Holder distribution
+* Creator address
+* User Position Details
+* All coins balance
+* Value bought at
+* Current value
+* Profits- apt sold - apt bought
+
+
+5) Emoji Coin
+* Front Page Details
+* Contract address- 0xbabe32dbe1cb44c30363894da9f49957d6e2b94a06f2fc5c20a9d1b9e54cface
+
+
+* All launched emojis
+* Mcap in apt
+* Price in apt
+* Volume in apt
+* All swap / trade transactions
+* Olhc chart
+* Bonding curve progress
+* Holder distribution
+* User Position Details
+* All emoji coins balance
+* Value bought at
+* Current value
+* Profits- apt sold - apt bought
