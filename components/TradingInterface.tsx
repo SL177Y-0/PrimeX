@@ -18,13 +18,11 @@ import { CandleChart, CandleData } from './CandleChart';
 import { merkleService } from '../services/merkleService';
 import { realMarketDataService, RealMarketData } from '../services/realMarketDataService';
 import {
-  Wallet, 
   TrendingUp, 
   TrendingDown, 
   Target, 
   Activity, 
   DollarSign,
-  Shield,
   AlertCircle,
   X,
   Info,
@@ -56,7 +54,7 @@ export const TradingInterface: React.FC = () => {
   const { width: screenWidth } = Dimensions.get('window');
   const isMobile = screenWidth < BREAKPOINTS.md;
   
-  const { connected, account, connectExtension, connectDeepLink, disconnect, connecting, isExtensionAvailable } = useWallet();
+  const { connected, account } = useWallet();
   const { placeOrder, loading: tradingLoading, error: tradingError } = useMerkleTrading();
   const { positions, portfolio, totalPnL, loading: positionsLoading } = useMerklePositions();
   const { events, loading: eventsLoading } = useMerkleEvents();
@@ -68,6 +66,10 @@ export const TradingInterface: React.FC = () => {
   const [market, setMarket] = useState<MarketName>('APT_USD'); // Default to APT/USD
   const [showMarketSelector, setShowMarketSelector] = useState(false);
   const [side, setSide] = useState<'long' | 'short'>('long');
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+  const [limitPrice, setLimitPrice] = useState('');
+  const [marketSkew, setMarketSkew] = useState(0);
+  const [positionCooldown, setPositionCooldown] = useState<Date | null>(null);
   // Get asset-specific limits and defaults based on Merkle Trade guide
   const getAssetLimits = (marketPair: MarketName) => {
     return {
@@ -212,29 +214,6 @@ export const TradingInterface: React.FC = () => {
     };
   }, [fetchMarketData, market]);
  
-  const handleConnectExtension = async () => {
-    try {
-      await connectExtension('Petra');
-    } catch (error) {
-      Alert.alert('Extension Connection Error', 'Failed to connect to Petra extension. Make sure it\'s installed and unlocked.');
-    }
-  };
-
-  const handleConnectDeepLink = async () => {
-    try {
-      await connectDeepLink('Petra');
-    } catch (error) {
-      Alert.alert('Connection Error', 'Failed to connect wallet via deep link');
-    }
-  };
-
-  const handleDisconnect = async () => {
-    try {
-      await disconnect();
-    } catch (error) {
-      Alert.alert('Disconnect Error', 'Failed to disconnect wallet');
-    }
-  };
 
   const handlePlaceOrder = async () => {
     if (!connected) {
@@ -295,8 +274,8 @@ export const TradingInterface: React.FC = () => {
         side,
         size: sizeValue,
         collateral: collateralValue,
-        orderType: 'market', // Always market orders
-        price: undefined, // No limit price for market orders
+        orderType,
+        price: orderType === 'limit' ? parseFloat(limitPrice) : undefined,
         stopLoss: stopLoss ? parseFloat(stopLoss) : undefined,
         takeProfit: takeProfit ? parseFloat(takeProfit) : undefined,
       };
@@ -797,159 +776,6 @@ export const TradingInterface: React.FC = () => {
         </View>
       </Card>
 
-      {/* Wallet Connection Section */}
-      <Card style={[
-        styles.section, 
-        { 
-          backgroundColor: theme.colors.card,
-          padding: spacing.lg,
-          marginHorizontal: spacing.md,
-          marginBottom: spacing.lg,
-          borderRadius: theme.borderRadius.lg
-        }
-      ]}>
-        <View style={styles.sectionHeader}>
-          <Wallet size={24} color={theme.colors.textPrimary} />
-          <Text style={[
-            styles.sectionTitle, 
-            { 
-              color: theme.colors.textPrimary,
-              fontSize: fontSize.lg,
-              fontFamily: 'Inter-SemiBold',
-              marginLeft: spacing.sm
-            }
-          ]}>Wallet Connection</Text>
-        </View>
-        
-        {!connected ? (
-          <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-            {/* Extension Connection Button */}
-            {isExtensionAvailable && (
-              <AnimatedButton 
-                onPress={handleConnectExtension}
-                disabled={connecting}
-              >
-                <View style={styles.buttonContent}>
-                  <Wallet size={20} color="#FFFFFF" />
-                  <Text style={[
-                    styles.buttonText,
-                    { 
-                      fontSize: fontSize.md,
-                      fontFamily: 'Inter-SemiBold',
-                      marginLeft: spacing.sm
-                    }
-                  ]}>
-                    {connecting ? 'Connecting...' : 'Connect Petra Extension'}
-                  </Text>
-                </View>
-              </AnimatedButton>
-            )}
-            
-            {/* Deep Link Connection Button */}
-            <AnimatedButton 
-              onPress={handleConnectDeepLink}
-              disabled={connecting}
-              variant="secondary"
-            >
-              <View style={styles.buttonContent}>
-                <Wallet size={20} color={theme.colors.textPrimary} />
-                <Text style={[
-                  styles.buttonText,
-                  { 
-                    color: theme.colors.textPrimary,
-                    fontSize: fontSize.md,
-                    fontFamily: 'Inter-SemiBold',
-                    marginLeft: spacing.sm
-                  }
-                ]}>
-                  {connecting ? 'Connecting...' : 'Connect Petra Mobile'}
-                </Text>
-              </View>
-            </AnimatedButton>
-            
-            {/* Extension Not Available Message */}
-            {!isExtensionAvailable && (
-              <View style={[
-                {
-                  backgroundColor: theme.colors.chip,
-                  padding: spacing.md,
-                  borderRadius: theme.borderRadius.md,
-                  borderLeftWidth: 3,
-                  borderLeftColor: theme.colors.orange,
-                }
-              ]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <AlertCircle size={16} color={theme.colors.orange} />
-                  <Text style={[
-                    {
-                      color: theme.colors.textSecondary,
-                      fontSize: fontSize.sm,
-                      fontFamily: 'Inter-Medium',
-                      marginLeft: spacing.sm,
-                      flex: 1
-                    }
-                  ]}>
-                    Petra extension not detected. Install it for the best experience, or use mobile connection.
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        ) : (
-          <View style={{ marginTop: spacing.md }}>
-            <View style={[
-              styles.connectedCard,
-              {
-                backgroundColor: theme.colors.chip,
-                padding: spacing.md,
-                borderRadius: theme.borderRadius.md,
-                marginBottom: spacing.md
-              }
-            ]}>
-              <View style={styles.connectedInfo}>
-                <Shield size={20} color={theme.colors.positive} />
-                <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-                  <Text style={[
-                    styles.connectedLabel,
-                    { 
-                      color: theme.colors.textSecondary,
-                      fontSize: fontSize.sm,
-                      fontFamily: 'Inter-Medium'
-                    }
-                  ]}>Connected Wallet</Text>
-                  <Text 
-                    style={[
-                      styles.accountText,
-                      { 
-                        color: theme.colors.textPrimary,
-                        fontSize: fontSize.md,
-                        fontFamily: 'Inter-SemiBold'
-                      }
-                    ]}
-                    numberOfLines={1}
-                    ellipsizeMode="middle"
-                  >
-                    {account?.address ? `${account.address.substring(0, 6)}...${account.address.substring(account.address.length - 4)}` : ''}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            <AnimatedButton 
-              onPress={handleDisconnect}
-              variant="secondary"
-            >
-              <Text style={[
-                styles.buttonText,
-                { 
-                  color: theme.colors.textPrimary,
-                  fontSize: fontSize.md,
-                  fontFamily: 'Inter-SemiBold'
-                }
-              ]}>Disconnect</Text>
-            </AnimatedButton>
-          </View>
-        )}
-      </Card>
 
       {/* Trading Form Section */}
       {connected && (
@@ -1087,7 +913,66 @@ export const TradingInterface: React.FC = () => {
                 fontFamily: 'Inter-Medium',
                 marginBottom: spacing.sm
               }
-            ]}>Position Side</Text>
+            ]}>Order Type</Text>
+            <View style={[
+              styles.segmentedControl,
+              {
+                backgroundColor: theme.colors.chip,
+                borderRadius: theme.borderRadius.md,
+                padding: 4,
+                flexDirection: 'row',
+                marginBottom: spacing.md
+              }
+            ]}>
+              <Pressable
+                style={[
+                  styles.segment,
+                  {
+                    flex: 1,
+                    paddingVertical: spacing.sm,
+                    borderRadius: theme.borderRadius.xs,
+                    backgroundColor: orderType === 'market' ? theme.colors.purple : 'transparent'
+                  }
+                ]}
+                onPress={() => setOrderType('market')}
+              >
+                <Text style={[
+                  styles.segmentText,
+                  {
+                    color: orderType === 'market' ? '#FFFFFF' : theme.colors.textPrimary,
+                    fontSize: fontSize.sm,
+                    fontFamily: 'Inter-SemiBold',
+                    textAlign: 'center'
+                  }
+                ]}>Market</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.segment,
+                  {
+                    flex: 1,
+                    paddingVertical: spacing.sm,
+                    borderRadius: theme.borderRadius.xs,
+                    backgroundColor: orderType === 'limit' ? theme.colors.purple : 'transparent'
+                  }
+                ]}
+                onPress={() => setOrderType('limit')}
+              >
+                <Text style={[
+                  styles.segmentText,
+                  {
+                    color: orderType === 'limit' ? '#FFFFFF' : theme.colors.textPrimary,
+                    fontSize: fontSize.sm,
+                    fontFamily: 'Inter-SemiBold',
+                    textAlign: 'center'
+                  }
+                ]}>Limit</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Long/Short Selector */}
+          <View style={[styles.inputGroup]}>
             <View style={[
               styles.segmentedControl,
               {
@@ -1102,7 +987,7 @@ export const TradingInterface: React.FC = () => {
                   styles.segment,
                   {
                     flex: 1,
-                    paddingVertical: spacing.md,
+                    paddingVertical: spacing.sm,
                     borderRadius: theme.borderRadius.xs,
                     backgroundColor: side === 'long' ? theme.colors.buy : 'transparent'
                   }
@@ -1127,7 +1012,7 @@ export const TradingInterface: React.FC = () => {
                   styles.segment,
                   {
                     flex: 1,
-                    paddingVertical: spacing.md,
+                    paddingVertical: spacing.sm,
                     borderRadius: theme.borderRadius.xs,
                     backgroundColor: side === 'short' ? theme.colors.sell : 'transparent'
                   }
@@ -1149,6 +1034,60 @@ export const TradingInterface: React.FC = () => {
               </Pressable>
             </View>
           </View>
+
+          {/* Limit Price Input - Only show for limit orders */}
+          {orderType === 'limit' && (
+            <View style={[styles.inputGroup, { marginTop: spacing.md }]}>
+              <Text style={[
+                styles.label,
+                {
+                  color: theme.colors.textSecondary,
+                  fontSize: fontSize.sm,
+                  fontFamily: 'Inter-Medium',
+                  marginBottom: spacing.sm
+                }
+              ]}>Limit Price</Text>
+              <View style={[
+                styles.inputContainer,
+                {
+                  backgroundColor: theme.colors.chip,
+                  borderRadius: theme.borderRadius.md,
+                  borderWidth: 0,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm
+                }
+              ]}>
+                <TextInput
+                  style={[
+                    {
+                      color: theme.colors.textPrimary,
+                      fontSize: fontSize.lg,
+                      fontFamily: 'Inter-SemiBold',
+                      flex: 1,
+                      paddingVertical: spacing.xs,
+                      borderWidth: 0,
+                    }
+                  ]}
+                  value={limitPrice}
+                  onChangeText={setLimitPrice}
+                  placeholder="Enter limit price"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  keyboardType="numeric"
+                />
+                <Text style={[
+                  {
+                    color: theme.colors.textSecondary,
+                    fontSize: fontSize.sm,
+                    fontFamily: 'Inter-Medium',
+                    marginRight: 2,
+                    marginLeft: -12
+                  }
+                ]}>USDC</Text>
+              </View>
+            </View>
+          )}
 
           {/* Leverage Slider */}
           <View style={styles.inputGroup}>
@@ -1283,7 +1222,6 @@ export const TradingInterface: React.FC = () => {
                       flex: 1,
                       paddingVertical: spacing.xs,
                       borderWidth: 0,
-                      outline: 'none'
                     }
                   ]}
                   value={size}
@@ -1360,7 +1298,6 @@ export const TradingInterface: React.FC = () => {
                       flex: 1,
                       paddingVertical: spacing.xs,
                       borderWidth: 0,
-                      outline: 'none'
                     }
                   ]}
                   value={collateral}

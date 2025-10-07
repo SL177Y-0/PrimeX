@@ -320,9 +320,86 @@ export const buildEventType = (eventType: string, module: string = MERKLE_CONFIG
   return `${MERKLE_CONFIG.contractAddress}::${module}::${eventType}`;
 };
 
+// Panora Swap Configuration
+export const PANORA_CONFIG = {
+  contractAddress: '0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c',
+  apiUrl: 'https://api.panora.exchange/swap',
+  apiKey: 'a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi', // Public key from guides
+  chainId: 1, // Aptos Mainnet
+  defaultSlippage: 'auto', // Auto slippage up to 5%
+  maxSlippage: 50, // 50% maximum
+  minSlippage: 0.1, // 0.1% minimum
+} as const;
+
+// Swap Token Configuration
+export const SWAP_TOKENS = {
+  APT: {
+    address: '0x1::aptos_coin::AptosCoin',
+    symbol: 'APT',
+    name: 'Aptos',
+    decimals: 8,
+    logoUrl: 'https://assets.coingecko.com/coins/images/26455/small/aptos_round.png',
+    isNative: true,
+  },
+  USDC: {
+    address: '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b',
+    symbol: 'USDC',
+    name: 'USD Coin',
+    decimals: 6,
+    logoUrl: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png',
+    isNative: false,
+  },
+  USDT: {
+    address: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDT',
+    symbol: 'USDT',
+    name: 'Tether USD',
+    decimals: 6,
+    logoUrl: 'https://assets.coingecko.com/coins/images/325/small/Tether.png',
+    isNative: false,
+  },
+  WETH: {
+    address: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::WETH',
+    symbol: 'WETH',
+    name: 'Wrapped Ethereum',
+    decimals: 8,
+    logoUrl: 'https://assets.coingecko.com/coins/images/2518/small/weth.png',
+    isNative: false,
+  },
+  WBTC: {
+    address: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::WBTC',
+    symbol: 'WBTC',
+    name: 'Wrapped Bitcoin',
+    decimals: 8,
+    logoUrl: 'https://assets.coingecko.com/coins/images/7598/small/wrapped_bitcoin_wbtc.png',
+    isNative: false,
+  },
+} as const;
+
+// Popular swap pairs
+export const POPULAR_SWAP_PAIRS = [
+  { from: 'APT', to: 'USDC' },
+  { from: 'USDC', to: 'APT' },
+  { from: 'APT', to: 'USDT' },
+  { from: 'USDT', to: 'APT' },
+  { from: 'WETH', to: 'USDC' },
+  { from: 'WBTC', to: 'USDC' },
+] as const;
+
+// Swap Constants
+export const SWAP_CONSTANTS = {
+  MIN_AMOUNT: 0.001, // Minimum swap amount
+  MAX_AMOUNT: 1000000, // Maximum swap amount
+  QUOTE_REFRESH_INTERVAL: 10000, // 10 seconds
+  PRICE_IMPACT_WARNING: 5, // 5% price impact warning
+  HIGH_PRICE_IMPACT: 15, // 15% high price impact
+  DEFAULT_GAS_LIMIT: 100000,
+  GAS_UNIT_PRICE: 100,
+} as const;
+
 // Type exports for better TypeScript support
 export type MarketName = keyof typeof MARKETS;
 export type WalletName = typeof WALLET_CONFIG.supportedWallets[number];
 export type OrderType = typeof TRADING_CONSTANTS.ORDER_TYPES[keyof typeof TRADING_CONSTANTS.ORDER_TYPES];
 export type TradingFunction = typeof TRADING_FUNCTIONS[keyof typeof TRADING_FUNCTIONS];
 export type EventType = typeof EVENT_TYPES[keyof typeof EVENT_TYPES];
+export type SwapToken = keyof typeof SWAP_TOKENS;

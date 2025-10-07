@@ -111,19 +111,56 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     checkExtension();
   }, []);
 
-  // Load last connected wallet on mount
+  // Load last connected wallet on mount and auto-reconnect
   useEffect(() => {
     const loadLastWallet = async () => {
       try {
         const saved = await AsyncStorage.getItem('lastConnectedWallet');
         if (saved) {
           setLastConnectedWallet(saved);
+          
+          // Auto-reconnect if extension is available
+          const [walletName, method] = saved.split('-');
+          if (method === 'extension' && walletName === 'Petra') {
+            // Check if extension is available and auto-connect
+            if (Platform.OS === 'web' && typeof window !== 'undefined' && window.aptos) {
+              try {
+                const isConnected = await window.aptos.isConnected();
+                if (isConnected) {
+                  const account = await window.aptos.account();
+                  const walletAccount: WalletAccount = {
+                    address: account.address,
+                    publicKey: account.publicKey,
+                  };
+                  
+                  const walletInfo: WalletInfo = {
+                    name: 'Petra',
+                    icon: 'https://petra.app/favicon.ico',
+                    url: 'https://petra.app',
+                    connectionMethod: 'extension',
+                  };
+                  
+                  setAccount(walletAccount);
+                  setWallet(walletInfo);
+                  setConnected(true);
+                }
+              } catch (error) {
+                console.warn('Auto-reconnect failed:', error);
+                // Clear invalid connection data
+                await AsyncStorage.removeItem('lastConnectedWallet');
+                setLastConnectedWallet(null);
+              }
+            }
+          }
         }
       } catch (error) {
         console.warn('Failed to load last connected wallet:', error);
       }
     };
-    loadLastWallet();
+    
+    // Delay auto-reconnect to ensure extension is loaded
+    const timer = setTimeout(loadLastWallet, 1000);
+    return () => clearTimeout(timer);
   }, []);
 
   // Handle deep links

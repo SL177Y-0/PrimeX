@@ -1,0 +1,636 @@
+CONTRACT ADDRESS = 0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c
+
+
+# Panora Non-Custodial Integration for React Native
+
+### Key Points
+- **Overview**: Panora is a meta-DEX aggregator on Aptos, providing optimal swap routes across multiple liquidity sources. Integration into a React Native non-custodial wallet app involves fetching quotes via API, obtaining transaction data (txData), and forwarding it to wallets like Petra or via WalletConnect v2 for signing and submission.
+- **Recency and Authority**: Information is drawn from official Panora docs updated as recently as September 6, 2025, and Aptos official resources from September 2025. Older sources, like the contract docs from June 2025, are used only for unchanging protocol details and labeled accordingly.
+- **Core Components**: Use the POST /swap API for quotes (public key available), validate txData against the router address 0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c, and integrate with Petra deep links or WalletConnect v2 for mobile signing. No testnet endpoints found; use mainnet simulation for testing.
+- **Security Considerations**: No public audits or recent advisories identified, but implement validation rules like whitelisting the router address and function names. Evidence suggests robust on-chain modules, but verify independently.
+- **Potential Challenges**: API requires key; use public for testing. Wallet integration may vary by device; test deep links thoroughly. No breaking changes noted in the last 90 days.
+
+### Quick Integration Steps
+1. **Fetch Quote**: Call the Panora API with parameters like fromTokenAddress, toTokenAmount, and slippage. Parse the response for txData.
+2. **Validate and Prepare**: Check txData against known router functions (e.g., aggregator_multi_step_route_exact_input_entry) and add user confirmation UX.
+3. **Submit to Wallet**: Use Petra deep link with encrypted payload or WalletConnect v2 to request signing/submission, handling callbacks for success/failure.
+
+### Supported Features and Limitations
+- **Swaps**: ExactIn and ExactOut supported with integrator fees up to 2%. Slippage 'auto' or custom.
+- **Wallets**: Petra (deep links) and WalletConnect v2 (for compatible Aptos wallets like Blocto). Fallback to Aptos Wallet Adapter in RN.
+- **Testing**: Simulate transactions via Aptos REST /v1/transactions/simulate. No dedicated testnet; use low-value mainnet tests.
+- **Resources**: Official docs at https://docs.panora.exchange/developer/swap, Petra at https://petra.app/docs/mobile-deeplinks, Aptos SDK at @aptos-labs/ts-sdk.
+
+---
+
+# Integration Guide: Panora Non-Custodial (Wallet) Integration for React Native
+
+**Title**: Panora Non-Custodial Integration Guide for React Native  
+**Version**: 1.0  
+**Retrieval Date**: 2025-10-07 UTC  
+
+## Executive Summary
+This guide provides a complete, end-to-end walkthrough for integrating Panora's swap aggregator into a React Native non-custodial wallet app on Aptos. It covers API usage for quotes, on-chain router verification, mobile wallet interactions via Petra deep links and WalletConnect v2, security validations, testing strategies, and operational best practices. Developers can copy-paste code snippets for quick implementation, enabling users to perform swaps without custody transfer. The integration leverages Panora's meta-DEX aggregation for optimal routes, supporting ExactIn and ExactOut swaps with features like slippage tolerance and integrator fees.
+
+Key benefits include seamless trading UX in mobile apps, real-time liquidity sourcing from sources like Hyperion and ThalaSwapV2, and secure transaction handling. This guide assumes familiarity with React Native, Aptos SDK, and basic cryptography. All factual claims are cited with retrieval timestamps, and load-bearing elements (e.g., router address, API endpoint) are cross-verified from at least two sources where possible.
+
+## Scope & Assumptions
+- **Scope**: Non-custodial React Native app for trading/staking on Aptos, focusing on Panora swap integration. Includes API calls, txData handling, wallet submission, and edge cases like slippage and failures.
+- **Assumptions**: App handles user authentication and key management; targeted wallets are Petra (primary) and WalletConnect v2-compatible (e.g., Blocto). No custody of funds; all transactions are signed by the user. Environment: React Native >=0.70, Aptos mainnet (chainId=1). No testnet support identified—use simulation for staging.
+- **Exclusions**: Full app setup, staking specifics beyond swaps, or non-Aptos chains.
+
+## Quickstart (3 Steps)
+1. **Request Quote**: Use Node.js backend or client-side to POST to `https://api.panora.exchange/swap` with query params (e.g., fromTokenAddress, fromTokenAmount). Include `x-api-key: a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi`. Parse response for txData payload.
+   ```javascript
+   const fetchQuote = async () => {
+     const params = new URLSearchParams({
+       chainId: '1',
+       fromTokenAddress: '0xa', // APT
+       toTokenAddress: '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b', // USDC
+       fromTokenAmount: '10.5',
+       toWalletAddress: '<USER_ADDRESS>',
+       slippagePercentage: '3',
+     });
+     const response = await fetch(`https://api.panora.exchange/swap?${params}`, {
+       method: 'POST',
+       headers: { 'x-api-key': 'a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi' },
+     });
+     return await response.json();
+   };
+   ```
+2. **Show Confirmation**: Display quote details (e.g., minToTokenAmount, priceImpact) to user. Validate txData (see Security Checklist).
+3. **Send txData to Wallet**: For Petra, encrypt and deep link; for WalletConnect, request via session. Handle callback for tx hash.
+
+## Panora API Reference
+Endpoint: `POST https://api.panora.exchange/swap` (query params only; no body).  
+Headers: `x-api-key` (public: `a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi`).  
+Onboarding: Use public key; request custom via Discord for higher limits. (Retrieval: 2025-10-07)
+
+| Parameter | Required | Type | Description | Example |
+|-----------|----------|------|-------------|---------|
+| chainId | No | number | Chain ID (default: 1 for Aptos Mainnet) | 1 |
+| fromTokenAddress | Yes | string | From token address | 0xa (APT) |
+| toTokenAddress | Yes | string | To token address | 0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b (USDC) |
+| fromTokenAmount | Conditional | number | Amount for ExactIn (without decimals) | 10.5 |
+| toTokenAmount | Conditional | number | Amount for ExactOut (without decimals) | 100 |
+| toWalletAddress | Yes | string | Recipient wallet | 0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c |
+| slippagePercentage | No | number | Tolerance (0-100) or 'auto' | 3 |
+| integratorFeePercentage | No | number | Fee % (0-2) | 1 |
+| integratorFeeAddress | No | string | Fee recipient (0x + 64 chars) | 0x123... |
+| includeSources | No | string | Comma-separated sources | Hyperion,ThalaSwapV2 |
+| excludeSources | No | string | Comma-separated exclusions | SushiSwap |
+| includePools | No | string | Pool addresses (max 10) | 0xd389...,0xc3c4... |
+| onlyDirectRoutes | No | boolean | Restrict to direct routes | false |
+
+Rate Limits: 429 on breach; public sufficient for most. Error Codes: 400 (bad request), 401 (unauthorized), 404 (not found), 500 (internal).
+
+Sample Request (APT → USDC ExactIn):
+```bash
+curl -X POST "https://api.panora.exchange/swap?chainId=1&fromTokenAddress=0xa&toTokenAddress=0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b&fromTokenAmount=10.5&toWalletAddress=0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c&slippagePercentage=3" -H "x-api-key: a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi"
+```
+
+Sample Response (ExactIn, abstracted):
+```json
+{
+  "fromToken": {"address": "0xa", "decimals": 8, "current_price": "10.00"},
+  "toToken": {"address": "0xbae...", "decimals": 6, "current_price": "1.00"},
+  "feeToken": {"address": "0xa", "name": "Aptos", "symbol": "APT", "decimals": 8, "current_price": "10.00"},
+  "fromTokenAmount": "1050000000",
+  "fromTokenAmountUSD": "105.00",
+  "quotes": [{
+    "toTokenAmount": "104500000",
+    "priceImpact": "0.5",
+    "slippagePercentage": "3",
+    "feeTokenAmount": "1000000",
+    "minToTokenAmount": "101365000",
+    "txData": {
+      "type": "entry_function_payload",
+      "function": "0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c::panora_swap_aggregator::aggregator_multi_step_route_exact_input_entry",
+      "type_arguments": ["0xa::aptos_coin::AptosCoin", "0xbae...::USDC::USDC"],
+      "arguments": [1050000000, 101365000, ["Hyperion"], [true]]
+    },
+    "toTokenAmountUSD": "104.50"
+  }]
+}
+```
+(Note: txData inferred from ABI; actual may vary.)
+
+Additional Samples: USDC → APT ExactOut (swap amounts/params); large amount (1000 APT → USDC); edge case (minimal amount, 0.01 APT).
+
+## On-Chain Verification
+Router Address: 0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c (verified via Aptos fullnode and docs; no versions noted). (Retrieval: 2025-10-07)  
+Entry Functions: e.g., `aggregator_multi_step_route_exact_input_entry` (args: amounts, sources, flags). Type Args: Token types like `0x1::aptos_coin::AptosCoin`.  
+No source code; use raw bytecode from fullnode.  
+
+Curl Commands:
+```bash
+curl -s "https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/modules" | jq '.[] | .abi.name'
+```
+```bash
+curl -s "https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/module/panora_swap_aggregator" | jq '.abi'
+```
+Verify signatures match expected (e.g., multi-step route functions).
+
+## React Native Implementation
+Use `@aptos-labs/ts-sdk` for Aptos interactions, `tweetnacl` for encryption.  
+
+**Full Petra Deep Link Example** (connect + signAndSubmit + callback):
+```javascript
+import { Linking } from 'react-native';
+import nacl from 'tweetnacl';
+import { Buffer } from 'buffer';
+
+// Constants
+const PETRA_LINK_BASE = 'petra://api/v1';
+const DAPP_LINK_BASE = 'yourapp://api/v1'; // Configure in app.json
+const APP_INFO = { domain: 'https://yourapp.com', name: 'Your App' };
+
+// Keypair Generation
+let secretKey, publicKey, sharedKey;
+const generateKeyPair = () => {
+  const kp = nacl.box.keyPair();
+  secretKey = kp.secretKey;
+  publicKey = kp.publicKey;
+};
+
+// Connect
+const connectToPetra = async () => {
+  generateKeyPair();
+  const data = {
+    appInfo: APP_INFO,
+    redirectLink: `${DAPP_LINK_BASE}/connect`,
+    dappEncryptionPublicKey: Buffer.from(publicKey).toString('hex'),
+  };
+  await Linking.openURL(`${PETRA_LINK_BASE}/connect?data=${btoa(JSON.stringify(data))}`);
+};
+
+// SignAndSubmit (using txData from quote)
+const signAndSubmit = async (txData) => {
+  if (!sharedKey) throw new Error('No shared key');
+  const payload = btoa(JSON.stringify(txData)); // txData as entry_function_payload
+  const nonce = nacl.randomBytes(24);
+  const encrypted = nacl.box.after(Buffer.from(payload), nonce, sharedKey);
+  const data = {
+    appInfo: APP_INFO,
+    redirectLink: `${DAPP_LINK_BASE}/response`,
+    dappEncryptionPublicKey: Buffer.from(publicKey).toString('hex'),
+    payload: Buffer.from(encrypted).toString('hex'),
+    nonce: Buffer.from(nonce).toString('hex'),
+  };
+  await Linking.openURL(`${PETRA_LINK_BASE}/signAndSubmit?data=${btoa(JSON.stringify(data))}`);
+};
+
+// Callback Handling (useEffect)
+useEffect(() => {
+  const handleUrl = async ({ url }) => {
+    const { pathname, search } = new URL(url);
+    const params = new URLSearchParams(search);
+    if (pathname.includes('/connect') && params.get('response') === 'approved') {
+      const { petraPublicEncryptedKey } = JSON.parse(atob(params.get('data')));
+      sharedKey = nacl.box.before(Buffer.from(petraPublicEncryptedKey.slice(2), 'hex'), secretKey);
+    } else if (pathname.includes('/response')) {
+      // Handle tx hash or error
+    }
+  };
+  Linking.addEventListener('url', handleUrl);
+  return () => Linking.removeAllListeners('url');
+}, []);
+```
+ (Retrieval: 2025-10-07)
+
+**WalletConnect v2 RN Snippet**:
+Use `@walletconnect/react-native-dapp` or `@aptos-labs/wallet-adapter-react` with WC plugin.  
+```javascript
+import WalletConnectProvider from '@walletconnect/react-native-dapp';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const APP_NAME = 'Your App';
+const PROJECT_ID = 'your-wc-project-id'; // From walletconnect.com
+
+const WalletConnectWrapper = ({ children }) => (
+  <WalletConnectProvider
+    storageOptions={{ asyncStorage: AsyncStorage }}
+    projectId={PROJECT_ID}
+    metadata={{ name: APP_NAME, description: 'Aptos Swap App', url: 'https://yourapp.com', icons: [] }}
+    chainId={1} // Aptos mainnet
+  >
+    {children}
+  </WalletConnectProvider>
+);
+
+// Request Signing/Submission
+const signAndSubmitWC = async (txData) => {
+  const connector = useWalletConnect(); // From hook
+  const response = await connector.sendTransaction({
+    topic: connector.topic,
+    method: 'aptos_signAndSubmitTransaction',
+    params: [txData], // entry_function_payload
+  });
+  // Handle response.hash
+};
+```
+Session Flow: Connect via WC modal, approve in wallet, use namespace 'aptos' for methods. (Retrieval: 2025-10-07)  
+Fallback: Use Aptos Wallet Adapter for other wallets in mobile/web.
+
+## Backend (Optional) Pattern
+Node.js example for quote requests (non-custodial):
+```javascript
+const express = require('express');
+const app = express();
+app.use(express.json());
+
+app.post('/quote', async (req, res) => {
+  const { fromToken, toToken, amount, wallet } = req.body;
+  const params = new URLSearchParams({ chainId: '1', fromTokenAddress: fromToken, toTokenAddress: toToken, fromTokenAmount: amount, toWalletAddress: wallet });
+  const response = await fetch(`https://api.panora.exchange/swap?${params}`, {
+    method: 'POST',
+    headers: { 'x-api-key': 'a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi' },
+  });
+  const data = await response.json();
+  res.json(data); // Cache with TTL 30s
+});
+
+app.listen(3000);
+```
+Recommended: Cache quotes 30s, retry on 429.
+
+## Security Checklist and Validation Rules
+- **Audits**: No public audits found for Panora router (last 12 months search yielded none). Flag potential risks; recommend independent review.
+- **Advisories**: No CVEs or exploits in last 12 months. Monitor Aptos forums/GitHub.
+- **Validation Rules**: Before wallet submission:
+  - Whitelist router: === '0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c'
+  - Function: In ['aggregator_multi_step_route_exact_input_entry', 'one_step_route_exact_input_entry', etc.]
+  - Verify minToTokenAmount > 0, type args match tokens, integrator fee <=2%.
+  - Check gas estimates via simulation.
+- Encrypt payloads for deep links; use secure storage for keys.
+
+## Testing & Staging Plan
+No testnet endpoints; use Aptos devnet for simulation. Endpoints: https://fullnode.devnet.aptoslabs.com/v1 (modules/simulate).  
+Simulation Example:
+```bash
+curl -X POST "https://fullnode.mainnet.aptoslabs.com/v1/transactions/simulate" \
+  -H "Content-Type: application/json" \
+  -d '{"sender": "<USER_ADDRESS>", "sequence_number": "0", "max_gas_amount": "100000", "gas_unit_price": "100", "expiration_timestamp_secs": "9999999999", "payload": <txData from quote>}'
+```
+**Test Matrix** (10+ cases):
+
+| Test Case | Description | Input | Expected | Edge Notes |
+|-----------|-------------|-------|----------|------------|
+| Happy: APT→USDC ExactIn | Small swap | 1 APT | txData valid, minTo >0 | Low slippage |
+| Happy: USDC→APT ExactOut | Medium swap | 100 USDC | maxFrom reasonable | Auto slippage |
+| Edge: Minimal Amount | Swap 0.0001 APT | Tiny amount | Success or error if below min | Check partial fills |
+| Edge: Large Amount | Swap 10000 APT | High value | Price impact <10% | Monitor gas |
+| Failure: Invalid Token | Bad address | Invalid | 400 error | UX alert |
+| Failure: User Rejection | Submit to wallet | - | Callback reject | Retry flow |
+| Slippage High | Set 50% | Volatile pair | Adjusted minTo | UX warning |
+| Integrator Fee | 1% fee | With address | Fee in response | Verify settlement |
+| Multi-Source | Include 2 sources | Hyperion,Thala | Optimal route | Compare quotes |
+| Direct Route Only | onlyDirectRoutes=true | Simple pair | No hops | Faster exec |
+| Simulation Fail | Invalid txData | Tampered | Simulate error | Validate pre-submit |
+| Callback Error | Network issue | - | Retry metric | Log and alert |
+
+Ops Checklist for Go-Live: Verify API key, test on devices, monitor rates. Roll-Back: Disable feature flag, fallback to manual swaps.
+
+## Monitoring & Operations
+- Rate Limits: Handle 429 with exponential backoff (1s-60s).
+- Caching: TTL 30s for quotes; invalidate on price change.
+- Retries: 3 attempts on 5xx errors.
+- Metrics: Track quote time, success rate, slippage avg. Use webhooks for tx status via Aptos indexer.
+- UX: Show gas fees, price impact (>5% warn), partial fills as errors.
+
+## Troubleshooting & FAQ
+- API 401: Check key.
+- Deep Link Fail: Ensure app scheme registered.
+- WC Session Drop: Reconnect on error.
+- FAQ: "Why no testnet?" - Use simulation. "Slippage too high?" - Adjust or warn user.
+
+## Changelog & Known Issues (Last 90 Days)
+No breaking changes or deprecations identified (searches yielded none). Docs updates: API/SDK Aug 29, Widget Sep 6. Known: Potential rate limits on public key; request custom.
+
+## Appendices
+- **Raw API Responses**: See sample above.
+- **Raw Module Blobs**: From fullnode (e.g., panora_swap_aggregator ABI as summarized). Decompile with Revela: `revela decompile <bytecode>`.
+- **Full Code Samples**: See RN examples above; backend in pattern section.
+
+## References & Citations
+- **https://docs.panora.exchange/developer/swap/api** (bold: load-bearing for API schema; 2025-08-29)
+- **https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/modules** (bold: load-bearing for router verification; 2025-10-07)
+- https://petra.app/docs/mobile-deeplinks (bold: load-bearing for Petra integration; retrieval 2025-10-07)
+- https://docs.panora.exchange/developer/swap/sdk (SDK examples; 2025-08-29)
+- https://aptos.dev/build/sdks/wallet-adapter/dapp (Wallet adapter; 2025-09-24)
+All sources free/access-free. Top 5 load-bearing have ≥2: API (docs + SDK), router (fullnode + docs), Petra (docs + SO example).
+
+**SUMMARY.md Content**  
+Top 10 Commands:  
+1. curl -s "https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/modules" | jq  
+2. curl -X POST "https://api.panora.exchange/swap?chainId=1&fromTokenAddress=0xa&toTokenAddress=0xbae...&fromTokenAmount=10.5&toWalletAddress=<ADDR>&slippagePercentage=3" -H "x-api-key: ..."  
+3. curl -s "https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/module/panora_swap_aggregator" | jq '.abi'  
+4. npm install @panoraexchange/swap-sdk  
+5. curl -X POST "https://fullnode.mainnet.aptoslabs.com/v1/transactions/simulate" -d '{"sender": "<ADDR>", "payload": <TXDATA>}'  
+6. Linking.openURL('petra://api/v1/connect?data=<BASE64>')  
+7. nacl.box.keyPair()  
+8. await connector.sendTransaction({method: 'aptos_signAndSubmitTransaction', params: [txData]})  
+9. fetch('https://api.panora.exchange/swap?...', {method: 'POST'})  
+10. await aptos.waitForTransaction({transactionHash: '<HASH>'})
+
+## Key Citations
+- [Panora Swap API Docs](https://docs.panora.exchange/developer/swap/api)
+- [Panora SDK Docs](https://docs.panora.exchange/developer/swap/sdk)
+- [Aptos Fullnode Modules](https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/modules)
+- [Petra Mobile Deep Links](https://petra.app/docs/mobile-deeplinks)
+- [Aptos Wallet Adapter for Dapps](https://aptos.dev/build/sdks/wallet-adapter/dapp)
+- [Panora Contract Docs (older, labeled)](https://docs.panora.exchange/developer/swap/contract)
+
+# integration-guide-panora-noncustodial-2025-10-07.md
+
+**Title**: Panora Non-Custodial Integration Guide for React Native  
+**Version**: 1.0  
+**Retrieval Date**: 2025-10-07 UTC  
+
+## Executive Summary
+This guide delivers a comprehensive, end-to-end blueprint for integrating Panora's swap aggregator into a React Native non-custodial wallet app on the Aptos blockchain. It encompasses API interactions for obtaining quotes, on-chain router validation, secure transaction forwarding via Petra deep links or WalletConnect v2, rigorous security protocols, thorough testing methodologies, and operational strategies. Developers benefit from copy-pasteable code snippets, enabling seamless, optimized swaps without asset custody. Panora aggregates liquidity from sources like Hyperion and ThalaSwapV2, ensuring competitive routes for ExactIn and ExactOut trades, with support for slippage, integrator fees, and direct routes.
+
+The integration prioritizes user security and UX, handling edge cases like high slippage or failures gracefully. Assumptions include React Native proficiency and Aptos SDK familiarity. All claims are substantiated with citations and timestamps, with key elements (e.g., API endpoint, router address) verified across multiple sources where feasible.
+
+## Scope & Assumptions
+- **Scope**: Focuses on non-custodial React Native apps for Aptos trading/staking, emphasizing Panora swap integration via API quotes, txData processing, and wallet submission. Covers UX for slippage/price impact, edge handling, and operations like caching.
+- **Assumptions**: App manages user keys; targets Petra (deep links) and WalletConnect v2 (e.g., Blocto). Mainnet (chainId=1); no fund custody. Environment: React Native >=0.70, @aptos-labs/ts-sdk. No staking beyond swaps; unchanging protocol details from older sources labeled.
+- **Exclusions**: Complete app bootstrap, non-Aptos chains.
+
+## Quickstart (3 Steps)
+1. **Request Quote**: POST to `https://api.panora.exchange/swap` with query params (e.g., fromTokenAddress, fromTokenAmount). Use public x-api-key. Parse `txData` from response.
+   ```javascript
+   const fetchQuote = async () => {
+     const params = new URLSearchParams({
+       fromTokenAddress: '0xa',
+       toTokenAddress: '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b',
+       fromTokenAmount: '1',
+       toWalletAddress: '<USER_ADDRESS>',
+       slippagePercentage: '3',
+     });
+     const response = await fetch(`https://api.panora.exchange/swap?${params}`, {
+       method: 'POST',
+       headers: { 'x-api-key': 'a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi' },
+     });
+     return await response.json();
+   };
+   ```
+2. **Show Confirmation**: Present quote (e.g., minToTokenAmount, priceImpact). Validate txData per security rules.
+3. **Send txData to Wallet**: Encrypt and deep link for Petra; request via session for WalletConnect v2. Process callbacks for tx hash or errors.
+
+## Panora API Reference
+Endpoint: `POST https://api.panora.exchange/swap` (query params; no body).  
+Headers: `x-api-key` (public: `a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi`). (Retrieval: 2025-10-07 UTC)  
+Onboarding: Public key suffices; custom via Discord for limits.  
+Amounts without decimals (e.g., 10.5 APT).
+
+| Parameter              | Required | Type    | Description | Example |
+|------------------------|----------|---------|-------------|---------|
+| chainId               | No      | number | Chain ID (default: 1) | 1 |
+| fromTokenAddress      | Yes     | string | From token | 0xa (APT) |
+| toTokenAddress        | Yes     | string | To token | 0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b (USDC) |
+| fromTokenAmount       | Conditional | number | For ExactIn | 1 |
+| toTokenAmount         | Conditional | number | For ExactOut | 100 |
+| toWalletAddress       | Yes     | string | Recipient (0x + 64 hex) | 0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c |
+| slippagePercentage    | No      | number/string | 0-100 or 'auto' | 3 |
+| integratorFeePercentage | No    | number | 0-2 | 1 |
+| integratorFeeAddress  | No      | string | Fee recipient (0x + 64 hex) | 0x123... |
+| includeSources        | No      | string | Comma-separated sources | Hyperion,ThalaSwapV2 |
+| excludeSources        | No      | string | Comma-separated exclusions | SushiSwap |
+| includePools          | No      | string | Comma-separated pools (max 10) | 0xd389...,0xc3c4... |
+| onlyDirectRoutes      | No      | boolean| Direct routes only | false |
+
+Rate Limits: Not specified; handle 429 with backoff. Error Codes: 400 (bad request), 401 (unauthorized), 404 (not found), 500 (internal).
+
+Sample Request (APT → USDC ExactIn small):
+```bash
+curl -X POST "https://api.panora.exchange/swap?fromTokenAddress=0xa&toTokenAddress=0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b&fromTokenAmount=1&toWalletAddress=0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c&slippagePercentage=3" -H "x-api-key: a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi"
+```
+
+Sample Response (abstracted; actual varies):
+```json
+{
+  "fromToken": {"address": "0xa", "decimals": 8, "current_price": "8.005"},
+  "toToken": {"address": "0xbae...", "decimals": 6, "current_price": "1.00"},
+  "feeToken": {"address": "0xa", "name": "Aptos Coin", "symbol": "APT", "decimals": 8, "current_price": "8.005"},
+  "fromTokenAmount": "1",
+  "fromTokenAmountUSD": "8.005",
+  "quotes": [{
+    "toTokenAmount": "8.00",
+    "priceImpact": "0.5",
+    "slippagePercentage": "3",
+    "feeTokenAmount": "0.01",
+    "minToTokenAmount": "7.76",
+    "txData": {
+      "type": "entry_function_payload",
+      "function": "0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c::panora_swap_aggregator::aggregator_multi_step_route_exact_input_entry",
+      "type_arguments": ["0x1::aptos_coin::AptosCoin", "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b::USDC::USDC"],
+      "arguments": [100000000, 7760000, [1,2], [true,false]]
+    },
+    "toTokenAmountUSD": "8.00"
+  }]
+}
+```
+txData: Mandatory `type`, `function`, `type_arguments` (array of strings), `arguments` (array of numbers/arrays/booleans).
+
+Additional Samples: USDC → APT ExactOut (small/large); edge (minimal 0.0001 APT, high slippage 50%).
+
+## On-Chain Verification
+Router Address: 0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c (verified; single version, no multiples noted). (Retrieval: 2025-10-07 UTC)  
+Entry Functions: e.g., `aggregator_multi_step_route_exact_input_entry` (generics: T0-T6; args: signer, address, u8s, u64s, bools, etc.). Type Args: Token types (e.g., "0x1::aptos_coin::AptosCoin"). No source; use ABI or decompile bytecode with Revela.
+
+Curl Commands:
+```bash
+curl -s "https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/modules" | jq '.[] | .abi.name'
+```
+```bash
+curl -s "https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/module/panora_swap_aggregator" | jq '.abi'
+```
+Verify function signatures match txData.
+
+## React Native Implementation
+Leverage `@aptos-labs/ts-sdk`, `tweetnacl` for encryption, `react-native-linking`.
+
+**Full Petra Deep Link Example**:
+```javascript
+import { Linking } from 'react-native';
+import nacl from 'tweetnacl';
+import { Buffer } from 'buffer';
+
+const PETRA_LINK_BASE = 'petra://api/v1';
+const DAPP_LINK_BASE = 'yourapp://api/v1'; // App scheme
+const APP_INFO = { domain: 'https://yourapp.com', name: 'Your App' };
+
+let secretKey, publicKey, sharedKey;
+
+const generateKeyPair = () => {
+  const kp = nacl.box.keyPair();
+  secretKey = kp.secretKey;
+  publicKey = kp.publicKey;
+};
+
+const connectToPetra = async () => {
+  generateKeyPair();
+  const data = {
+    appInfo: APP_INFO,
+    redirectLink: `${DAPP_LINK_BASE}/connect`,
+    dappEncryptionPublicKey: Buffer.from(publicKey).toString('hex'),
+  };
+  const encoded = btoa(JSON.stringify(data));
+  await Linking.openURL(`${PETRA_LINK_BASE}/connect?data=${encoded}`);
+};
+
+const signAndSubmit = async (txData) => {
+  if (!sharedKey) throw new Error('No shared key');
+  const payload = JSON.stringify(txData);
+  const nonce = nacl.randomBytes(24);
+  const encrypted = nacl.box.after(Buffer.from(payload), nonce, sharedKey);
+  const data = {
+    appInfo: APP_INFO,
+    redirectLink: `${DAPP_LINK_BASE}/response`,
+    dappEncryptionPublicKey: Buffer.from(publicKey).toString('hex'),
+    payload: Buffer.from(encrypted).toString('hex'),
+    nonce: Buffer.from(nonce).toString('hex'),
+  };
+  const encoded = btoa(JSON.stringify(data));
+  await Linking.openURL(`${PETRA_LINK_BASE}/signAndSubmit?data=${encoded}`);
+};
+
+// Callback (useEffect)
+useEffect(() => {
+  const handleUrl = async ({ url }) => {
+    if (!url) return;
+    const { pathname, search } = new URL(url);
+    const params = new URLSearchParams(search);
+    if (pathname.includes('/connect') && params.get('response') === 'approved') {
+      const { petraPublicEncryptedKey } = JSON.parse(atob(params.get('data')));
+      sharedKey = nacl.box.before(Buffer.from(petraPublicEncryptedKey.slice(2), 'hex'), secretKey);
+    } else if (pathname.includes('/response')) {
+      // Parse success/failure
+    }
+  };
+  Linking.addEventListener('url', handleUrl);
+  Linking.getInitialURL().then(url => url && handleUrl({ url }));
+  return () => Linking.removeAllListeners('url');
+}, []);
+```
+(Retrieval: 2025-10-07 UTC)
+
+**WalletConnect v2 RN Snippet**:
+Use `@walletconnect/react-native-dapp`, `@aptos-labs/wallet-adapter-react`.
+```javascript
+import WalletConnectProvider from '@walletconnect/react-native-dapp';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useWallet } from '@aptos-labs/wallet-adapter-react';
+
+const Wrapper = ({ children }) => (
+  <WalletConnectProvider
+    storageOptions={{ asyncStorage: AsyncStorage }}
+    projectId="YOUR_WC_PROJECT_ID"
+    metadata={{ name: 'App', description: 'Aptos App', url: 'https://yourapp.com', icons: [] }}
+  >
+    {children}
+  </WalletConnectProvider>
+);
+
+// Signing
+const signAndSubmitWC = async (txData) => {
+  const { signAndSubmitTransaction } = useWallet();
+  await signAndSubmitTransaction(txData);
+};
+```
+Session: Connect via modal, approve in wallet (e.g., Blocto supports Aptos WC v2). Fallback: Aptos adapter for mobile.
+
+## Backend (Optional) Pattern
+Node.js for quotes:
+```javascript
+const express = require('express');
+const app = express();
+
+app.post('/quote', async (req, res) => {
+  const { fromToken, toToken, amount, wallet } = req.body;
+  const params = new URLSearchParams({ fromTokenAddress: fromToken, toTokenAddress: toToken, fromTokenAmount: amount, toWalletAddress: wallet });
+  const quote = await fetch(`https://api.panora.exchange/swap?${params}`, {
+    method: 'POST',
+    headers: { 'x-api-key': 'a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi' },
+  }).then(r => r.json());
+  res.json(quote); // Cache TTL 30s
+});
+
+app.listen(3000);
+```
+
+## Security Checklist and Validation Rules
+- **Audits**: None found (searches across GitHub, web yielded no Panora-specific reports in last 12 months).
+- **Advisories**: No CVEs, exploits, or bug reports identified.
+- **Validation Rules**: Pre-wallet: Whitelist router `0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c`, function (e.g., `aggregator_multi_step_route_exact_input_entry`), minToTokenAmount >0, type args match tokens, integrator fee <=2%. Simulate for gas/errors.
+- Encrypt payloads; secure key storage.
+
+## Testing & Staging Plan
+No Panora testnet; use Aptos testnet/devnet for simulation. Endpoints: https://fullnode.testnet.aptoslabs.com/v1, https://fullnode.devnet.aptoslabs.com/v1.  
+Simulation Example:
+```bash
+curl -X POST "https://fullnode.mainnet.aptoslabs.com/v1/transactions/simulate" \
+  -H "Content-Type: application/json" \
+  -d '{"sender": "<USER_ADDRESS>", "sequence_number": "0", "max_gas_amount": "100000", "gas_unit_price": "100", "expiration_timestamp_secs": "9999999999", "payload": {"type": "entry_function_payload", "function": "0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c::panora_swap_aggregator::aggregator_multi_step_route_exact_input_entry", "type_arguments": ["0x1::aptos_coin::AptosCoin", "0xbae...::USDC::USDC"], "arguments": [100000000, 7760000, [1,2], [true,false]]}}'
+```
+
+**Test Matrix**:
+
+| Test Case | Description | Input | Expected | Edge Notes |
+|-----------|-------------|-------|----------|------------|
+| Happy: APT→USDC ExactIn small | 1 APT swap | fromTokenAmount=1 | Valid txData, minTo>0 | Low slippage |
+| Happy: USDC→APT ExactOut medium | 100 USDC | toTokenAmount=100 | Reasonable maxFrom | Auto slippage |
+| Edge: Minimal amount | 0.0001 APT | fromTokenAmount=0.0001 | Success/error if below min | Partial fills? |
+| Edge: Large amount | 1000 APT | fromTokenAmount=1000 | Price impact <10% | Gas monitoring |
+| Failure: Invalid token | Bad address | Invalid param | 400 error | Alert UX |
+| Failure: Rejection | Wallet reject | - | Reject callback | Retry |
+| High slippage | 50% | slippagePercentage=50 | Adjusted minTo | Warn UX |
+| Integrator fee | 1% with address | integratorFeePercentage=1 | Fee in quote | Verify |
+| Multi-source | Include Hyperion,Thala | includeSources=Hyperion,ThalaSwapV2 | Optimal route | Compare |
+| Direct only | onlyDirectRoutes=true | Simple pair | No hops | Faster |
+| Simulation fail | Tampered txData | Invalid payload | Error in simulate | Pre-submit check |
+| Callback error | Network fail | - | Retry log | Alert |
+
+Go-Live Checklist: API key test, device testing, rate monitoring. Roll-Back: Feature flag disable, manual fallback.
+
+## Monitoring & Operations
+- Rate Limits: Backoff on 429 (1-60s exponential).
+- Caching: 30s TTL for quotes; invalidate on volatility.
+- Retries: 3 on 5xx.
+- Metrics: Quote latency, success %, avg slippage. Use Aptos indexer webhooks for tx status.
+- UX: Display fees, impact (>5% warn), handle partials as errors.
+
+## Troubleshooting & FAQ
+- 401: Invalid key.
+- Deep link fail: Check scheme.
+- WC drop: Reconnect.
+- FAQ: No testnet? Simulate. High slippage? Adjust/warn.
+
+## Changelog & Known Issues (Last 90 Days)
+No deprecations, new params, or breaking changes identified (searches yielded none). Docs updates: API Aug 29, 2025.
+
+## Appendices
+- **Raw API Responses**: See samples above.
+- **Raw Module Blobs**: ABI from fullnode (e.g., panora_swap_aggregator functions as listed). Decompile: `revela decompile <bytecode_hex>`.
+- **Full Code Samples**: Petra/WC above; backend pattern.
+
+## References & Citations
+- **https://docs.panora.exchange/developer/swap/api** (bold: load-bearing for API; 2025-08-29)
+- **https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/module/panora_swap_aggregator** (bold: load-bearing for ABI; 2025-10-07)
+- https://petra.app/docs/mobile-deeplinks (bold: load-bearing for Petra; retrieval 2025-10-07)
+- https://aptos.dev/build/sdks/wallet-adapter/dapp (bold: load-bearing for WC; 2025-09-24)
+- https://aptos.dev/build/apis/fullnode-rest-api (bold: load-bearing for endpoints; 2025-09-24)
+
+# SUMMARY.md
+Top 10 Commands:  
+1. curl -s "https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/modules" | jq  
+2. curl -X POST "https://api.panora.exchange/swap?fromTokenAddress=0xa&toTokenAddress=0xbae...&fromTokenAmount=1&toWalletAddress=<ADDR>&slippagePercentage=3" -H "x-api-key: a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi"  
+3. curl -s "https://fullnode.mainnet.aptoslabs.com/v1/accounts/0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c/module/panora_swap_aggregator" | jq '.abi'  
+4. npm install @aptos-labs/ts-sdk tweetnacl  
+5. curl -X POST "https://fullnode.mainnet.aptoslabs.com/v1/transactions/simulate" -d '{"sender": "<ADDR>", "payload": <TXDATA>}'  
+6. Linking.openURL('petra://api/v1/connect?data=<BASE64>')  
+7. nacl.box.keyPair()  
+8. signAndSubmitTransaction(txData)  
+9. fetch('https://api.panora.exchange/swap?...', {method: 'POST'})  
+10. curl -s "https://fullnode.testnet.aptoslabs.com/v1/accounts/<ADDR>/modules" | jq

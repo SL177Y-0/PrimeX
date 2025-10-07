@@ -6,7 +6,8 @@ import {
   ViewStyle,
   TextStyle,
   ColorValue,
-  StyleProp
+  StyleProp,
+  View
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
@@ -28,6 +29,7 @@ interface GradientPillButtonProps {
   disabled?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  icon?: React.ReactNode;
 }
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
@@ -41,6 +43,7 @@ export function GradientPillButton({
   disabled = false,
   style,
   textStyle,
+  icon,
 }: GradientPillButtonProps) {
   const { theme } = useTheme();
   const accentColors = useAccent(accent);
@@ -65,6 +68,9 @@ export function GradientPillButton({
   
   const getGradientColors = (): [ColorValue, ColorValue] => {
     if (variant === 'primary') {
+      if (accent === '#10B981' || accent === 'green') {
+        return ['#10B981', '#059669'];
+      }
       return [accentColors.from, accentColors.to];
     }
     return ['transparent', 'transparent'];
@@ -113,7 +119,10 @@ export function GradientPillButton({
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
-      <Text style={textStyles}>{title}</Text>
+      <View style={styles.content}>
+        {icon && <View style={styles.iconContainer}>{icon}</View>}
+        <Text style={textStyles}>{title}</Text>
+      </View>
     </AnimatedTouchableOpacity>
   );
 }
@@ -142,5 +151,13 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: 'Inter-SemiBold',
     textAlign: 'center',
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconContainer: {
+    marginRight: 8,
   },
 });

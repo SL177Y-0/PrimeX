@@ -15,7 +15,9 @@ import {
   DollarSign,
   Target,
   Shield,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCw,
+  Wallet
 } from 'lucide-react-native';
 
 // Import trading page components
@@ -28,6 +30,8 @@ import PriceAlertsContent from '../trading/priceAlerts';
 import DepositContent from '../trading/deposit';
 import WithdrawContent from '../trading/withdraw';
 import TradingInterface from '../../components/TradingInterface';
+import { SwapInterface } from '../../components/SwapInterface';
+import { WalletConnection } from '../../components/WalletConnection';
 
 // Responsive breakpoints following 2025 best practices
 const BREAKPOINTS = {
@@ -77,18 +81,32 @@ export default function TradeScreen() {
   
   const tradingOptions = [
     {
+      id: 'wallet',
+      title: 'Connect Wallet',
+      subtitle: 'Connect Aptos Wallet',
+      icon: Wallet,
+      color: '#8B5CF6',
+    },
+    {
       id: 'merkle-trading',
       title: 'Leverage Trading',
-      subtitle: 'Trade with leverage using Merkle protocol',
+      subtitle: 'Merkle protocol Based Trading',
       icon: Target,
       color: '#FF6B35',
+    },
+    {
+      id: 'swap',
+      title: 'Swap Tokens',
+      subtitle: 'Exchange Tokens',
+      icon: RefreshCw,
+      color: '#00D4AA',
     },
     {
       id: 'spot-trading',
       title: 'Spot Trading',
       subtitle: 'Buy & sell cryptocurrencies instantly',
       icon: ArrowUpDown,
-      color: '#00D4AA',
+      color: '#10B981',
     },
     {
       id: 'copy-trading',
@@ -148,6 +166,8 @@ export default function TradeScreen() {
     switch (selectedOption) {
       case 'merkle-trading':
         return <TradingInterface />;
+      case 'swap':
+        return <SwapInterface />;
       case 'spot-trading':
         return <SpotTradingContent onBack={() => setSelectedOption(null)} />;
       case 'copy-trading':
@@ -160,6 +180,8 @@ export default function TradeScreen() {
         return <PositionsOrdersContent onBack={() => setSelectedOption(null)} />;
       case 'alerts':
         return <PriceAlertsContent onBack={() => setSelectedOption(null)} />;
+      case 'wallet':
+        return <WalletConnection onBack={() => setSelectedOption(null)} />;
       case 'deposit':
         return <DepositContent onBack={() => setSelectedOption(null)} />;
       case 'withdraw':
