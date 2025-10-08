@@ -17,6 +17,7 @@ import { TradingChart } from './TradingChart';
 import { CandleChart, CandleData } from './CandleChart';
 import { merkleService } from '../services/merkleService';
 import { realMarketDataService, RealMarketData } from '../services/realMarketDataService';
+import { globalTextInputStyle } from '../styles/globalStyles';
 import {
   TrendingUp, 
   TrendingDown, 
@@ -1061,13 +1062,13 @@ export const TradingInterface: React.FC = () => {
               ]}>
                 <TextInput
                   style={[
+                    globalTextInputStyle,
                     {
                       color: theme.colors.textPrimary,
                       fontSize: fontSize.lg,
                       fontFamily: 'Inter-SemiBold',
                       flex: 1,
                       paddingVertical: spacing.xs,
-                      borderWidth: 0,
                     }
                   ]}
                   value={limitPrice}
@@ -1215,13 +1216,13 @@ export const TradingInterface: React.FC = () => {
               ]}>
                 <TextInput
                   style={[
+                    globalTextInputStyle,
                     {
                       color: theme.colors.textPrimary,
                       fontSize: fontSize.lg,
                       fontFamily: 'Inter-SemiBold',
                       flex: 1,
                       paddingVertical: spacing.xs,
-                      borderWidth: 0,
                     }
                   ]}
                   value={size}
@@ -1286,23 +1287,20 @@ export const TradingInterface: React.FC = () => {
                   paddingVertical: spacing.sm
                 }
               ]}>
-                <Pressable style={{ marginRight: spacing.sm }}>
-                  <ArrowUpDown size={16} color={theme.colors.textSecondary} />
-                </Pressable>
                 <TextInput
                   style={[
+                    globalTextInputStyle,
                     {
                       color: theme.colors.textPrimary,
                       fontSize: fontSize.lg,
                       fontFamily: 'Inter-SemiBold',
                       flex: 1,
                       paddingVertical: spacing.xs,
-                      borderWidth: 0,
                     }
                   ]}
                   value={collateral}
                   onChangeText={handleCollateralChange}
-                  placeholder={`Min: ${assetLimits.minCollateral} USDC`}
+                  placeholder="Min: 2 USDC"
                   placeholderTextColor={theme.colors.textSecondary}
                   keyboardType="numeric"
                 />
@@ -1311,8 +1309,7 @@ export const TradingInterface: React.FC = () => {
                     color: theme.colors.textSecondary,
                     fontSize: fontSize.sm,
                     fontFamily: 'Inter-Medium',
-                    marginRight: 2,
-                    marginLeft: -12
+                    marginLeft: spacing.sm
                   }
                 ]}>USDC</Text>
               </View>
@@ -1386,6 +1383,7 @@ export const TradingInterface: React.FC = () => {
                   ]}>
                     <TextInput
                       style={[
+                        globalTextInputStyle,
                         {
                           color: theme.colors.textPrimary,
                           fontSize: fontSize.md,
@@ -1433,6 +1431,7 @@ export const TradingInterface: React.FC = () => {
                   ]}>
                     <TextInput
                       style={[
+                        globalTextInputStyle,
                         {
                           color: theme.colors.textPrimary,
                           fontSize: fontSize.md,

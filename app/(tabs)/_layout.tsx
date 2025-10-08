@@ -49,6 +49,8 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        lazy: false,
+        freezeOnBlur: false,
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: 'transparent',
@@ -75,23 +77,26 @@ export default function TabLayout() {
           shadowOffset: { width: 0, height: 0 },
           shadowColor: 'transparent',
         },
-        tabBarButton: (props) => (
-          <Pressable
-            {...props}
-            android_ripple={{ color: 'transparent' }}
-            style={({ pressed }) => [
-              props.style,
-              {
-                elevation: 0,
-                shadowOpacity: 0,
-                shadowRadius: 0,
-                shadowOffset: { width: 0, height: 0 },
-                shadowColor: 'transparent',
-                opacity: pressed ? 0.7 : 1,
-              }
-            ]}
-          />
-        ),
+        tabBarButton: (props: any) => {
+          const { style, ...restProps } = props;
+          return (
+            <Pressable
+              {...restProps}
+              android_ripple={{ color: 'transparent' }}
+              style={({ pressed }) => [
+                style,
+                {
+                  elevation: 0,
+                  shadowOpacity: 0,
+                  shadowRadius: 0,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowColor: 'transparent',
+                  opacity: pressed ? 0.7 : 1,
+                }
+              ]}
+            />
+          );
+        },
         tabBarActiveTintColor: theme.colors.textPrimary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarShowLabel: true,
@@ -107,14 +112,14 @@ export default function TabLayout() {
         name="index" 
         options={{ 
           tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={24} color={color} />
+          tabBarIcon: ({ color, size }) => <Home size={24} color={color} />,
         }}
       />
       <Tabs.Screen 
         name="market" 
         options={{ 
           tabBarLabel: 'Market',
-          tabBarIcon: ({ color, size }) => <TrendingUp size={24} color={color} />
+          tabBarIcon: ({ color, size }) => <TrendingUp size={24} color={color} />,
         }}
       />
       <Tabs.Screen 
@@ -123,21 +128,21 @@ export default function TabLayout() {
           tabBarLabel: ' ',
           tabBarIcon: ({ color, size, focused }) => (
             <CenterTradeButton focused={focused} />
-          )
+          ),
         }}
       />
       <Tabs.Screen 
         name="wallet" 
         options={{ 
           tabBarLabel: 'Wallet',
-          tabBarIcon: ({ color, size }) => <Wallet size={24} color={color} />
+          tabBarIcon: ({ color, size }) => <Wallet size={24} color={color} />,
         }}
       />
       <Tabs.Screen 
         name="settings" 
         options={{ 
           tabBarLabel: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings size={24} color={color} />
+          tabBarIcon: ({ color, size }) => <Settings size={24} color={color} />,
         }}
       />
       <Tabs.Screen 

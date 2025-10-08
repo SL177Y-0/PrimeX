@@ -38,6 +38,7 @@ import { ModalSheet } from './ModalSheet';
 import { SWAP_TOKENS, POPULAR_SWAP_PAIRS } from '../config/constants';
 import { panoraSwapService } from '../services/panoraSwapService';
 import type { SwapQuoteResponse } from '../services/panoraSwapService';
+import { fetchTokenBalances, formatBalance } from '../services/balanceService';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -87,8 +88,12 @@ function TokenSelector({
   const token = SWAP_TOKENS[selectedToken as keyof typeof SWAP_TOKENS];
 
   const handleMaxPress = () => {
-    if (balance && !readOnly) {
-      onAmountChange(balance);
+    if (balance && !readOnly && balance !== 'Connect wallet' && balance !== 'Loading...') {
+      // Extract numeric value from balance string
+      const numericBalance = parseFloat(balance);
+      if (!isNaN(numericBalance) && numericBalance > 0) {
+        onAmountChange(numericBalance.toString());
+      }
     }
   };
 
@@ -108,50 +113,43 @@ function TokenSelector({
           )}
         </View>
 
-        <View style={styles.tokenInputRow}>
-          <Pressable
-            onPress={() => setShowTokenModal(true)}
-            style={[styles.tokenButton, { borderColor: theme.colors.border }]}
-          >
-            <Image source={{ uri: token.logoUrl }} style={styles.tokenLogo} />
-            <Text style={[styles.tokenSymbol, { color: theme.colors.textPrimary }]}>
-              {token.symbol}
-            </Text>
-            <ChevronDown size={16} color={theme.colors.textSecondary} />
-          </Pressable>
+        <Pressable
+          onPress={() => setShowTokenModal(true)}
+          style={[styles.tokenButton, { borderColor: theme.colors.border }]}
+        >
+          <Image source={{ uri: token.logoUrl }} style={styles.tokenLogo} />
+          <Text style={[styles.tokenSymbol, { color: theme.colors.textPrimary }]}>
+            {token.symbol}
+          </Text>
+          <ChevronDown size={16} color={theme.colors.textSecondary} />
+        </Pressable>
 
-          <View style={styles.amountInputContainer}>
-            <TextInput
-              style={[
-                styles.amountInput,
-                {
-                  color: theme.colors.textPrimary,
-                  borderWidth: 0,
-                  outline: 'none',
-                  outlineWidth: 0,
-                  outlineColor: 'transparent',
-                  borderColor: 'transparent',
-                },
-              ]}
-              value={amount}
-              onChangeText={onAmountChange}
-              placeholder="0.0"
-              placeholderTextColor={theme.colors.textSecondary}
-              keyboardType="numeric"
-              editable={!readOnly && !isLoading}
-              selectTextOnFocus={true}
-              autoCorrect={false}
-              autoCapitalize="none"
-              blurOnSubmit={false}
+        <View style={styles.amountInputContainer}>
+          <TextInput
+            style={[
+              styles.amountInput,
+              {
+                color: theme.colors.textPrimary,
+              },
+            ]}
+            value={amount}
+            onChangeText={onAmountChange}
+            placeholder="0.0"
+            placeholderTextColor={theme.colors.textSecondary}
+            keyboardType="numeric"
+            editable={!readOnly && !isLoading}
+            selectTextOnFocus={true}
+            autoCorrect={false}
+            autoCapitalize="none"
+            blurOnSubmit={false}
+          />
+          {isLoading && (
+            <ActivityIndicator
+              size="small"
+              color={accent.from}
+              style={styles.loadingIndicator}
             />
-            {isLoading && (
-              <ActivityIndicator
-                size="small"
-                color={accent.from}
-                style={styles.loadingIndicator}
-              />
-            )}
-          </View>
+          )}
         </View>
         
         {/* MAX Button at bottom of panel */}
@@ -370,15 +368,9 @@ export function SwapInterface() {
       
       setLoadingBalances(true);
       try {
-        // TODO: Replace with actual balance fetching from Aptos blockchain
-        // For now, show 0 balances until real implementation
-        const balances: Record<string, number> = {};
-        Object.values(SWAP_TOKENS).forEach((token: any) => {
-          balances[token.symbol] = 0;
-        });
+        const balances = await fetchTokenBalances(account.address);
         setTokenBalances(balances);
       } catch (error) {
-        console.error('Failed to fetch balances:', error);
         setTokenBalances({});
       } finally {
         setLoadingBalances(false);
@@ -386,7 +378,11 @@ export function SwapInterface() {
     };
     
     fetchBalances();
-  }, [connected, account]);
+    
+    // Refresh balances every 30 seconds
+    const interval = setInterval(fetchBalances, 30000);
+    return () => clearInterval(interval);
+  }, [connected, account?.address]);
   
   const [fromToken, setFromToken] = useState('APT');
   const [toToken, setToToken] = useState('USDC');
@@ -474,8 +470,9 @@ export function SwapInterface() {
     setQuote(null);
   };
 
-  // Execute swap transaction
-  const executeSwap = async () => {
+
+  // Handle swap execution
+  const handleSwap = async () => {
     if (!quote || !fromAmount) {
       Alert.alert('Error', 'Missing swap data');
       return;
@@ -489,10 +486,13 @@ export function SwapInterface() {
       return;
     }
 
-    try {
-      setIsSwapping(true);
+    setIsSwapping(true);
+    swapButtonScale.value = withSpring(0.95, {}, () => {
+      swapButtonScale.value = withSpring(1);
+    });
 
-      // Validate txData before submission
+    try {
+      // Validate transaction data
       const validation = panoraSwapService.validateTxData(quote.quotes[0].txData);
       if (!validation.isValid) {
         Alert.alert('Security Error', validation.error || 'Invalid transaction data');
@@ -515,43 +515,16 @@ export function SwapInterface() {
       
       Alert.alert('Success', `Swap completed successfully!\nTransaction: ${result.hash.slice(0, 8)}...`);
       
-      // Reset form
+      // Reset form and refresh balances
       setFromAmount('');
       setToAmount('');
       setQuote(null);
       
-    } catch (error) {
-      console.error('Swap execution error:', error);
-      Alert.alert('Error', 'Failed to execute swap. Please try again.');
-    } finally {
-      setIsSwapping(false);
-    }
-  };
-
-  // Handle swap execution
-  const handleSwap = async () => {
-    if (!quote) return;
-
-    setIsSwapping(true);
-    swapButtonScale.value = withSpring(0.95, {}, () => {
-      swapButtonScale.value = withSpring(1);
-    });
-
-    try {
-      // Validate transaction data
-      const validation = panoraSwapService.validateTxData(quote.quotes[0].txData);
-      if (!validation.isValid) {
-        throw new Error(validation.error);
+      // Refresh balances after swap
+      if (account?.address) {
+        const balances = await fetchTokenBalances(account.address);
+        setTokenBalances(balances);
       }
-
-      // Here you would integrate with the wallet provider
-      // For now, we'll show a success message
-      Alert.alert('Success', 'Swap executed successfully!');
-      
-      // Reset form
-      setFromAmount('');
-      setToAmount('');
-      setQuote(null);
     } catch (error) {
       console.error('Swap failed:', error);
       Alert.alert('Error', 'Swap failed. Please try again.');
@@ -603,7 +576,7 @@ export function SwapInterface() {
         label="From"
         amount={fromAmount}
         onAmountChange={setFromAmount}
-        balance={connected ? (loadingBalances ? "Loading..." : (tokenBalances[fromToken]?.toFixed(2) || "0.00")) : "Connect wallet"}
+        balance={connected ? (loadingBalances ? "Loading..." : formatBalance(tokenBalances[fromToken] || 0, 2)) : "Connect wallet"}
       />
 
       {/* Swap Button */}
@@ -634,7 +607,7 @@ export function SwapInterface() {
         onAmountChange={setToAmount}
         isLoading={isLoading}
         readOnly={true}
-        balance={connected ? (loadingBalances ? "Loading..." : (tokenBalances[toToken]?.toFixed(2) || "0.00")) : "Connect wallet"}
+        balance={connected ? (loadingBalances ? "Loading..." : formatBalance(tokenBalances[toToken] || 0, 2)) : "Connect wallet"}
       />
 
       {/* Swap Details */}
@@ -734,13 +707,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  tokenInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    minHeight: 56,
-    width: '100%',
-  },
   tokenButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -749,7 +715,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 16,
     borderWidth: 1.5,
-    minWidth: 120,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
   },
   tokenLogo: {
     width: 28,
@@ -761,26 +728,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   amountInputContainer: {
-    flex: 1,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 56,
-    paddingHorizontal: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    borderRadius: 12,
-    marginLeft: 8,
+    minHeight: 80,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 16,
+    marginBottom: 12,
   },
   amountInput: {
     flex: 1,
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700',
-    textAlign: 'right',
-    borderWidth: 0,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    textAlign: 'left',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
     backgroundColor: 'transparent',
-    minHeight: 40,
-    borderRadius: 12,
+    minHeight: 48,
+    borderWidth: 0,
+    outlineStyle: 'none',
   } as any,
   loadingIndicator: {
     marginLeft: 8,

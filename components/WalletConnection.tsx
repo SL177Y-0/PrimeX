@@ -6,6 +6,7 @@ import {
   Pressable,
   Alert,
   ScrollView,
+  Platform,
 } from 'react-native';
 import {
   Wallet,
@@ -52,24 +53,11 @@ export function WalletConnection({ onBack }: WalletConnectionProps) {
   };
 
   const handleDisconnect = async () => {
-    Alert.alert(
-      'Disconnect Wallet',
-      'Are you sure you want to disconnect your wallet?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Disconnect', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await disconnect();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to disconnect wallet');
-            }
-          }
-        }
-      ]
-    );
+    try {
+      await disconnect();
+    } catch (error) {
+      // Silently handle errors
+    }
   };
 
   const formatAddress = (address: string) => {

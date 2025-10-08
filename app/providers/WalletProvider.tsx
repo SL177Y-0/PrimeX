@@ -279,19 +279,25 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   };
 
   const disconnect = async () => {
+    // Immediately update UI state
+    setConnected(false);
+    setAccount(null);
+    setWallet(null);
+    setLastConnectedWallet(null);
+    
     try {
-      // If connected via extension, disconnect from extension
-      if (wallet?.connectionMethod === 'extension' && window.aptos) {
-        await window.aptos.disconnect();
-      }
-      
-      setAccount(null);
-      setWallet(null);
-      setConnected(false);
-      setLastConnectedWallet(null);
       await AsyncStorage.removeItem('lastConnectedWallet');
+      
+      // Try to disconnect from extension if applicable
+      if (wallet?.connectionMethod === 'extension' && typeof window !== 'undefined' && window.aptos) {
+        try {
+          await window.aptos.disconnect();
+        } catch (extError) {
+          // Silently handle extension disconnect errors
+        }
+      }
     } catch (error) {
-      throw error;
+      // Silently handle errors - state already cleared
     }
   };
 

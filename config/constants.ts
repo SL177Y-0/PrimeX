@@ -331,7 +331,7 @@ export const PANORA_CONFIG = {
   minSlippage: 0.1, // 0.1% minimum
 } as const;
 
-// Swap Token Configuration
+// Swap Token Configuration - Only APT and USDC for now
 export const SWAP_TOKENS = {
   APT: {
     address: '0x1::aptos_coin::AptosCoin',
@@ -342,47 +342,19 @@ export const SWAP_TOKENS = {
     isNative: true,
   },
   USDC: {
-    address: '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b',
+    address: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC',
     symbol: 'USDC',
-    name: 'USD Coin',
+    name: 'USD Coin (LayerZero)',
     decimals: 6,
     logoUrl: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png',
     isNative: false,
   },
-  USDT: {
-    address: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDT',
-    symbol: 'USDT',
-    name: 'Tether USD',
-    decimals: 6,
-    logoUrl: 'https://assets.coingecko.com/coins/images/325/small/Tether.png',
-    isNative: false,
-  },
-  WETH: {
-    address: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::WETH',
-    symbol: 'WETH',
-    name: 'Wrapped Ethereum',
-    decimals: 8,
-    logoUrl: 'https://assets.coingecko.com/coins/images/2518/small/weth.png',
-    isNative: false,
-  },
-  WBTC: {
-    address: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::WBTC',
-    symbol: 'WBTC',
-    name: 'Wrapped Bitcoin',
-    decimals: 8,
-    logoUrl: 'https://assets.coingecko.com/coins/images/7598/small/wrapped_bitcoin_wbtc.png',
-    isNative: false,
-  },
 } as const;
 
-// Popular swap pairs
+// Popular swap pairs - Only APT/USDC for now
 export const POPULAR_SWAP_PAIRS = [
   { from: 'APT', to: 'USDC' },
   { from: 'USDC', to: 'APT' },
-  { from: 'APT', to: 'USDT' },
-  { from: 'USDT', to: 'APT' },
-  { from: 'WETH', to: 'USDC' },
-  { from: 'WBTC', to: 'USDC' },
 ] as const;
 
 // Swap Constants
