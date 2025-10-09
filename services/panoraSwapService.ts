@@ -1,4 +1,5 @@
 import { PANORA_CONFIG, SWAP_TOKENS, SWAP_CONSTANTS } from '../config/constants';
+import { log } from '../utils/logger';
 
 export interface SwapQuoteRequest {
   fromTokenAddress: string;
@@ -58,64 +59,100 @@ class PanoraSwapService {
 
   /**
    * Get swap quote from Panora API
+   * Based on official Panora API documentation
    */
   async getSwapQuote(request: SwapQuoteRequest): Promise<SwapQuoteResponse> {
     try {
-      // Build query parameters
-      const params = new URLSearchParams({
-        chainId: this.chainId.toString(),
+      // Validate required parameters
+      if (!request.fromTokenAddress || !request.toTokenAddress) {
+        throw new Error('fromTokenAddress and toTokenAddress are required');
+      }
+      
+      if (!request.fromTokenAmount && !request.toTokenAmount) {
+        throw new Error('Either fromTokenAmount or toTokenAmount must be provided');
+      }
+
+      // Build request body according to Panora API spec
+      // Based on official docs: https://docs.panora.exchange/developer/swap/api
+      const requestBody: any = {
+        chainId: this.chainId.toString(), // Convert to string as per API spec
         fromTokenAddress: request.fromTokenAddress,
         toTokenAddress: request.toTokenAddress,
         toWalletAddress: request.toWalletAddress,
-      });
+      };
 
-      // Add conditional parameters
+      // Add amount (without decimals as per API spec)
       if (request.fromTokenAmount) {
-        params.append('fromTokenAmount', request.fromTokenAmount);
+        const amount = parseFloat(request.fromTokenAmount);
+        if (isNaN(amount) || amount <= 0) {
+          throw new Error('Invalid fromTokenAmount: must be a positive number');
+        }
+        requestBody.fromTokenAmount = amount;
       }
       if (request.toTokenAmount) {
-        params.append('toTokenAmount', request.toTokenAmount);
-      }
-      if (request.slippagePercentage !== undefined) {
-        params.append('slippagePercentage', request.slippagePercentage.toString());
-      }
-      if (request.integratorFeePercentage !== undefined) {
-        params.append('integratorFeePercentage', request.integratorFeePercentage.toString());
-      }
-      if (request.integratorFeeAddress) {
-        params.append('integratorFeeAddress', request.integratorFeeAddress);
-      }
-      if (request.includeSources) {
-        params.append('includeSources', request.includeSources);
-      }
-      if (request.excludeSources) {
-        params.append('excludeSources', request.excludeSources);
-      }
-      if (request.onlyDirectRoutes !== undefined) {
-        params.append('onlyDirectRoutes', request.onlyDirectRoutes.toString());
+        const amount = parseFloat(request.toTokenAmount);
+        if (isNaN(amount) || amount <= 0) {
+          throw new Error('Invalid toTokenAmount: must be a positive number');
+        }
+        requestBody.toTokenAmount = amount;
       }
 
-      const response = await fetch(`${this.baseUrl}?${params.toString()}`, {
+      // Add optional parameters
+      if (request.slippagePercentage !== undefined) {
+        requestBody.slippagePercentage = request.slippagePercentage;
+      }
+      if (request.integratorFeePercentage !== undefined) {
+        requestBody.integratorFeePercentage = request.integratorFeePercentage;
+      }
+      if (request.integratorFeeAddress) {
+        requestBody.integratorFeeAddress = request.integratorFeeAddress;
+      }
+
+      log.debug('Panora API request', {
+        url: this.baseUrl,
+        method: 'POST',
+        headers: {
+          'x-api-key': `${this.apiKey.substring(0, 20)}...`,
+          'Content-Type': 'application/json',
+        },
+        body: requestBody,
+      });
+
+      const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: {
           'x-api-key': this.apiKey,
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
+        body: JSON.stringify(requestBody),
       });
+      
+      log.debug('Panora response status', { status: response.status, statusText: response.statusText });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorText = await response.text();
+        log.error('Panora API error response', errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText };
+        }
+        
         throw new Error(
           `Panora API error: ${response.status} ${response.statusText}. ${
-            errorData.message || 'Unknown error'
+            errorData.message || errorData.description || 'Unknown error'
           }`
         );
       }
 
       const data = await response.json();
+      log.debug('Panora API response', data);
       return data;
     } catch (error) {
-      console.error('Error fetching swap quote:', error);
+      log.error('Error fetching swap quote', error);
       throw error;
     }
   }
@@ -190,10 +227,33 @@ class PanoraSwapService {
   }
 
   /**
-   * Parse amount from smallest unit
+   * Parse amount from API response (supports decimal or base-unit strings)
    */
-  parseTokenAmount(amount: string, decimals: number): number {
-    return parseInt(amount) / Math.pow(10, decimals);
+  parseTokenAmount(amount: string | number, decimals: number): number {
+    if (typeof amount === 'number') {
+      return amount;
+    }
+
+    if (!amount) {
+      return 0;
+    }
+
+    const normalized = amount.trim();
+
+    // Panora API often returns human-readable decimals (e.g. "0.918532")
+    if (normalized.includes('.')) {
+      const parsed = parseFloat(normalized);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    // Fallback for integer base-unit values
+    try {
+      const baseUnits = BigInt(normalized);
+      return Number(baseUnits) / Math.pow(10, decimals);
+    } catch {
+      const parsed = parseFloat(normalized);
+      return Number.isNaN(parsed) ? 0 : parsed / Math.pow(10, decimals);
+    }
   }
 
   /**
@@ -236,15 +296,73 @@ class PanoraSwapService {
       });
 
       if (!response.ok) {
-        console.error('Simulation failed:', response.status, response.statusText);
+        log.error('Simulation failed', { status: response.status, statusText: response.statusText });
         return false;
       }
 
       const result = await response.json();
       return result.success === true;
     } catch (error) {
-      console.error('Simulation error:', error);
+      log.error('Simulation error', error);
       return false;
+    }
+  }
+
+  /**
+   * Submit swap transaction via Petra wallet deep link
+   * Based on SwapPanora guide: petra://api/v1/signAndSubmit?data=<base64>
+   */
+  async submitSwapViaPetra(txData: any): Promise<string> {
+    try {
+      // Encode transaction data as base64
+      const txDataString = JSON.stringify(txData);
+      const base64TxData = btoa(txDataString);
+      
+      // Create Petra deep link
+      const petraDeepLink = `petra://api/v1/signAndSubmit?data=${base64TxData}`;
+      
+      log.info('Opening Petra wallet via deep link');
+      
+      // Open Petra wallet (this will work in React Native)
+      if (typeof window !== 'undefined' && window.open) {
+        window.open(petraDeepLink, '_blank');
+      } else {
+        // For React Native, use Linking
+        const { Linking } = require('react-native');
+        await Linking.openURL(petraDeepLink);
+      }
+      
+      return 'Transaction sent to Petra wallet';
+    } catch (error) {
+      log.error('Error submitting to Petra', error);
+      throw new Error('Failed to open Petra wallet');
+    }
+  }
+
+  /**
+   * Handle swap transaction result from wallet callback
+   */
+  handleSwapCallback(callbackUrl: string): { success: boolean; txHash?: string; error?: string } {
+    try {
+      const url = new URL(callbackUrl);
+      const params = new URLSearchParams(url.search);
+      
+      if (params.get('success') === 'true') {
+        return {
+          success: true,
+          txHash: params.get('txHash') || undefined,
+        };
+      } else {
+        return {
+          success: false,
+          error: params.get('error') || 'Transaction failed',
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Invalid callback URL',
+      };
     }
   }
 
@@ -277,7 +395,7 @@ class PanoraSwapService {
       
       return SWAP_CONSTANTS.DEFAULT_GAS_LIMIT * SWAP_CONSTANTS.GAS_UNIT_PRICE;
     } catch (error) {
-      console.error('Gas estimation error:', error);
+      log.error('Gas estimation error', error);
       return SWAP_CONSTANTS.DEFAULT_GAS_LIMIT * SWAP_CONSTANTS.GAS_UNIT_PRICE;
     }
   }

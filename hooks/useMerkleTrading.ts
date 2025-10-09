@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
 import { Account } from '@aptos-labs/ts-sdk';
+import { useMerklePositions } from './useMerklePositions';
 import { merkleService } from '../services/merkleService';
 import { aptosClient } from '../utils/aptosClient';
 import { useWallet } from '../app/providers/WalletProvider';
+import { log } from '../utils/logger';
 
 // Transaction data interface
 export interface TransactionData {
@@ -64,6 +66,7 @@ export const calculateLiquidationPrice = (
 
 export const useMerkleTrading = () => {
   const { account, wallet, signAndSubmitTransaction } = useWallet();
+  const { addPosition, addActivity } = useMerklePositions();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,7 +106,7 @@ export const useMerkleTrading = () => {
       const collateralDelta = BigInt(Math.floor(params.collateral * 1e6));
       
       // Debug logging to identify the source of undefined values
-      console.log('Hook Parameters:', {
+      log.trade('Hook Parameters:', {
         account: account,
         accountAddress: account?.address,
         pair,
@@ -132,7 +135,11 @@ export const useMerkleTrading = () => {
         // Use the order transaction as the main payload (no init step needed)
         orderTransaction = transactions.orderTransaction;
       } else {
-        const price = BigInt(Math.floor((params.price || 0) * 1e6));
+        // Validate that price is provided for limit orders
+        if (!params.price || params.price <= 0) {
+          throw new Error('Price must be provided for limit orders');
+        }
+        const price = BigInt(Math.floor(params.price * 1e6));
         const limitResult = await merkleService.placeLimitOrder({
           pair,
           userAddress: account.address,
@@ -164,7 +171,7 @@ export const useMerkleTrading = () => {
         
         if (orderId && params.orderType === 'market') {
           // For market orders, simulate keeper execution
-          console.log(`Market order ${orderId} placed, simulating keeper execution...`);
+          log.trade(`Market order ${orderId} placed, simulating keeper execution...`);
           
           // In a real implementation, this would be handled by an off-chain keeper
           // For now, we'll just log the simulation
@@ -182,6 +189,39 @@ export const useMerkleTrading = () => {
       // Mark trade as executed for cooldown
       merkleService.markTradeExecuted();
 
+      // Add position and activity tracking
+      if (params.orderType === 'market') {
+        // Calculate entry price (mock for now, would come from actual execution)
+        const entryPrice = params.price || 5.27; // Mock APT price
+        const leverage = params.leverage || (params.size / params.collateral);
+        
+        // Add the new position
+        addPosition({
+          pair: params.market.replace('/', '_'),
+          side: params.side,
+          sizeUSDC: params.size,
+          collateralUSDC: params.collateral,
+          leverage,
+          entryPrice,
+          markPrice: entryPrice,
+          liquidationPrice: calculateLiquidationPrice(entryPrice, leverage, params.side === 'long'),
+          timestamp: Date.now()
+        });
+
+        // Add trading activity
+        addActivity({
+          action: 'open',
+          pair: params.market.replace('/', '_'),
+          side: params.side,
+          sizeUSDC: params.size,
+          price: entryPrice,
+          timestamp: Date.now(),
+          txHash: response.hash
+        });
+
+        log.trade('Position and activity added to tracking');
+      }
+
       return response.hash;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to place order';
@@ -190,7 +230,7 @@ export const useMerkleTrading = () => {
     } finally {
       setLoading(false);
     }
-  }, [account, wallet, signAndSubmitTransaction]);
+  }, [account, wallet, signAndSubmitTransaction, addPosition, addActivity]);
 
   // Cancel an existing order
   const cancelOrder = useCallback(async (orderId: string): Promise<string> => {

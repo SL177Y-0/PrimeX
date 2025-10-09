@@ -17,7 +17,8 @@ import {
   Shield,
   ArrowLeft,
   RefreshCw,
-  Wallet
+  Wallet,
+  TrendingUp
 } from 'lucide-react-native';
 
 // Import trading page components
@@ -32,6 +33,7 @@ import WithdrawContent from '../trading/withdraw';
 import TradingInterface from '../../components/TradingInterface';
 import { SwapInterface } from '../../components/SwapInterface';
 import { WalletConnection } from '../../components/WalletConnection';
+import { StakingInterface } from '../../components/StakingInterface';
 
 // Responsive breakpoints following 2025 best practices
 const BREAKPOINTS = {
@@ -79,93 +81,115 @@ export default function TradeScreen() {
     xxl: getResponsiveValue({ xs: 24, sm: 26, md: 28, lg: 30, xl: 32 }, screenWidth),
   };
   
-  const tradingOptions = [
+  const ACCENT_COLORS = [
+    '#6366F1', // indigo
+    '#F97316', // orange
+    '#0EA5E9', // sky blue
+    '#A855F7', // purple
+    '#22D3EE', // cyan
+    '#FACC15', // amber
+    '#EF4444', // red
+    '#14B8A6', // teal
+    '#EC4899', // pink
+    '#10B981', // emerald
+    '#F59E0B', // golden
+    '#38BDF8', // light sky
+  ];
+
+  const baseTradingOptions = [
     {
       id: 'wallet',
       title: 'Connect Wallet',
       subtitle: 'Connect Aptos Wallet',
       icon: Wallet,
-      color: '#8B5CF6',
     },
     {
       id: 'merkle-trading',
       title: 'Leverage Trading',
       subtitle: 'Merkle protocol Based Trading',
       icon: Target,
-      color: '#FF6B35',
+    },
+    {
+      id: 'staking',
+      title: 'Liquid Staking',
+      subtitle: 'Earn APR with Amnis Finance',
+      icon: TrendingUp,
     },
     {
       id: 'swap',
       title: 'Swap Tokens',
       subtitle: 'Exchange Tokens',
       icon: RefreshCw,
-      color: '#00D4AA',
     },
     {
       id: 'spot-trading',
       title: 'Spot Trading',
       subtitle: 'Buy & sell cryptocurrencies instantly',
       icon: ArrowUpDown,
-      color: '#10B981',
     },
     {
       id: 'copy-trading',
       title: 'Copy Trading',
       subtitle: 'Follow successful traders',
       icon: Copy,
-      color: '#6366F1',
     },
     {
       id: 'group-trading',
       title: 'Group Trading',
       subtitle: 'Trade together with your squad',
       icon: Users,
-      color: '#8B5CF6',
     },
     {
       id: 'charts',
       title: 'Advanced Charts',
       subtitle: 'Professional trading charts & analysis',
       icon: BarChart3,
-      color: '#F59E0B',
     },
     {
       id: 'positions',
       title: 'Positions & Orders',
       subtitle: 'Manage your active trades',
       icon: Target,
-      color: '#EF4444',
     },
     {
       id: 'alerts',
       title: 'Price Alerts',
       subtitle: 'Set price notifications',
       icon: Bell,
-      color: '#06B6D4',
     },
   ];
+
+  const tradingOptions = baseTradingOptions.map((option, index) => ({
+    ...option,
+    color: ACCENT_COLORS[index % ACCENT_COLORS.length],
+  }));
   
-  const quickActions = [
+  const baseQuickActions = [
     {
       id: 'deposit',
       title: 'Deposit',
       subtitle: 'Add Funds',
       icon: DollarSign,
-      color: '#10B981',
     },
     {
       id: 'withdraw',
       title: 'Withdraw',
       subtitle: 'Withdraw Funds',
       icon: Shield,
-      color: '#F97316',
     },
   ];
+
+  const quickActions = baseQuickActions.map((action, index) => ({
+    ...action,
+    color: ACCENT_COLORS[(baseTradingOptions.length + index) % ACCENT_COLORS.length],
+  }));
 
   const renderContent = () => {
     switch (selectedOption) {
       case 'merkle-trading':
         return <TradingInterface />;
+      case 'staking':
+        return <StakingInterface />;
       case 'swap':
         return <SwapInterface />;
       case 'spot-trading':

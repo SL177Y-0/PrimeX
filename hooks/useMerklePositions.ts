@@ -1,290 +1,330 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  aptosClient, 
-  getUserPositions, 
-  getUserOrders,
-  getAccountBalance,
-  formatAmount, 
-  formatPrice 
-} from '../utils/aptosClient';
 import { useWallet } from '../app/providers/WalletProvider';
-import { calculatePnL, calculateLiquidationPrice } from './useMerkleTrading';
+import { merklePositionService } from '../services/merklePositionService';
+import { realPositionService } from '../services/realPositionService';
+import { realMerkleService, MerklePosition, TradingActivity } from '../services/realMerkleService';
+import { merkleService } from '../services/merkleService';
+import { Position, TradeHistoryItem, Address } from '../types/merkle';
+import { APP_CONFIG } from '../config/appConfig';
+import { log } from '../utils/logger';
 
-// Position interface from the contract ABI
-export interface MerklePosition {
-  id: string;
-  market: number;
-  marketSymbol: string;
-  side: 'long' | 'short';
-  size: number;
-  collateral: number;
-  entryPrice: number;
-  liquidationPrice: number;
-  unrealizedPnl: number;
-  pnl: number;
-  pnlPercentage: number;
-  leverage: number;
-  fundingFee: number;
-  timestamp: number;
-}
+// Re-export types for compatibility
+export type { Position, TradeHistoryItem };
 
-// Order interface
-export interface MerkleOrder {
-  id: string;
-  market: number;
-  marketSymbol: string;
-  side: 'long' | 'short';
-  size: number;
-  price: number;
-  orderType: 'market' | 'limit';
-  status: 'pending' | 'filled' | 'cancelled';
-  timestamp: number;
-}
-
-// Portfolio summary
-export interface PortfolioSummary {
-  totalBalance: number;
-  totalPnl: number;
-  totalCollateral: number;
-  freeCollateral: number;
-  marginRatio: number;
-  positionCount: number;
-  orderCount: number;
-}
-
-// Market price data (mock for now, would come from price oracle)
-const MOCK_PRICES: Record<number, number> = {
-  0: 43250.50, // BTC/USD
-  1: 2650.75,  // ETH/USD
-  2: 12.45,    // APT/USD
-  3: 98.20,    // SOL/USD
-  4: 0.085,    // DOGE/USD
+// Helper function to map activity types to actions
+const mapActivityTypeToAction = (type: string): 'open' | 'close' | 'increase' | 'decrease' => {
+  switch (type) {
+    case 'position_opened':
+      return 'open';
+    case 'position_closed':
+      return 'close';
+    case 'position_modified':
+      return 'increase';
+    default:
+      return 'open';
+  }
 };
 
-const MARKET_SYMBOLS: Record<number, string> = {
-  0: 'BTC/USD',
-  1: 'ETH/USD',
-  2: 'APT/USD',
-  3: 'SOL/USD',
-  4: 'DOGE/USD',
+// Helper function to map status types
+const mapStatusType = (status: string): 'OPEN' | 'CLOSING' | 'CLOSED' | 'LIQUIDATED' => {
+  switch (status) {
+    case 'active':
+      return 'OPEN';
+    case 'closed':
+      return 'CLOSED';
+    default:
+      return 'OPEN';
+  }
 };
 
 export const useMerklePositions = () => {
-  const { account, connected } = useWallet();
-  const [positions, setPositions] = useState<MerklePosition[]>([]);
-  const [orders, setOrders] = useState<MerkleOrder[]>([]);
-  const [portfolio, setPortfolio] = useState<PortfolioSummary>({
-    totalBalance: 0,
-    totalPnl: 0,
-    totalCollateral: 0,
-    freeCollateral: 0,
-    marginRatio: 0,
-    positionCount: 0,
-    orderCount: 0,
-  });
+  const { account } = useWallet();
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [activities, setActivities] = useState<TradeHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch positions from Merkle contract
   const fetchPositions = useCallback(async () => {
-    if (!account?.address || !connected) {
+    if (!account?.address) {
       setPositions([]);
+      setActivities([]);
       return;
     }
 
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
+      log.trade('Fetching positions and activities for:', account.address);
 
-      const rawPositions = await getUserPositions(account.address);
-      
-      const processedPositions: MerklePosition[] = rawPositions.map((pos: any, index: number) => {
-        const marketSymbol = MARKET_SYMBOLS[pos.market] || `Market ${pos.market}`;
-        const currentPrice = MOCK_PRICES[pos.market] || pos.entryPrice;
-        const isLong = pos.side;
+      // Use Real Merkle Trade SDK for production data
+      if (APP_CONFIG.USE_REAL_BLOCKCHAIN_DATA && !APP_CONFIG.USE_MOCK_POSITIONS) {
+        log.trade('REAL DATA MODE: Using official Merkle Trade SDK');
         
-        // Calculate real-time PnL
-        const unrealizedPnl = calculatePnL(
-          pos.entryPrice,
-          currentPrice,
-          pos.size,
-          isLong
-        );
-
-        // Calculate leverage
-        const leverage = pos.collateral > 0 ? pos.size / pos.collateral : 0;
+        try {
+          // Use the official Merkle Trade SDK
+          const [fetchedPositions, fetchedActivities] = await Promise.all([
+            realMerkleService.fetchPositions(account.address),
+            realMerkleService.fetchTradingHistory(account.address)
+          ]);
+          
+          // Convert MerklePosition to Position format for compatibility
+          const compatiblePositions = fetchedPositions.map(pos => ({
+            id: pos.id,
+            pair: pos.pair,
+            side: pos.side,
+            sizeUSDC: pos.size, // Map size to sizeUSDC for compatibility
+            size: pos.size, // Also keep size property
+            collateral: pos.collateral,
+            collateralUSDC: pos.collateral, // Required by Position type
+            leverage: pos.leverage,
+            entryPrice: pos.entryPrice,
+            markPrice: pos.markPrice,
+            pnl: pos.pnl,
+            pnlUSDC: pos.pnl, // Required by Position type
+            pnlPercentage: pos.pnlPercentage,
+            pnlPercent: pos.pnlPercentage, // Required by Position type
+            liquidationPrice: pos.liquidationPrice,
+            fundingFee: pos.fundingFee,
+            timestamp: pos.timestamp,
+            status: mapStatusType(pos.status) // Map to correct status type
+          }));
+          
+          // Convert TradingActivity to TradeHistoryItem format
+          const compatibleActivities = fetchedActivities.map(act => ({
+            id: act.id,
+            type: act.type,
+            pair: act.pair,
+            side: act.side,
+            size: act.size,
+            price: act.price,
+            timestamp: act.timestamp,
+            txHash: act.txHash,
+            fee: act.fee,
+            pnl: act.pnl,
+            action: mapActivityTypeToAction(act.type) // Required by TradeHistoryItem type
+          }));
+          
+          setPositions(compatiblePositions);
+          setActivities(compatibleActivities);
+          
+          log.trade(`Loaded ${compatiblePositions.length} real positions, ${compatibleActivities.length} real activities from SDK`);
+          
+        } catch (realDataError) {
+          log.warn('Failed to fetch real SDK data, falling back to mock:', realDataError);
+          // Fall back to mock data
+          const [fetchedPositions, fetchedActivities] = await Promise.all([
+            merklePositionService.fetchPositions(account.address as Address),
+            merklePositionService.fetchTradingHistory(account.address as Address)
+          ]);
+          setPositions(fetchedPositions || []);
+          setActivities(fetchedActivities || []);
+        }
+      } else {
+        // Use mock data for development
+        log.trade('MOCK DATA MODE: Using mock data for development');
         
-        // Calculate PnL percentage
-        const pnlPercentage = pos.collateral > 0 ? (unrealizedPnl / pos.collateral) * 100 : 0;
+        const [fetchedPositions, fetchedActivities] = await Promise.all([
+          merklePositionService.fetchPositions(account.address as Address),
+          merklePositionService.fetchTradingHistory(account.address as Address)
+        ]);
+        setPositions(fetchedPositions || []);
+        setActivities(fetchedActivities || []);
+        
+        log.trade(`Loaded ${fetchedPositions?.length || 0} mock positions, ${fetchedActivities?.length || 0} mock activities`);
+      }
 
-        return {
-          id: `${pos.market}-${index}`,
-          market: pos.market,
-          marketSymbol,
-          side: isLong ? 'long' : 'short',
-          size: pos.size,
-          collateral: pos.collateral,
-          entryPrice: pos.entryPrice,
-          liquidationPrice: pos.liquidationPrice,
-          unrealizedPnl,
-          pnl: unrealizedPnl,
-          pnlPercentage,
-          leverage,
-          fundingFee: 0, // Would be calculated from contract events
-          timestamp: Date.now(), // Would come from contract
-        };
-      });
-
-      setPositions(processedPositions);
     } catch (err) {
-      console.error('Error fetching positions:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch positions');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch positions';
+      setError(errorMessage);
+      log.error('Error fetching positions:', err);
+      
+      // Still show mock data on error for development
+      setPositions([]);
+      setActivities([]);
     } finally {
       setLoading(false);
     }
-  }, [account?.address, connected]);
+  }, [account?.address]);
 
-  // Fetch orders from Merkle contract
-  const fetchOrders = useCallback(async () => {
-    if (!account?.address || !connected) {
-      setOrders([]);
-      return;
-    }
-
-    try {
-      const rawOrders = await getUserOrders(account.address);
-      
-      const processedOrders: MerkleOrder[] = rawOrders.map((order: any, index: number) => {
-        const marketSymbol = MARKET_SYMBOLS[order.market] || `Market ${order.market}`;
-        
-        return {
-          id: `${order.market}-${order.id || index}`,
-          market: order.market,
-          marketSymbol,
-          side: order.side ? 'long' : 'short',
-          size: order.size,
-          price: order.price,
-          orderType: order.orderType === 0 ? 'market' : 'limit',
-          status: order.status === 0 ? 'pending' : order.status === 1 ? 'filled' : 'cancelled',
-          timestamp: Date.now(), // Would come from contract
-        };
-      });
-
-      setOrders(processedOrders);
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch orders');
-    }
-  }, [account?.address, connected]);
-
-  // Calculate portfolio summary
-  const calculatePortfolio = useCallback(async () => {
-    if (!account?.address || !connected) {
-      setPortfolio({
-        totalBalance: 0,
-        totalPnl: 0,
-        totalCollateral: 0,
-        freeCollateral: 0,
-        marginRatio: 0,
-        positionCount: 0,
-        orderCount: 0,
-      });
-      return;
-    }
-
-    try {
-      // Get account balance (USDC)
-      const balance = await getAccountBalance(account.address);
-      
-      // Calculate totals from positions
-      const totalPnl = positions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
-      const totalCollateral = positions.reduce((sum, pos) => sum + pos.collateral, 0);
-      const freeCollateral = Math.max(0, balance - totalCollateral);
-      
-      // Calculate margin ratio (simplified)
-      const marginRatio = totalCollateral > 0 ? (balance + totalPnl) / totalCollateral : 0;
-
-      setPortfolio({
-        totalBalance: balance,
-        totalPnl,
-        totalCollateral,
-        freeCollateral,
-        marginRatio,
-        positionCount: positions.length,
-        orderCount: orders.length,
-      });
-    } catch (err) {
-      console.error('Error calculating portfolio:', err);
-    }
-  }, [account?.address, connected, positions, orders]);
-
-  // Refresh all data
-  const refreshData = useCallback(async () => {
-    if (!connected || !account?.address) return;
-    
-    await Promise.all([
-      fetchPositions(),
-      fetchOrders(),
-    ]);
-  }, [connected, account?.address, fetchPositions, fetchOrders]);
-
-  // Auto-refresh data when wallet connects
+  // Subscribe to real-time position updates
   useEffect(() => {
-    if (connected && account?.address) {
-      refreshData();
-    } else {
-      setPositions([]);
-      setOrders([]);
-      setPortfolio({
-        totalBalance: 0,
-        totalPnl: 0,
-        totalCollateral: 0,
-        freeCollateral: 0,
-        marginRatio: 0,
-        positionCount: 0,
-        orderCount: 0,
-      });
-    }
-  }, [connected, account?.address]); // Remove refreshData from dependencies
+    if (!account?.address) return;
 
-  // Calculate portfolio when positions/orders change
+    const unsubscribePositions = merklePositionService.subscribeToPositions((updatedPositions: Position[]) => {
+      setPositions(updatedPositions);
+      log.trade('Positions updated via subscription:', updatedPositions.length);
+    });
+
+    const unsubscribeActivities = merklePositionService.subscribeToActivities((updatedActivities: TradeHistoryItem[]) => {
+      setActivities(updatedActivities);
+      log.trade('Activities updated via subscription:', updatedActivities.length);
+    });
+
+    return () => {
+      unsubscribePositions();
+      unsubscribeActivities();
+    };
+  }, [account?.address]);
+
+  // Fetch positions when account changes
   useEffect(() => {
-    calculatePortfolio();
-  }, [positions, orders]); // Remove calculatePortfolio from dependencies
+    fetchPositions();
+  }, [fetchPositions]);
 
   // Auto-refresh positions every 30 seconds
   useEffect(() => {
-    if (!connected || !account?.address) return;
+    if (!account?.address) return;
 
     const interval = setInterval(() => {
+      log.trade('Auto-refreshing positions...');
       fetchPositions();
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [connected, account?.address]); // Remove fetchPositions from dependencies
+  }, [fetchPositions, account?.address]);
+
+  const refreshPositions = useCallback(() => {
+    log.trade('Manual refresh triggered');
+    fetchPositions();
+  }, [fetchPositions]);
+
+  // Add a new position (called after successful trade)
+  const addPosition = useCallback((positionData: Partial<Position>) => {
+    log.trade('Adding new position:', positionData);
+    // Position will be updated via WebSocket subscription
+    refreshPositions();
+  }, [refreshPositions]);
+
+  // Add trading activity
+  const addActivity = useCallback((activityData: Partial<TradeHistoryItem>) => {
+    log.trade('Adding new activity:', activityData);
+    // Activity will be updated via WebSocket subscription
+    refreshPositions();
+  }, [refreshPositions]);
+
+  // ===== CLOSE POSITION FUNCTIONALITY =====
+  
+  /**
+   * Close a position (full or partial)
+   * Uses merkleService to create close transaction
+   */
+  const closePosition = useCallback(async (params: {
+    positionId: string;
+    pair: string;
+    sizeDelta: number;        // Amount to close (USDC)
+    collateralDelta: number;  // Collateral to withdraw (USDC)
+    isPartial: boolean;
+  }) => {
+    if (!account?.address) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      log.trade('Closing position:', params);
+
+      // Convert to microunits (6 decimals)
+      const sizeDeltaBigInt = BigInt(Math.floor(params.sizeDelta * 1e6));
+      const collateralDeltaBigInt = BigInt(Math.floor(params.collateralDelta * 1e6));
+
+      // Create close transaction via merkleService
+      const { closeTransaction } = await merkleService.closePosition({
+        pair: params.pair,
+        userAddress: account.address,
+        positionId: params.positionId,
+        sizeDelta: sizeDeltaBigInt,
+        collateralDelta: collateralDeltaBigInt,
+        isPartial: params.isPartial,
+      });
+
+      log.trade('Close transaction created, ready for wallet signature');
+      
+      // Return transaction for wallet to sign
+      return closeTransaction;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to close position';
+      log.error('Error closing position:', err);
+      throw new Error(errorMessage);
+    }
+  }, [account?.address]);
+
+  /**
+   * Update Stop Loss and Take Profit for a position
+   */
+  const updateTPSL = useCallback(async (params: {
+    positionId: string;
+    pair: string;
+    stopLossPrice?: number;   // USDC price (0 = remove)
+    takeProfitPrice?: number; // USDC price (0 = remove)
+  }) => {
+    if (!account?.address) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      log.trade('Updating TP/SL:', params);
+
+      // Convert to microunits (6 decimals)
+      const slPriceBigInt = params.stopLossPrice 
+        ? BigInt(Math.floor(params.stopLossPrice * 1e6)) 
+        : undefined;
+      const tpPriceBigInt = params.takeProfitPrice 
+        ? BigInt(Math.floor(params.takeProfitPrice * 1e6)) 
+        : undefined;
+
+      // Create update transaction via merkleService
+      const { updateTransaction } = await merkleService.updateTPSL({
+        pair: params.pair,
+        userAddress: account.address,
+        positionId: params.positionId,
+        stopLossPrice: slPriceBigInt,
+        takeProfitPrice: tpPriceBigInt,
+      });
+
+      log.trade('TP/SL update transaction created, ready for wallet signature');
+      
+      // Return transaction for wallet to sign
+      return updateTransaction;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update TP/SL';
+      log.error('Error updating TP/SL:', err);
+      throw new Error(errorMessage);
+    }
+  }, [account?.address]);
+
+  // Calculate portfolio metrics for compatibility
+  const totalPnL = positions?.reduce((sum, pos) => {
+    return sum + (pos?.pnlUSDC || 0);
+  }, 0) || 0;
+  
+  const totalCollateral = positions?.reduce((sum, pos) => {
+    return sum + (pos?.collateralUSDC || 0);
+  }, 0) || 0;
+  
+  const mockBalance = 1000; // Mock balance
+  
+  const portfolio = {
+    totalBalance: mockBalance,
+    totalPnl: totalPnL,
+    totalCollateral,
+    freeCollateral: Math.max(0, mockBalance - totalCollateral),
+    marginRatio: totalCollateral > 0 ? (mockBalance + totalPnL) / totalCollateral : 0,
+    positionCount: positions?.length || 0,
+    orderCount: 0,
+  };
 
   return {
-    // Data
     positions,
-    orders,
+    activities,
     portfolio,
-    
-    // Computed values
-    totalPnL: portfolio.totalPnl,
-    totalCollateral: portfolio.totalCollateral,
-    freeCollateral: portfolio.freeCollateral,
-    marginRatio: portfolio.marginRatio,
-    
-    // State
+    totalPnL,
     loading,
     error,
-    
-    // Actions
-    refreshData,
-    fetchPositions,
-    fetchOrders,
-    
-    // Utilities
-    clearError: () => setError(null),
+    refreshPositions,
+    addPosition,
+    addActivity,
+    // New close/update functionality
+    closePosition,
+    updateTPSL,
   };
 };

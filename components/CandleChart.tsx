@@ -4,12 +4,16 @@ import Svg, { Rect, Line, Text as SvgText, G, Defs, LinearGradient, Stop } from 
 import { useTheme } from '../theme/ThemeProvider';
 import { CandleData as MockCandleData } from '../data/mock';
 
-export interface CandleData extends MockCandleData {
+export interface CandleData {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
   time: number;
   value: number;
   color: string;
-  timestamp: number;
-  volume: number;
 }
 import { formatCurrency } from '../utils/number';
 

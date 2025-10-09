@@ -1,4 +1,5 @@
-import { Aptos, AptosConfig, Network, Account, Ed25519PrivateKey, InputSubmitTransactionData } from '@aptos-labs/ts-sdk';
+import { Aptos, AptosConfig, Network, Account, Ed25519PrivateKey, AccountAddress, TransactionResponse, PendingTransactionResponse, UserTransactionResponse } from '@aptos-labs/ts-sdk';
+import { log } from './logger';
 import { APTOS_CONFIG, MERKLE_CONFIG, TRADING_CONSTANTS, buildFunctionId } from '../config/constants';
 
 // Type definitions for better type safety
@@ -8,34 +9,38 @@ export interface TransactionPayload {
   arguments: (string | number | boolean)[];
 }
 
+export interface AccountResource {
+  type: string;
+  data: any;
+}
+
 export interface SimulationResult {
   success: boolean;
   gas_used: string;
   gas_unit_price: string;
   vm_status: string;
 }
-
 export interface TransactionResult {
   success: boolean;
   version: string;
   hash: string;
   gas_used: string;
+  gas_unit_price: string;
   vm_status: string;
+  events: ContractEvent[];
 }
 
 export interface ContractEvent {
   type: string;
-  data: Record<string, unknown>;
-  transaction_hash: string;
-  transaction_version: string;
+  sequence_number: string;
+  data: any;
+  _version: string;
   transaction_timestamp?: string;
   event_index: number;
+  transaction_hash?: string;
+  transaction_version?: string;
 }
 
-export interface AccountResource {
-  type: string;
-  data: Record<string, unknown>;
-}
 
 // Initialize Aptos client with mainnet configuration
 const aptosConfig = new AptosConfig({ 
@@ -115,7 +120,7 @@ export function buildMerkleTransaction(
     arguments: args || [],
   };
   
-  console.log('Built transaction payload:', payload);
+  log.debug('Built transaction payload:', payload);
   return payload;
 }
 
@@ -136,7 +141,7 @@ export const getAccountBalance = async (accountAddress: string): Promise<number>
     
     return 0;
   } catch (error) {
-    console.error('Error fetching account balance:', error);
+    log.error('Error fetching account balance:', error);
     return 0;
   }
 };
@@ -153,7 +158,7 @@ export const getUserPositions = async (accountAddress: string): Promise<AccountR
     
     return positionResources.map((resource) => resource as unknown as AccountResource);
   } catch (error) {
-    console.error('Error fetching user positions:', error);
+    log.error('Error fetching user positions:', error);
     return [];
   }
 };
@@ -170,7 +175,7 @@ export const getUserOrders = async (accountAddress: string): Promise<AccountReso
     
     return orderResources.map((resource) => resource as unknown as AccountResource);
   } catch (error) {
-    console.error('Error fetching user orders:', error);
+    log.error('Error fetching user orders:', error);
     return [];
   }
 };
@@ -188,7 +193,7 @@ export const getMarketPrices = async (): Promise<Record<string, number>> => {
       'DOGE/USD': 0.085,
     };
   } catch (error) {
-    console.error('Error fetching market prices:', error);
+    log.error('Error fetching market prices:', error);
     return {};
   }
 };
@@ -208,7 +213,7 @@ export const getAccountEvents = async (
     
     return events as unknown as ContractEvent[];
   } catch (error) {
-    console.error('Error fetching account events:', error);
+    log.error('Error fetching account events:', error);
     return [];
   }
 };
@@ -251,6 +256,7 @@ export const subscribeToContractEvents = async (
                 // Process and callback with the event
                 const processedEvent: ContractEvent = {
                   ...event,
+                  _version: transaction.version || "0",
                   transaction_hash: transaction.hash,
                   transaction_version: transaction.version,
                   transaction_timestamp: "timestamp" in transaction ? transaction.timestamp : undefined,
@@ -268,7 +274,7 @@ export const subscribeToContractEvents = async (
           }
         }
       } catch (error) {
-        console.error('Error polling for events:', error);
+        log.error('Error polling for events:', error);
       }
 
       // Schedule next poll only after the current one is finished
@@ -285,7 +291,7 @@ export const subscribeToContractEvents = async (
       isSubscribed = false;
     };
   } catch (error) {
-    console.error('Error setting up event subscription:', error);
+    log.error('Error setting up event subscription:', error);
     throw error;
   }
 };
@@ -296,7 +302,7 @@ export const simulateTransaction = async (
   transaction: TransactionPayload
 ): Promise<SimulationResult> => {
   try {
-    console.warn('Skipping transaction simulation for keyless account compatibility');
+    log.warn('Skipping transaction simulation for keyless account compatibility');
     // Skip simulation entirely for keyless accounts to avoid serialization issues
     return {
       success: true,
@@ -305,7 +311,7 @@ export const simulateTransaction = async (
       vm_status: 'Executed successfully'
     } as SimulationResult;
   } catch (error) {
-    console.error('Transaction simulation failed:', error);
+    log.error('Transaction simulation failed:', error);
     // Return mock success for any simulation errors
     return {
       success: true,
@@ -323,9 +329,9 @@ export const waitForTransaction = async (txHash: string): Promise<TransactionRes
       transactionHash: txHash,
     });
     
-    return result as TransactionResult;
+    return result as unknown as TransactionResult;
   } catch (error) {
-    console.error('Error waiting for transaction:', error);
+    log.error('Error waiting for transaction:', error);
     throw error;
   }
 };

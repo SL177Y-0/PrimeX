@@ -4,10 +4,9 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
 import { Card } from '../../components/Card';
 import { GradientPillButton } from '../../components/GradientPillButton';
-import { CandleChart } from '../../components/CandleChart';
+import { CandleChart, CandleData } from '../../components/CandleChart';
 import { TradingChart } from '../../components/TradingChart';
 import { Settings, Download, Save } from 'lucide-react-native';
-import { CandleData } from '../../data/mock';
 
 interface AdvancedChartsContentProps {
   onBack: () => void;
@@ -21,32 +20,48 @@ export default function AdvancedChartsContent({ onBack }: AdvancedChartsContentP
   const screenWidth = Dimensions.get('window').width;
   const isMobile = screenWidth < 768;
 
+  // Helper function to create proper CandleData
+  const createCandle = (hoursAgo: number, open: number, high: number, low: number, close: number, volume: number): CandleData => {
+    const timestamp = Date.now() - hoursAgo * 60 * 60 * 1000;
+    return {
+      timestamp,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      time: timestamp,
+      value: close,
+      color: close > open ? '#10b981' : '#ef4444'
+    };
+  };
+
   // Different chart data for each chart type
   const candlestickData: CandleData[] = [
-    { timestamp: Date.now() - 23 * 60 * 60 * 1000, open: 64500, high: 65200, low: 64200, close: 64800, volume: 800 },
-    { timestamp: Date.now() - 22 * 60 * 60 * 1000, open: 64800, high: 65500, low: 64500, close: 65100, volume: 900 },
-    { timestamp: Date.now() - 21 * 60 * 60 * 1000, open: 65100, high: 65800, low: 64800, close: 65400, volume: 950 },
-    { timestamp: Date.now() - 20 * 60 * 60 * 1000, open: 65400, high: 66100, low: 65100, close: 65700, volume: 1000 },
-    { timestamp: Date.now() - 19 * 60 * 60 * 1000, open: 65700, high: 66400, low: 65400, close: 66000, volume: 1050 },
-    { timestamp: Date.now() - 18 * 60 * 60 * 1000, open: 66000, high: 66700, low: 65700, close: 66300, volume: 1100 },
-    { timestamp: Date.now() - 17 * 60 * 60 * 1000, open: 66300, high: 67000, low: 66000, close: 66600, volume: 1150 },
-    { timestamp: Date.now() - 16 * 60 * 60 * 1000, open: 66600, high: 67300, low: 66300, close: 66900, volume: 1200 },
-    { timestamp: Date.now() - 15 * 60 * 60 * 1000, open: 66900, high: 67600, low: 66600, close: 67200, volume: 1250 },
-    { timestamp: Date.now() - 14 * 60 * 60 * 1000, open: 67200, high: 67900, low: 66900, close: 67500, volume: 1300 },
-    { timestamp: Date.now() - 13 * 60 * 60 * 1000, open: 67500, high: 68200, low: 67200, close: 67800, volume: 1350 },
-    { timestamp: Date.now() - 12 * 60 * 60 * 1000, open: 67800, high: 68500, low: 67500, close: 68100, volume: 1400 },
-    { timestamp: Date.now() - 11 * 60 * 60 * 1000, open: 68100, high: 68800, low: 67800, close: 68400, volume: 1450 },
-    { timestamp: Date.now() - 10 * 60 * 60 * 1000, open: 68400, high: 69100, low: 68100, close: 68700, volume: 1500 },
-    { timestamp: Date.now() - 9 * 60 * 60 * 1000, open: 68700, high: 69400, low: 68400, close: 69000, volume: 1550 },
-    { timestamp: Date.now() - 8 * 60 * 60 * 1000, open: 69000, high: 69700, low: 68700, close: 69300, volume: 1600 },
-    { timestamp: Date.now() - 7 * 60 * 60 * 1000, open: 69300, high: 70000, low: 69000, close: 69600, volume: 1650 },
-    { timestamp: Date.now() - 6 * 60 * 60 * 1000, open: 69600, high: 70300, low: 69300, close: 69900, volume: 1700 },
-    { timestamp: Date.now() - 5 * 60 * 60 * 1000, open: 69900, high: 70600, low: 69600, close: 70200, volume: 1750 },
-    { timestamp: Date.now() - 4 * 60 * 60 * 1000, open: 70200, high: 70900, low: 69900, close: 70500, volume: 1800 },
-    { timestamp: Date.now() - 3 * 60 * 60 * 1000, open: 70500, high: 71200, low: 70200, close: 70800, volume: 1850 },
-    { timestamp: Date.now() - 2 * 60 * 60 * 1000, open: 70800, high: 71500, low: 70500, close: 71100, volume: 1900 },
-    { timestamp: Date.now() - 1 * 60 * 60 * 1000, open: 71100, high: 71800, low: 70800, close: 71400, volume: 1950 },
-    { timestamp: Date.now(), open: 71400, high: 72100, low: 71100, close: 71800, volume: 2000 },
+    createCandle(23, 64500, 65200, 64200, 64800, 800),
+    createCandle(22, 64800, 65500, 64500, 65100, 900),
+    createCandle(21, 65100, 65800, 64800, 65400, 950),
+    createCandle(20, 65400, 66100, 65100, 65700, 1000),
+    createCandle(19, 65700, 66400, 65400, 66000, 1050),
+    createCandle(18, 66000, 66700, 65700, 66300, 1100),
+    createCandle(17, 66300, 67000, 66000, 66600, 1150),
+    createCandle(16, 66600, 67300, 66300, 66900, 1200),
+    createCandle(15, 66900, 67600, 66600, 67200, 1250),
+    createCandle(14, 67200, 67900, 66900, 67500, 1300),
+    createCandle(13, 67500, 68200, 67200, 67800, 1350),
+    createCandle(12, 67800, 68500, 67500, 68100, 1400),
+    createCandle(11, 68100, 68800, 67800, 68400, 1450),
+    createCandle(10, 68400, 69100, 68100, 68700, 1500),
+    createCandle(9, 68700, 69400, 68400, 69000, 1550),
+    createCandle(8, 69000, 69700, 68700, 69300, 1600),
+    createCandle(7, 69300, 70000, 69000, 69600, 1650),
+    createCandle(6, 69600, 70300, 69300, 69900, 1700),
+    createCandle(5, 69900, 70600, 69600, 70200, 1750),
+    createCandle(4, 70200, 70900, 69900, 70500, 1800),
+    createCandle(3, 70500, 71200, 70200, 70800, 1850),
+    createCandle(2, 70800, 71500, 70500, 71100, 1900),
+    createCandle(1, 71100, 71800, 70800, 71400, 1950),
+    createCandle(0, 71400, 72100, 71100, 71800, 2000),
   ];
 
   const lineData = [65800, 66100, 65900, 66400, 66200, 66800, 67200, 67000, 67500, 68000, 67800, 67890];

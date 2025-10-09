@@ -1,4 +1,5 @@
-import { aptosClient } from './aptosClient';
+import { TRADING_CONSTANTS } from '../config/constants';
+import { log } from './logger';
 
 // Market configuration
 export interface MarketInfo {
@@ -160,7 +161,7 @@ class PriceService {
 
       return [...cachedPrices, ...freshPrices];
     } catch (error) {
-      console.error('Error fetching prices:', error);
+      log.error('Error fetching prices:', error);
       return this.getFallbackPrices(targetSymbols);
     }
   }
@@ -215,7 +216,7 @@ class PriceService {
       const data: CoinGeckoHistoricalData = await response.json();
       return this.processCandleData(data);
     } catch (error) {
-      console.error('Error fetching candle data:', error);
+      log.error('Error fetching candle data:', error);
       const fallbackPrice = FALLBACK_PRICES[symbol] || 100;
       return this.generateMockCandles(fallbackPrice, limit);
     }
@@ -362,7 +363,7 @@ class PriceService {
           }
         }
       } catch (error) {
-        console.error(`Error in price stream for ${symbol}:`, error);
+        log.error(`Error in price stream for ${symbol}:`, error);
       }
     }, 5000); // Update every 5 seconds
 

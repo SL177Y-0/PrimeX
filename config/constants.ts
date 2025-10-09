@@ -321,20 +321,24 @@ export const buildEventType = (eventType: string, module: string = MERKLE_CONFIG
 };
 
 // Panora Swap Configuration
+// Panora Exchange Configuration
+// Based on official docs: https://docs.panora.exchange/developer/swap/api
 export const PANORA_CONFIG = {
   contractAddress: '0x1c3206329806286fd2223647c9f9b130e66baeb6d7224a18c1f642ffe48f3b4c',
   apiUrl: 'https://api.panora.exchange/swap',
-  apiKey: 'a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi', // Public key from guides
-  chainId: 1, // Aptos Mainnet
-  defaultSlippage: 'auto', // Auto slippage up to 5%
+  apiKey: 'a4^KV_EaTf4MW#ZdvgGKX#HUD^3IFEAOV_kzpIE^3BQGA8pDnrkT7JcIy#HNlLGi', // Official public API key
+  chainId: 1, // Aptos Mainnet (1 = mainnet, 2 = testnet)
+  defaultSlippage: 1, // 1% default slippage
   maxSlippage: 50, // 50% maximum
   minSlippage: 0.1, // 0.1% minimum
 } as const;
 
-// Swap Token Configuration - Only APT and USDC for now
+// Swap Token Configuration - Panora API Token Addresses
+// APT uses shorthand "0xa" for Panora API compatibility
+// Other tokens use full Move resource addresses
 export const SWAP_TOKENS = {
   APT: {
-    address: '0x1::aptos_coin::AptosCoin',
+    address: '0xa', // Panora shorthand for native APT (0x1::aptos_coin::AptosCoin)
     symbol: 'APT',
     name: 'Aptos',
     decimals: 8,
@@ -342,7 +346,9 @@ export const SWAP_TOKENS = {
     isNative: true,
   },
   USDC: {
-    address: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC',
+    // Panora API expects base address only (from official docs example)
+    // This is the correct LayerZero bridged USDC contract on Aptos mainnet
+    address: '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b',
     symbol: 'USDC',
     name: 'USD Coin (LayerZero)',
     decimals: 6,
@@ -368,6 +374,60 @@ export const SWAP_CONSTANTS = {
   GAS_UNIT_PRICE: 100,
 } as const;
 
+// Amnis Liquid Staking Configuration
+// Based on official Amnis Finance protocol: https://amnis.finance
+// Contract address verified on mainnet explorer
+export const AMNIS_CONFIG = {
+  contractAddress: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a',
+  modules: {
+    core: 'amnis_contract',
+    amaptToken: 'amapt_token',
+    staptToken: 'stapt_token',
+    delegationManager: 'delegation_manager',
+  },
+  functions: {
+    // APT -> amAPT (1:1 liquid staking)
+    stake: 'stake',
+    // amAPT -> stAPT (auto-compounding vault)
+    mintStApt: 'mint_st_apt',
+    // stAPT -> amAPT (redeem from vault)
+    redeemStApt: 'redeem_st_apt',
+    // amAPT -> APT instant (with fee via DEX)
+    instantUnstake: 'instant_unstake',
+    // amAPT -> APT delayed (14 days, no fee)
+    requestUnstake: 'request_unstake',
+    claimUnstake: 'claim_unstake',
+  },
+  tokenTypes: {
+    APT: '0x1::aptos_coin::AptosCoin',
+    amAPT: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::amapt_token::AmnisApt',
+    stAPT: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt',
+  },
+  decimals: {
+    APT: 8,
+    amAPT: 8,
+    stAPT: 8,
+  },
+  minAmounts: {
+    stake: 0.1, // 0.1 APT minimum
+    unstake: 0.1, // 0.1 amAPT minimum
+    staptVault: 0.1, // 0.1 amAPT minimum for stAPT vault
+  },
+  unbondingPeriod: 14 * 24 * 60 * 60, // 14 days in seconds
+  estimatedAPR: {
+    amAPT: 7.0, // ~7% APR for amAPT holders
+    stAPT: 7.5, // ~7.5% APR for stAPT holders (includes auto-compound boost)
+  },
+} as const;
+
+// Staking Constants
+export const STAKING_CONSTANTS = {
+  REFRESH_INTERVAL: 30000, // 30 seconds
+  TRANSACTION_TIMEOUT: 60000, // 60 seconds
+  DEFAULT_SLIPPAGE: 1, // 1% for instant unstake
+  HIGH_SLIPPAGE_WARNING: 5, // 5% warning threshold
+} as const;
+
 // Type exports for better TypeScript support
 export type MarketName = keyof typeof MARKETS;
 export type WalletName = typeof WALLET_CONFIG.supportedWallets[number];
@@ -375,3 +435,4 @@ export type OrderType = typeof TRADING_CONSTANTS.ORDER_TYPES[keyof typeof TRADIN
 export type TradingFunction = typeof TRADING_FUNCTIONS[keyof typeof TRADING_FUNCTIONS];
 export type EventType = typeof EVENT_TYPES[keyof typeof EVENT_TYPES];
 export type SwapToken = keyof typeof SWAP_TOKENS;
+export type AmnisTokenType = 'APT' | 'amAPT' | 'stAPT';

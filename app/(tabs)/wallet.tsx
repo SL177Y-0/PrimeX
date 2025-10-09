@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -10,12 +10,13 @@ import { formatCurrency } from '../../utils/number';
 import { ArrowUpRight, ArrowDownLeft, Bell } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
-export default function WalletScreen() {
+const WalletScreen = React.memo(function WalletScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { portfolioValue, hideBalances } = useAppStore();
-  const screenWidth = Dimensions.get('window').width;
+  // Memoize screen dimensions to prevent re-renders
+  const screenWidth = useMemo(() => Dimensions.get('window').width, []);
   const isMobile = screenWidth < 768;
   
   return (
@@ -225,7 +226,7 @@ export default function WalletScreen() {
       </ScrollView>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -391,3 +392,5 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 });
+
+export default WalletScreen;

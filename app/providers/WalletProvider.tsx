@@ -1,7 +1,7 @@
 import 'react-native-get-random-values';
 import 'react-native-url-polyfill/auto';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo } from 'react';
 import { Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -396,7 +396,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   };
 
-  const value: WalletContextType = {
+  // Memoize context value to prevent re-renders when state doesn't change
+  const value: WalletContextType = useMemo(() => ({
     connected,
     connecting,
     account,
@@ -409,7 +410,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     handleDeepLink,
     lastConnectedWallet,
     isExtensionAvailable,
-  };
+  }), [connected, connecting, account, wallet, connectExtension, connectDeepLink, disconnect, signAndSubmitTransaction, signMessage, handleDeepLink, lastConnectedWallet, isExtensionAvailable]);
 
   return (
     <WalletContext.Provider value={value}>

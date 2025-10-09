@@ -1,4 +1,5 @@
-import { API_CONFIG } from '../config/constants';
+import { TRADING_CONSTANTS } from '../config/constants';
+import { log } from '../utils/logger';
 
 export interface RealMarketData {
   symbol: string;
@@ -56,7 +57,7 @@ class RealMarketDataService {
 
       const mapping = this.SYMBOL_MAPPING[symbol as keyof typeof this.SYMBOL_MAPPING];
       if (!mapping) {
-        console.warn(`No mapping found for symbol: ${symbol}`);
+        log.warn(`No mapping found for symbol: ${symbol}`);
         return null;
       }
 
@@ -93,7 +94,7 @@ class RealMarketDataService {
 
       return marketData;
     } catch (error) {
-      console.error(`Error fetching market data for ${symbol}:`, error);
+      log.error(`Error fetching market data for ${symbol}:`, error);
       return null;
     }
   }
@@ -136,7 +137,7 @@ class RealMarketDataService {
 
       return result;
     } catch (error) {
-      console.error(`Error fetching detailed market data for ${symbol}:`, error);
+      log.error(`Error fetching detailed market data for ${symbol}:`, error);
       return null;
     }
   }
@@ -173,7 +174,7 @@ class RealMarketDataService {
 
       return candlesticks;
     } catch (error) {
-      console.error(`Error generating candlestick data for ${symbol}:`, error);
+      log.error(`Error generating candlestick data for ${symbol}:`, error);
       return [];
     }
   }
@@ -196,7 +197,7 @@ class RealMarketDataService {
       
       return data.prices?.map((price: [number, number]) => price[1]) || [];
     } catch (error) {
-      console.error(`Error fetching price history for ${symbol}:`, error);
+      log.error(`Error fetching price history for ${symbol}:`, error);
       return [];
     }
   }
@@ -239,7 +240,7 @@ class RealMarketDataService {
             try {
               callback(data);
             } catch (error) {
-              console.error('Error in price subscriber callback:', error);
+              log.error('Error in price subscriber callback:', error);
             }
           });
         }
@@ -278,7 +279,7 @@ class RealMarketDataService {
         indexPrice: marketData.price * (1 + (Math.random() - 0.5) * 0.001), // Slight variation
       };
     } catch (error) {
-      console.error(`Error fetching funding rate for ${symbol}:`, error);
+      log.error(`Error fetching funding rate for ${symbol}:`, error);
       return null;
     }
   }

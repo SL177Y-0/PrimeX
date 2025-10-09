@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo } from 'react';
 import { ThemeTokens, darkTheme, lightTheme } from './tokens';
 import { useAppStore } from '../store/useAppStore';
 
@@ -14,13 +14,17 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const { themeMode } = useAppStore();
+  // Use selective Zustand selector to ONLY re-render when themeMode changes
+  const themeMode = useAppStore((state) => state.themeMode);
   
-  const isDark = themeMode === 'dark';
-  const theme = isDark ? darkTheme : lightTheme;
+  const contextValue = useMemo(() => {
+    const isDark = themeMode === 'dark';
+    const theme = isDark ? darkTheme : lightTheme;
+    return { theme, isDark };
+  }, [themeMode]);
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );

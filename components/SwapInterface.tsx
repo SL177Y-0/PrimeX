@@ -35,10 +35,13 @@ import { useWallet } from '../app/providers/WalletProvider';
 import { Card } from './Card';
 import { GradientPillButton } from './GradientPillButton';
 import { ModalSheet } from './ModalSheet';
-import { SWAP_TOKENS, POPULAR_SWAP_PAIRS } from '../config/constants';
-import { panoraSwapService } from '../services/panoraSwapService';
-import type { SwapQuoteResponse } from '../services/panoraSwapService';
+import { SWAP_TOKENS, POPULAR_SWAP_PAIRS, PANORA_CONFIG } from '../config/constants';
+import { panoraSwapSDK, PanoraSwapError } from '../services/panoraSwapSDK';
+import type { SwapQuoteResponse, SwapQuoteParams } from '../services/panoraSwapSDK';
 import { fetchTokenBalances, formatBalance } from '../services/balanceService';
+
+// Alias for backward compatibility
+const panoraSwapService = panoraSwapSDK;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -126,6 +129,8 @@ function TokenSelector({
 
         <View style={styles.amountInputContainer}>
           <TextInput
+            nativeID="swapAmountInput"
+            accessibilityLabel="Swap amount input"
             style={[
               styles.amountInput,
               {
@@ -206,9 +211,38 @@ interface SwapDetailsProps {
   quote: SwapQuoteResponse | null;
   slippage: number;
   onSlippageChange: (slippage: number) => void;
+  fromAmount: string;
 }
 
-function SwapDetails({ quote, slippage, onSlippageChange }: SwapDetailsProps) {
+const parseQuoteAmount = (value: string | number | undefined, decimals: number): number => {
+  if (value === undefined || value === null) {
+    return 0;
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return 0;
+  }
+
+  if (normalized.includes('.')) {
+    const parsed = parseFloat(normalized);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  try {
+    const baseUnits = BigInt(normalized);
+    return Number(baseUnits) / Math.pow(10, decimals);
+  } catch (error) {
+    const parsed = parseFloat(normalized);
+    return Number.isNaN(parsed) ? 0 : parsed / Math.pow(10, decimals);
+  }
+};
+
+function SwapDetails({ quote, slippage, onSlippageChange, fromAmount }: SwapDetailsProps) {
   const { theme } = useTheme();
   const accent = useAccent();
   const [showSettings, setShowSettings] = useState(false);
@@ -216,7 +250,8 @@ function SwapDetails({ quote, slippage, onSlippageChange }: SwapDetailsProps) {
   if (!quote) return null;
 
   const priceImpact = parseFloat(quote.quotes[0]?.priceImpact || '0');
-  const priceImpactLevel = panoraSwapService.getPriceImpactLevel(priceImpact);
+  const priceImpactData = panoraSwapService.getPriceImpactLevel(priceImpact);
+  const priceImpactLevel = priceImpactData.level;
   
   const priceImpactColor = 
     priceImpactLevel === 'low' ? theme.colors.positive :
@@ -242,10 +277,17 @@ function SwapDetails({ quote, slippage, onSlippageChange }: SwapDetailsProps) {
             Rate
           </Text>
           <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>
-            1 {quote.fromToken.symbol} = {(
-              panoraSwapService.parseTokenAmount(quote.quotes[0].toTokenAmount, quote.toToken.decimals) /
-              panoraSwapService.parseTokenAmount(quote.fromTokenAmount, quote.fromToken.decimals)
-            ).toFixed(6)} {quote.toToken.symbol}
+            1 {quote.fromToken.symbol} = {(() => {
+              const toAmount = parseQuoteAmount(quote.quotes[0].toTokenAmount, quote.toToken.decimals);
+              const inputAmount = parseFloat(fromAmount);
+              const baseAmount = Number.isFinite(inputAmount) && inputAmount > 0
+                ? inputAmount
+                : parseQuoteAmount(quote.fromTokenAmount, quote.fromToken.decimals);
+              if (!baseAmount || !Number.isFinite(baseAmount)) {
+                return '0.000000';
+              }
+              return (toAmount / baseAmount).toFixed(6);
+            })()} {quote.toToken.symbol}
           </Text>
         </View>
 
@@ -256,6 +298,11 @@ function SwapDetails({ quote, slippage, onSlippageChange }: SwapDetailsProps) {
           <View style={styles.priceImpactContainer}>
             {priceImpactLevel !== 'low' && (
               <AlertTriangle size={12} color={priceImpactColor} />
+            )}
+            {priceImpactData.warning && (
+              <Text style={[styles.warningText, { color: priceImpactColor }]}>
+                {priceImpactData.warning}
+              </Text>
             )}
             <Text style={[styles.detailValue, { color: priceImpactColor }]}>
               {priceImpact.toFixed(2)}%
@@ -277,7 +324,7 @@ function SwapDetails({ quote, slippage, onSlippageChange }: SwapDetailsProps) {
             Min. Received
           </Text>
           <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>
-            {panoraSwapService.parseTokenAmount(
+            {parseQuoteAmount(
               quote.quotes[0].minToTokenAmount,
               quote.toToken.decimals
             ).toFixed(6)} {quote.toToken.symbol}
@@ -422,35 +469,73 @@ export function SwapInterface() {
       const fromTokenData = SWAP_TOKENS[fromToken as keyof typeof SWAP_TOKENS];
       const toTokenData = SWAP_TOKENS[toToken as keyof typeof SWAP_TOKENS];
 
-      const formattedAmount = panoraSwapService.formatTokenAmount(
-        fromAmount,
-        fromTokenData.decimals
-      );
+      // Validate token data
+      if (!fromTokenData || !toTokenData) {
+        Alert.alert('Error', 'Invalid token configuration');
+        return;
+      }
+
+      if (!fromTokenData.address || !toTokenData.address) {
+        Alert.alert('Error', 'Token addresses not configured');
+        return;
+      }
+
+      // Panora API expects amount WITHOUT decimals (e.g., 10.5 not 1050000000)
+      const cleanAmount = fromAmount;
 
       const quoteResponse = await panoraSwapService.getSwapQuote({
+        chainId: PANORA_CONFIG.chainId,
         fromTokenAddress: fromTokenData.address,
         toTokenAddress: toTokenData.address,
-        fromTokenAmount: formattedAmount,
-        toWalletAddress: '0x1', // Placeholder - will be replaced with actual wallet address
+        fromTokenAmount: cleanAmount, // Send raw amount (e.g., "10.5")
+        toWalletAddress: account?.address || '0x1', // Use actual wallet address if connected
         slippagePercentage: slippage,
       });
 
       setQuote(quoteResponse);
       
-      const receivedAmount = panoraSwapService.parseTokenAmount(
-        quoteResponse.quotes[0].toTokenAmount,
-        toTokenData.decimals
-      );
-      setToAmount(receivedAmount.toFixed(6));
+      // Check if quotes array exists and has data
+      if (!quoteResponse.quotes || !Array.isArray(quoteResponse.quotes) || quoteResponse.quotes.length === 0) {
+        Alert.alert('Error', 'No swap quotes available. Please try again.');
+        setToAmount('');
+        return;
+      }
+      
+      const firstQuote = quoteResponse.quotes[0];
+      
+      // Try to get toTokenAmount from different possible locations
+      let toTokenAmount = (firstQuote as any).toTokenAmount;
+      
+      // Fallback: some APIs might have it at the response level
+      if (!toTokenAmount && (quoteResponse as any).toTokenAmount) {
+        toTokenAmount = (quoteResponse as any).toTokenAmount;
+      }
+      
+      // Fallback: some APIs might use different field names
+      if (!toTokenAmount && (firstQuote as any).receiveAmount) {
+        toTokenAmount = (firstQuote as any).receiveAmount;
+      }
+      
+      if (!toTokenAmount && (firstQuote as any).outputAmount) {
+        toTokenAmount = (firstQuote as any).outputAmount;
+      }
+      
+      if (!toTokenAmount) {
+        Alert.alert('Error', 'Could not parse swap quote. Please try again.');
+        setToAmount('');
+        return;
+      }
+      
+      const numericToAmount = parseQuoteAmount(toTokenAmount, toTokenData.decimals);
+      setToAmount(numericToAmount.toFixed(6));
     } catch (error) {
-      console.error('Failed to fetch quote:', error);
       Alert.alert('Error', 'Failed to fetch swap quote. Please try again.');
       setQuote(null);
       setToAmount('');
     } finally {
       setIsLoading(false);
     }
-  }, [fromAmount, fromToken, toToken, slippage]);
+  }, [fromAmount, fromToken, toToken, slippage, account?.address]);
 
   // Debounced quote fetching
   useEffect(() => {
@@ -493,27 +578,33 @@ export function SwapInterface() {
 
     try {
       // Validate transaction data
-      const validation = panoraSwapService.validateTxData(quote.quotes[0].txData);
+      const txData = quote.quotes[0].txData;
+
+      const validation = panoraSwapService.validateTransaction(txData);
       if (!validation.isValid) {
         Alert.alert('Security Error', validation.error || 'Invalid transaction data');
         return;
       }
 
-      // Simulate transaction first
-      const simulationSuccess = await panoraSwapService.simulateTransaction(
-        quote.quotes[0].txData,
+      // Show warning if there are any
+      // Simulate transaction before execution
+      const canSimulate = await panoraSwapService.simulateTransaction(
+        txData,
         account.address
       );
 
-      if (!simulationSuccess) {
-        Alert.alert('Transaction Failed', 'Transaction simulation failed. Please try again.');
+      if (!canSimulate) {
+        Alert.alert('Simulation Failed', 'Transaction simulation failed. The swap may not succeed.');
         return;
       }
 
-      // Execute swap transaction with wallet
-      const result = await signAndSubmitTransaction(quote.quotes[0].txData);
-      
-      Alert.alert('Success', `Swap completed successfully!\nTransaction: ${result.hash.slice(0, 8)}...`);
+      // Execute swap transaction via wallet provider
+      const result = await signAndSubmitTransaction(txData);
+      Alert.alert(
+        'Success',
+        `Swap completed successfully!\nTransaction: ${result.hash.slice(0, 10)}...`,
+        [{ text: 'OK' }]
+      );
       
       // Reset form and refresh balances
       setFromAmount('');
@@ -526,7 +617,6 @@ export function SwapInterface() {
         setTokenBalances(balances);
       }
     } catch (error) {
-      console.error('Swap failed:', error);
       Alert.alert('Error', 'Swap failed. Please try again.');
     } finally {
       setIsSwapping(false);
@@ -615,6 +705,7 @@ export function SwapInterface() {
         quote={quote}
         slippage={slippage}
         onSlippageChange={setSlippage}
+        fromAmount={fromAmount}
       />
 
       {/* Swap Execute Button */}
@@ -806,6 +897,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexWrap: 'wrap',
+  },
+  warningText: {
+    fontSize: 11,
+    fontFamily: 'Inter-Medium',
+    marginLeft: 4,
   },
   executeButton: {
     marginTop: 24,
