@@ -220,8 +220,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 20,
-    paddingBottom: 40,
+    padding: 16,
+    paddingBottom: 32,
   },
   backButton: {
     alignSelf: 'flex-start',
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   methodContent: {
-    padding: 24,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   infoContainer: {
-    padding: 20,
+    padding: 16,
     borderRadius: 16,
     marginTop: 8,
   },
@@ -311,8 +311,8 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   connectedCard: {
-    padding: 24,
-    borderRadius: 20,
+    padding: 16,
+    borderRadius: 18,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -346,9 +346,9 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   addressContainer: {
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 20,
   },
   addressLabel: {
     fontSize: 12,

@@ -134,18 +134,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   small: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     minHeight: 36,
   },
   medium: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     minHeight: 48,
   },
   large: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
     minHeight: 56,
   },
   text: {

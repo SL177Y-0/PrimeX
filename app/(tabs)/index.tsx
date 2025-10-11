@@ -336,13 +336,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   portfolioContainer: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: 12,
+    marginBottom: 12,
     marginTop: 8,
   },
   portfolioCard: {
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 14,
   },
   portfolioHeader: {
     flexDirection: 'row',
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   changeRow: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   changeText: {
     fontSize: 16,
@@ -378,24 +378,24 @@ const styles = StyleSheet.create({
   depositButton: {
     flex: 1,
   },
+  animatedActionButton: {
+    flex: 1,
+  },
   section: {
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    marginTop: 16,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    marginTop: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     paddingHorizontal: 4,
   },
   sectionTitle: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 18,
-  },
-  animatedActionButton: {
-    flex: 1,
   },
   fundsRow: {
     flexDirection: 'row',
@@ -403,8 +403,8 @@ const styles = StyleSheet.create({
   },
   fundCard: {
     flex: 1,
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 14,
   },
   fundHeader: {
     flexDirection: 'row',

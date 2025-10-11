@@ -6,7 +6,7 @@ import {
   Modal, 
   Pressable,
   SafeAreaView,
-  Dimensions 
+  useWindowDimensions
 } from 'react-native';
 import Animated, { 
   useSharedValue, 
@@ -23,19 +23,19 @@ interface ModalSheetProps {
   onClose: () => void;
   title?: string;
   children: ReactNode;
-  height?: number;
+  heightPercent?: number;
 }
-
-const { height: screenHeight } = Dimensions.get('window');
 
 export function ModalSheet({ 
   isVisible, 
   onClose, 
   title, 
   children,
-  height = screenHeight * 0.8
+  heightPercent = 0.8
 }: ModalSheetProps) {
   const { theme, isDark } = useTheme();
+  const { height: screenHeight } = useWindowDimensions();
+  const height = screenHeight * heightPercent;
   const translateY = useSharedValue(height);
   
   React.useEffect(() => {
@@ -137,8 +137,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
@@ -154,6 +154,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
 });

@@ -312,13 +312,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   modal: {
     width: '100%',
     maxWidth: 480,
     borderRadius: 16,
-    padding: 24,
+    padding: 20,
     maxHeight: '90%',
   },
   header: {

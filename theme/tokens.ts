@@ -274,17 +274,18 @@ export const lightTheme: ThemeTokens = {
     },
   },
 };
-
 export const brandPalettes = {
   BTC: { from: '#F7931A', to: '#D97A00' },
   ETH: { from: '#627EEA', to: '#3B5BD6' },
   SOL: { from: '#14F195', to: '#9945FF' },
+  EXPLORER: { from: '#22D3EE', to: '#0EA5E9' },
+  DANGER: { from: '#F87171', to: '#DC2626' },
   ADA: { from: '#0033AD', to: '#1450FF' },
   XRP: { from: '#25A768', to: '#0F8F56' },
   DOT: { from: '#E6007A', to: '#B3005F' },
   MATIC: { from: '#8247E5', to: '#5B2DBB' },
   AVAX: { from: '#E84142', to: '#C12F30' },
-  DOGE: { from: '#C2A633', to: '#9E8725' },
+
   TRX: { from: '#EF0027', to: '#B6001D' },
   LTC: { from: '#B5B5B5', to: '#8E8E8E' },
   LINK: { from: '#2A5ADA', to: '#1741AA' },

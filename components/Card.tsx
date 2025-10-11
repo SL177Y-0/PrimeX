@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 
 interface CardProps {
@@ -10,13 +10,19 @@ interface CardProps {
 
 export function Card({ children, style, elevated = false }: CardProps) {
   const { theme } = useTheme();
+  const { width } = useWindowDimensions();
+
+  const isCompact = width < 768;
+  const padding = isCompact ? theme.spacing.md : theme.spacing.lg;
+  const borderRadius = isCompact ? theme.borderRadius.md : theme.borderRadius.lg;
   
   const cardStyles = [
     styles.card,
     {
       backgroundColor: elevated ? theme.colors.elevated : theme.colors.card,
-      borderRadius: theme.borderRadius.lg,
+      borderRadius,
       ...theme.shadows.soft,
+      padding,
     },
     style,
   ];
@@ -26,6 +32,5 @@ export function Card({ children, style, elevated = false }: CardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    padding: 20,
   },
 });

@@ -12,56 +12,30 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import * as Linking from 'expo-linking';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
 } from 'react-native-reanimated';
-import {
-  ChevronDown,
-  ArrowUpDown,
-  Settings,
-  X,
-  RefreshCw,
-  AlertTriangle,
-  Zap,
-} from 'lucide-react-native';
-
-import { useTheme } from '../theme/ThemeProvider';
-import { useAccent } from '../theme/useAccent';
-import { useWallet } from '../app/providers/WalletProvider';
-import { Card } from './Card';
+import { ChevronDown, Settings, AlertTriangle, ArrowUpDown, Zap } from 'lucide-react-native';
 import { GradientPillButton } from './GradientPillButton';
 import { ModalSheet } from './ModalSheet';
 import { SWAP_TOKENS, POPULAR_SWAP_PAIRS, PANORA_CONFIG } from '../config/constants';
-import { panoraSwapSDK, PanoraSwapError } from '../services/panoraSwapSDK';
-import type { SwapQuoteResponse, SwapQuoteParams } from '../services/panoraSwapSDK';
+import { panoraSwapSDK } from '../services/panoraSwapSDK';
+import type { SwapQuoteResponse } from '../services/panoraSwapSDK';
 import { fetchTokenBalances, formatBalance } from '../services/balanceService';
+import { useResponsive } from '../hooks/useResponsive';
+import { BREAKPOINTS } from '../hooks/useResponsive';
+import { useTheme } from '../theme/ThemeProvider';
+import { useAccent } from '../theme/useAccent';
+import { useWallet } from '../app/providers/WalletProvider';
 
 // Alias for backward compatibility
 const panoraSwapService = panoraSwapSDK;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-// Responsive breakpoints
-const BREAKPOINTS = {
-  xs: 0,
-  sm: 576,
-  md: 768,
-  lg: 992,
-  xl: 1200,
-} as const;
-
-// Responsive utilities
-const getResponsiveValue = (values: { xs?: any; sm?: any; md?: any; lg?: any; xl?: any }, screenWidth: number) => {
-  if (screenWidth >= BREAKPOINTS.xl && values.xl !== undefined) return values.xl;
-  if (screenWidth >= BREAKPOINTS.lg && values.lg !== undefined) return values.lg;
-  if (screenWidth >= BREAKPOINTS.md && values.md !== undefined) return values.md;
-  if (screenWidth >= BREAKPOINTS.sm && values.sm !== undefined) return values.sm;
-  return values.xs;
-};
 
 interface TokenSelectorProps {
   selectedToken: string;
@@ -86,6 +60,7 @@ function TokenSelector({
 }: TokenSelectorProps) {
   const { theme } = useTheme();
   const accent = useAccent();
+  const { spacing, fontSize, value } = useResponsive();
   const [showTokenModal, setShowTokenModal] = useState(false);
 
   const token = SWAP_TOKENS[selectedToken as keyof typeof SWAP_TOKENS];
@@ -102,14 +77,39 @@ function TokenSelector({
 
   return (
     <>
-      <View style={[styles.tokenSelector, styles.glassmorphism]}>
-        <View style={styles.tokenSelectorHeader}>
-          <Text style={[styles.tokenLabel, { color: theme.colors.textSecondary }]}>
+      <View
+        style={[
+          styles.tokenSelector,
+          styles.glassmorphism,
+          {
+            padding: spacing.md,
+            borderRadius: value({ xs: 14, md: 18 }),
+            gap: spacing.sm,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.tokenSelectorHeader,
+            { marginBottom: spacing.xs },
+          ]}
+        >
+          <Text
+            style={[
+              styles.tokenLabel,
+              { color: theme.colors.textSecondary, fontSize: value({ xs: fontSize.sm, md: 15 }) },
+            ]}
+          >
             {label}
           </Text>
           {balance && (
             <View style={styles.balanceContainer}>
-              <Text style={[styles.balanceText, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.balanceText,
+                  { color: theme.colors.textSecondary, fontSize: value({ xs: fontSize.xs, md: fontSize.sm }) },
+                ]}
+              >
                 Balance: {balance}
               </Text>
             </View>
@@ -146,7 +146,6 @@ function TokenSelector({
             selectTextOnFocus={true}
             autoCorrect={false}
             autoCapitalize="none"
-            blurOnSubmit={false}
           />
           {isLoading && (
             <ActivityIndicator
@@ -172,7 +171,7 @@ function TokenSelector({
         onClose={() => setShowTokenModal(false)}
         title="Select Token"
       >
-        <View style={styles.tokenList}>
+        <View style={[styles.tokenList, { gap: spacing.xs }]}>
           {Object.entries(SWAP_TOKENS).map(([symbol, tokenData]) => (
             <Pressable
               key={symbol}
@@ -245,6 +244,7 @@ const parseQuoteAmount = (value: string | number | undefined, decimals: number):
 function SwapDetails({ quote, slippage, onSlippageChange, fromAmount }: SwapDetailsProps) {
   const { theme } = useTheme();
   const accent = useAccent();
+  const { spacing, fontSize, value } = useResponsive();
   const [showSettings, setShowSettings] = useState(false);
 
   if (!quote) return null;
@@ -261,12 +261,12 @@ function SwapDetails({ quote, slippage, onSlippageChange, fromAmount }: SwapDeta
 
   return (
     <>
-      <View style={[styles.swapDetails, styles.glassmorphism]}>
-        <View style={styles.swapDetailsHeader}>
-          <Text style={[styles.swapDetailsTitle, { color: theme.colors.textPrimary }]}>Swap Details</Text>
+      <View style={[styles.swapDetails, styles.glassmorphism, { padding: spacing.md, borderRadius: value({ xs: 14, md: 18 }), gap: spacing.sm }]}>
+        <View style={[styles.swapDetailsHeader, { marginBottom: spacing.sm }]}>
+          <Text style={[styles.swapDetailsTitle, { color: theme.colors.textPrimary, fontSize: value({ xs: fontSize.md, md: 16 }) }]}>Swap Details</Text>
           <Pressable
             onPress={() => setShowSettings(true)}
-            style={styles.settingsButton}
+            style={[styles.settingsButton, { padding: spacing.xs, borderRadius: 8 }]}
           >
             <Settings size={16} color={theme.colors.textSecondary} />
           </Pressable>
@@ -376,34 +376,11 @@ export function SwapInterface() {
   const { theme } = useTheme();
   const accentColors = useAccent();
   const { connected, account, signAndSubmitTransaction, connectExtension } = useWallet();
-  
+  const { value } = useResponsive();
+
   // Real token balances - fetched from blockchain
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({});
   const [loadingBalances, setLoadingBalances] = useState(false);
-  
-  // Responsive dimensions
-  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-  const isMobile = screenWidth < BREAKPOINTS.md;
-  const isTablet = screenWidth >= BREAKPOINTS.md && screenWidth < BREAKPOINTS.lg;
-  
-  // Responsive spacing
-  const spacing = {
-    xs: getResponsiveValue({ xs: 4, sm: 6, md: 8, lg: 10, xl: 12 }, screenWidth),
-    sm: getResponsiveValue({ xs: 8, sm: 12, md: 16, lg: 20, xl: 24 }, screenWidth),
-    md: getResponsiveValue({ xs: 12, sm: 16, md: 20, lg: 24, xl: 28 }, screenWidth),
-    lg: getResponsiveValue({ xs: 16, sm: 20, md: 24, lg: 28, xl: 32 }, screenWidth),
-    xl: getResponsiveValue({ xs: 20, sm: 24, md: 28, lg: 32, xl: 36 }, screenWidth),
-  };
-  
-  // Responsive font sizes
-  const fontSize = {
-    xs: getResponsiveValue({ xs: 10, sm: 11, md: 12, lg: 13, xl: 14 }, screenWidth),
-    sm: getResponsiveValue({ xs: 12, sm: 13, md: 14, lg: 15, xl: 16 }, screenWidth),
-    md: getResponsiveValue({ xs: 14, sm: 15, md: 16, lg: 17, xl: 18 }, screenWidth),
-    lg: getResponsiveValue({ xs: 16, sm: 18, md: 20, lg: 22, xl: 24 }, screenWidth),
-    xl: getResponsiveValue({ xs: 18, sm: 20, md: 22, lg: 24, xl: 26 }, screenWidth),
-    xxl: getResponsiveValue({ xs: 20, sm: 22, md: 24, lg: 26, xl: 28 }, screenWidth),
-  };
   
   // Fetch real balances when wallet connects
   useEffect(() => {
@@ -437,11 +414,16 @@ export function SwapInterface() {
   const [toAmount, setToAmount] = useState('');
   const [quote, setQuote] = useState<SwapQuoteResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showTokenSelector, setShowTokenSelector] = useState(false);
-  const [selectorType, setSelectorType] = useState<'from' | 'to'>('from');
-  const [showSlippageModal, setShowSlippageModal] = useState(false);
   const [slippage, setSlippage] = useState(0.5);
   const [isSwapping, setIsSwapping] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [swapResultDetails, setSwapResultDetails] = useState<{
+    txHash: string;
+    fromSymbol: string;
+    toSymbol: string;
+    fromAmount: string;
+    toAmount: string;
+  } | null>(null);
 
   // Animation values
   const swapButtonScale = useSharedValue(1);
@@ -582,14 +564,18 @@ export function SwapInterface() {
 
       const validation = panoraSwapService.validateTransaction(txData);
       if (!validation.isValid) {
+        if (__DEV__) {
+          console.warn('[Swap] Panora txData validation failed', validation.error, txData);
+        }
         Alert.alert('Security Error', validation.error || 'Invalid transaction data');
         return;
       }
 
-      // Show warning if there are any
+      const normalizedPayload = validation.normalizedTxData ?? txData;
+
       // Simulate transaction before execution
       const canSimulate = await panoraSwapService.simulateTransaction(
-        txData,
+        normalizedPayload,
         account.address
       );
 
@@ -599,12 +585,26 @@ export function SwapInterface() {
       }
 
       // Execute swap transaction via wallet provider
-      const result = await signAndSubmitTransaction(txData);
-      Alert.alert(
-        'Success',
-        `Swap completed successfully!\nTransaction: ${result.hash.slice(0, 10)}...`,
-        [{ text: 'OK' }]
-      );
+      const result = await signAndSubmitTransaction(normalizedPayload);
+
+      const confirmed = await panoraSwapService.waitForTransactionConfirmation(result.hash);
+
+      if (!confirmed) {
+        Alert.alert('Warning', 'Transaction submitted but confirmation timed out. Check wallet history.');
+      }
+
+      const fromTokenData = SWAP_TOKENS[fromToken as keyof typeof SWAP_TOKENS];
+      const toTokenData = SWAP_TOKENS[toToken as keyof typeof SWAP_TOKENS];
+
+      setSwapResultDetails({
+        txHash: result.hash,
+        fromSymbol: fromTokenData?.symbol || fromToken,
+        toSymbol: toTokenData?.symbol || toToken,
+        fromAmount,
+        toAmount: normalizedPayload.arguments?.length ? String(toAmount) : toAmount,
+      });
+
+      setShowSuccessModal(true);
       
       // Reset form and refresh balances
       setFromAmount('');
@@ -717,6 +717,66 @@ export function SwapInterface() {
         accent="#10B981"
         icon={isSwapping ? undefined : <Zap size={20} color={theme.colors.textPrimary} />}
       />
+
+      <Modal
+        visible={showSuccessModal && !!swapResultDetails}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.successModal}>
+            <Text style={[styles.successTitle, { color: theme.colors.textPrimary }]}>Swap Successful</Text>
+            {swapResultDetails && (
+              <View style={styles.successBody}>
+                <Text style={[styles.successAmounts, { color: theme.colors.textPrimary }]}>
+                  {parseFloat(swapResultDetails.fromAmount || '0').toFixed(6)} {swapResultDetails.fromSymbol} → {swapResultDetails.toAmount || '0'} {swapResultDetails.toSymbol}
+                </Text>
+                <Text style={[styles.successSubtext, { color: theme.colors.textSecondary }]}>Tx Hash</Text>
+                <Pressable
+                  onPress={() => {
+                    if (!swapResultDetails?.txHash) {
+                      return;
+                    }
+                    Alert.alert('Transaction Hash', swapResultDetails.txHash);
+                  }}
+                >
+                  <Text style={[styles.successHash, { color: accentColors.from }]}>
+                    {swapResultDetails.txHash.slice(0, 10)}...
+                  </Text>
+                </Pressable>
+                <GradientPillButton
+                  title="View on Explorer"
+                  onPress={async () => {
+                    if (!swapResultDetails?.txHash) return;
+                    const url = `https://explorer.aptoslabs.com/txn/${swapResultDetails.txHash}?network=mainnet`;
+                    try {
+                      const supported = await Linking.canOpenURL(url);
+                      if (supported) {
+                        await Linking.openURL(url);
+                      } else {
+                        Alert.alert('Explorer Unavailable', url);
+                      }
+                    } catch (err) {
+                      Alert.alert('Explorer Error', `Unable to open explorer.\n${url}`);
+                    }
+                  }}
+                  style={styles.explorerButton}
+                  variant="primary"
+                  accent="EXPLORER"
+                />
+              </View>
+            )}
+            <GradientPillButton
+              title="Close"
+              onPress={() => setShowSuccessModal(false)}
+              style={styles.successButton}
+              variant="primary"
+              accent="DANGER"
+            />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -727,10 +787,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 12,
+    paddingBottom: 24,
   },
   quickSwapContainer: {
     gap: 12,
@@ -758,10 +818,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tokenCard: {
-    padding: 20,
-    borderRadius: 20,
-    gap: 16,
-    minHeight: 120,
+    minHeight: 100,
+  },
+  tokenSelector: {
+    overflow: 'hidden',
   },
   tokenSelectorHeader: {
     flexDirection: 'row',
@@ -798,6 +858,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  maxButtonContainer: {
+    alignItems: 'flex-end',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
   tokenButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -817,6 +884,17 @@ const styles = StyleSheet.create({
   tokenSymbol: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  glassmorphism: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+    position: 'relative',
   },
   amountInputContainer: {
     width: '100%',
@@ -868,16 +946,28 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   swapDetails: {
-    padding: 20,
-    borderRadius: 20,
-    gap: 16,
     position: 'relative',
     marginTop: 8,
+  },
+  swapDetailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   settingsButton: {
     padding: 8,
     borderRadius: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  settingsContent: {
+    gap: 20,
+    paddingVertical: 8,
+  },
+  settingsLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
   },
   detailRow: {
     flexDirection: 'row',
@@ -905,8 +995,8 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   executeButton: {
-    marginTop: 24,
-    marginHorizontal: 4,
+    marginTop: 16,
+    marginHorizontal: 0,
   },
   tokenList: {
     gap: 8,
@@ -934,8 +1024,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   slippageModal: {
-    padding: 24,
-    gap: 20,
+    padding: 16,
+    gap: 16,
   },
   slippageTitle: {
     fontSize: 20,
@@ -959,34 +1049,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  tokenSelector: {
-    padding: 20,
-    borderRadius: 20,
-    gap: 16,
-    minHeight: 120,
-    overflow: 'hidden',
-  },
-  settingsContent: {
-    gap: 20,
-    paddingVertical: 8,
-  },
-  settingsLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  glassmorphism: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    backdropFilter: 'blur(20px)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
-    position: 'relative',
-  },
   modernChip: {
     borderRadius: 24,
     paddingHorizontal: 20,
@@ -1000,22 +1062,55 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  maxButtonContainer: {
-    alignItems: 'flex-end',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  swapDetailsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
   swapDetailsTitle: {
     fontSize: 16,
     fontWeight: '600',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  successModal: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: '#101418',
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  successBody: {
+    gap: 12,
+    alignItems: 'center',
+  },
+  successAmounts: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  successSubtext: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  successHash: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  successButton: {
+    marginTop: 8,
+  },
+  explorerButton: {
+    marginTop: 12,
+  },
 });
-

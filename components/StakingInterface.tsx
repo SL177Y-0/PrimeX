@@ -21,6 +21,8 @@ import {
   Alert,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
+import { useResponsive } from '../hooks/useResponsive';
+import { globalTextInputStyle } from '../styles/globalStyles';
 import { useWallet } from '../app/providers/WalletProvider';
 import { Card } from './Card';
 import { GradientPillButton } from './GradientPillButton';
@@ -54,15 +56,13 @@ import {
   type StakingStats,
 } from '../services/amnisService';
 import { AMNIS_CONFIG, STAKING_CONSTANTS } from '../config/constants';
-
 type StakeMode = 'stake' | 'vault' | 'unstake';
 type UnstakeMethod = 'instant' | 'delayed';
 
 export function StakingInterface() {
   const { theme } = useTheme();
+  const { spacing, fontSize, value } = useResponsive();
   const { connected, account, signAndSubmitTransaction } = useWallet();
-
-  // State management
   const [mode, setMode] = useState<StakeMode>('stake');
   const [unstakeMethod, setUnstakeMethod] = useState<UnstakeMethod>('instant');
   const [amount, setAmount] = useState('');
@@ -227,7 +227,17 @@ export function StakingInterface() {
     >
       {/* Stats Cards */}
       <View style={styles.statsRow}>
-        <Card style={[styles.statCard, { backgroundColor: theme.colors.chip }]} elevated>
+        <Card
+          style={[
+            styles.statCard,
+            {
+              backgroundColor: theme.colors.chip,
+              padding: spacing.md,
+              borderRadius: value({ xs: 12, md: 14, lg: 16 }),
+            },
+          ]}
+          elevated
+        >
           <View style={[styles.statIcon, { backgroundColor: `${theme.colors.positive}15` }]}>
             <TrendingUp size={18} color={theme.colors.positive} />
           </View>
@@ -239,7 +249,17 @@ export function StakingInterface() {
           </Text>
         </Card>
 
-        <Card style={[styles.statCard, { backgroundColor: theme.colors.chip }]} elevated>
+        <Card
+          style={[
+            styles.statCard,
+            {
+              backgroundColor: theme.colors.chip,
+              padding: spacing.md,
+              borderRadius: value({ xs: 12, md: 14, lg: 16 }),
+            },
+          ]}
+          elevated
+        >
           <View style={[styles.statIcon, { backgroundColor: `${theme.colors.purple}15` }]}>
             <Zap size={18} color={theme.colors.purple} />
           </View>
@@ -253,7 +273,16 @@ export function StakingInterface() {
       </View>
 
       {/* Mode Selector */}
-      <Card style={[styles.card, { backgroundColor: theme.colors.chip }]}>
+      <Card
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.chip,
+            padding: spacing.md,
+            borderRadius: value({ xs: 12, md: 14, lg: 16 }),
+          },
+        ]}
+      >
         <SegmentedTabs
           options={['Stake APT', 'stAPT Vault', 'Unstake']}
           selectedIndex={mode === 'stake' ? 0 : mode === 'vault' ? 1 : 2}
@@ -265,7 +294,16 @@ export function StakingInterface() {
       </Card>
 
       {/* Balance Display */}
-      <Card style={[styles.card, { backgroundColor: theme.colors.chip }]}>
+      <Card
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.chip,
+            padding: spacing.md,
+            borderRadius: value({ xs: 12, md: 14, lg: 16 }),
+          },
+        ]}
+      >
         <View style={styles.balanceRow}>
           <Text style={[styles.balanceLabel, { color: theme.colors.textSecondary }]}>
             Available Balance
@@ -284,18 +322,45 @@ export function StakingInterface() {
       </Card>
 
       {/* Amount Input */}
-      <Card style={[styles.card, { backgroundColor: theme.colors.chip }]}>
-        <Text style={[styles.inputLabel, { color: theme.colors.textSecondary }]}>
+      <Card
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.chip,
+            padding: spacing.md,
+            borderRadius: value({ xs: 12, md: 14, lg: 16 }),
+          },
+        ]}
+      >
+        <Text
+          style={{
+            color: theme.colors.textSecondary,
+            fontSize: fontSize.sm,
+            marginBottom: spacing.xs,
+          }}
+        >
           Amount
         </Text>
-        <View style={styles.inputContainer}>
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              backgroundColor: theme.colors.surface,
+              borderRadius: value({ xs: 10, md: 12, lg: 14 }),
+              paddingHorizontal: spacing.sm,
+              paddingVertical: spacing.xs,
+              gap: spacing.xs,
+            },
+          ]}
+        >
           <TextInput
             style={[
               styles.input,
               {
                 color: theme.colors.textPrimary,
-                backgroundColor: theme.colors.surface,
+                fontSize: value({ xs: 18, sm: 20, md: 22, lg: 24 }),
               },
+              globalTextInputStyle,
             ]}
             value={amount}
             onChangeText={setAmount}
@@ -303,20 +368,49 @@ export function StakingInterface() {
             placeholder="0.00"
             placeholderTextColor={theme.colors.textSecondary}
           />
-          <Text style={[styles.inputSuffix, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[
+              styles.inputSuffix,
+              {
+                color: theme.colors.textSecondary,
+                marginLeft: spacing.xs,
+                fontSize: fontSize.sm,
+              },
+            ]}
+          >
             {mode === 'stake' ? 'APT' : mode === 'vault' ? 'amAPT' : 'stAPT'}
           </Text>
         </View>
 
         {/* Quick Amount Buttons */}
-        <View style={styles.quickButtons}>
+        <View
+          style={[
+            styles.quickButtons,
+            {
+              gap: spacing.xs,
+              marginBottom: spacing.sm,
+            },
+          ]}
+        >
           {[25, 50, 75, 100].map((percentage) => (
             <Pressable
               key={percentage}
-              style={[styles.quickButton, { backgroundColor: theme.colors.surface }]}
+              style={[
+                styles.quickButton,
+                {
+                  backgroundColor: theme.colors.surface,
+                  paddingVertical: spacing.xs,
+                  borderRadius: value({ xs: 8, md: 10, lg: 12 }),
+                },
+              ]}
               onPress={() => setQuickAmount(percentage)}
             >
-              <Text style={[styles.quickButtonText, { color: theme.colors.textPrimary }]}>
+              <Text
+                style={[
+                  styles.quickButtonText,
+                  { color: theme.colors.textPrimary, fontSize: fontSize.xs },
+                ]}
+              >
                 {percentage}%
               </Text>
             </Pressable>
@@ -325,7 +419,15 @@ export function StakingInterface() {
 
         {/* Output Display */}
         {parseFloat(amount) > 0 && (
-          <View style={styles.outputContainer}>
+          <View
+            style={[
+              styles.outputContainer,
+              {
+                marginTop: spacing.xs,
+                gap: spacing.xs,
+              },
+            ]}
+          >
             <ArrowDownUp size={16} color={theme.colors.textSecondary} />
             <Text style={[styles.outputText, { color: theme.colors.textPrimary }]}>
               You will receive: {outputAmount.toFixed(6)}{' '}
@@ -337,7 +439,16 @@ export function StakingInterface() {
 
       {/* Unstake Method Selection */}
       {mode === 'unstake' && (
-        <Card style={[styles.card, { backgroundColor: theme.colors.chip }]}>
+        <Card
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.colors.chip,
+              padding: spacing.md,
+              borderRadius: value({ xs: 12, md: 14, lg: 16 }),
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
             Unstake Method
           </Text>
@@ -387,7 +498,18 @@ export function StakingInterface() {
       )}
 
       {/* Info Box */}
-      <Card style={[styles.card, styles.infoBox, { backgroundColor: `${theme.colors.blue}10` }]}>
+      <Card
+        style={[
+          styles.card,
+          styles.infoBox,
+          {
+            backgroundColor: `${theme.colors.blue}10`,
+            padding: spacing.md,
+            borderRadius: value({ xs: 12, md: 14, lg: 16 }),
+            gap: spacing.sm,
+          },
+        ]}
+      >
         <Info size={16} color={theme.colors.blue} />
         <Text style={[styles.infoText, { color: theme.colors.textPrimary }]}>
           {mode === 'stake' && 'Stake APT to receive amAPT (1:1). amAPT is liquid and can be used in DeFi while earning staking rewards.'}
@@ -439,14 +561,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 12,
+    paddingBottom: 32,
   },
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
+    padding: 24,
     minHeight: 300,
   },
   emptyTitle: {
@@ -494,8 +616,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   card: {
-    padding: 16,
-    borderRadius: 16,
     marginBottom: 16,
   },
   balanceRow: {
@@ -520,13 +640,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    width: '100%',
   },
   input: {
     flex: 1,
     fontSize: 24,
     fontFamily: 'Inter-Bold',
-    padding: 16,
-    borderRadius: 12,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
   },
   inputSuffix: {
     fontSize: 16,
@@ -537,6 +658,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 16,
+    flexWrap: 'wrap',
   },
   quickButton: {
     flex: 1,
