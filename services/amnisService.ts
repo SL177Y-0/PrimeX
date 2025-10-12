@@ -11,12 +11,39 @@
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { AMNIS_CONFIG, APTOS_CONFIG } from '../config/constants';
 import { log } from '../utils/logger';
+import { aptosClient } from '../utils/aptosClient'; // Use same client as swap page
 
 // Initialize Aptos client
+// Amnis Finance is MAINNET ONLY - no testnet deployment!
+const USE_TESTNET = false; // Amnis only works on mainnet
+
+const TESTNET_RPC_ENDPOINTS = [
+  'https://fullnode.testnet.aptoslabs.com/v1',
+  'https://aptos-testnet.pontem.network/v1',
+];
+
+const MAINNET_RPC_ENDPOINTS = [
+  'https://aptos-mainnet.pontem.network/v1',
+  'https://fullnode.mainnet.aptoslabs.com/v1',
+  'https://rpc.ankr.com/http/aptos/v1',
+];
+
+let currentEndpointIndex = 0;
+
+function getNextEndpoint(): string {
+  const endpoints = USE_TESTNET ? TESTNET_RPC_ENDPOINTS : MAINNET_RPC_ENDPOINTS;
+  const endpoint = endpoints[currentEndpointIndex];
+  currentEndpointIndex = (currentEndpointIndex + 1) % endpoints.length;
+  return endpoint;
+}
+
 const config = new AptosConfig({
-  network: Network.MAINNET,
+  network: USE_TESTNET ? Network.TESTNET : Network.MAINNET,
+  fullnode: getNextEndpoint(),
 });
 const aptos = new Aptos(config);
+
+console.log(`[AmnisService] Running on ${USE_TESTNET ? 'TESTNET' : 'MAINNET'}`);
 
 // ============================================================================
 // Type Definitions
@@ -63,11 +90,21 @@ export async function getUserBalances(
   userAddress: string
 ): Promise<StakingBalance> {
   try {
+    // Normalize address (ensure proper format)
+    const normalizedAddress = userAddress.startsWith('0x') ? userAddress : `0x${userAddress}`;
+    console.log(`[AmnisService] Fetching balances for: ${normalizedAddress} (${USE_TESTNET ? 'TESTNET' : 'MAINNET'})`);
+    
     const [aptBalance, amAptBalance, stAptBalance] = await Promise.all([
-      getTokenBalance(userAddress, AMNIS_CONFIG.tokenTypes.APT),
-      getTokenBalance(userAddress, AMNIS_CONFIG.tokenTypes.amAPT),
-      getTokenBalance(userAddress, AMNIS_CONFIG.tokenTypes.stAPT),
+      getTokenBalance(normalizedAddress, AMNIS_CONFIG.tokenTypes.APT),
+      getTokenBalance(normalizedAddress, AMNIS_CONFIG.tokenTypes.amAPT),
+      getTokenBalance(normalizedAddress, AMNIS_CONFIG.tokenTypes.stAPT),
     ]);
+
+    console.log('[AmnisService] Balances fetched:', {
+      apt: fromOctas(aptBalance),
+      amAPT: fromOctas(amAptBalance),
+      stAPT: fromOctas(stAptBalance),
+    });
 
     return {
       apt: aptBalance,
@@ -75,7 +112,8 @@ export async function getUserBalances(
       stAPT: stAptBalance,
     };
   } catch (error) {
-    console.error('Error fetching user balances:', error);
+    console.error('[AmnisService] Error fetching user balances:', error);
+    console.error('[AmnisService] User address:', userAddress);
     return {
       apt: '0',
       amAPT: '0',
@@ -85,21 +123,90 @@ export async function getUserBalances(
 }
 
 /**
- * Get token balance for a specific coin type
+ * Get token balance for a specific coin type using official SDK methods
  */
 async function getTokenBalance(
   accountAddress: string,
   coinType: string
 ): Promise<string> {
   try {
-    const resource = await aptos.getAccountResource({
-      accountAddress,
-      resourceType: `0x1::coin::CoinStore<${coinType}>`,
-    });
+    console.log(`[AmnisService] Querying ${coinType.split('::').pop()} for ${accountAddress.slice(0, 10)}... (${USE_TESTNET ? 'TESTNET' : 'MAINNET'})`);
+    
+    // Use official SDK method for APT
+    if (coinType === AMNIS_CONFIG.tokenTypes.APT) {
+      const aptAmount = await aptosClient.getAccountAPTAmount({
+        accountAddress,
+      });
+      console.log(`[AmnisService] APT balance via SDK: ${aptAmount / 1e8} (${aptAmount} octas)`);
+      return aptAmount.toString();
+    }
+    
+    // Use official SDK method for fungible asset balances (amAPT, stAPT)
+    try {
+      const balances = await aptosClient.getCurrentFungibleAssetBalances({
+        options: {
+          where: {
+            owner_address: { _eq: accountAddress },
+          },
+        },
+      });
 
-    return (resource as any).coin.value || '0';
-  } catch (error) {
-    // Resource doesn't exist = balance is 0
+      const targetAsset = balances.find((asset) => {
+        const assetType = asset.asset_type ?? '';
+        return assetType.toLowerCase() === coinType.toLowerCase();
+      });
+
+      if (targetAsset?.amount) {
+        console.log(
+          `[AmnisService] ${coinType.split('::').pop()} balance via SDK: ${Number(targetAsset.amount) / 1e8} (${targetAsset.amount} octas)`
+        );
+        return targetAsset.amount;
+      }
+    } catch (sdkError: any) {
+      console.log('[AmnisService] Fungible asset balance query failed via SDK:', sdkError?.message || sdkError);
+    }
+
+    // Fallback: query CoinStore in case protocol still exposes Coin type
+    try {
+      const resource = await aptos.getAccountResource({
+        accountAddress,
+        resourceType: `0x1::coin::CoinStore<${coinType}>`,
+      });
+      const balance = (resource as any).coin?.value || '0';
+      console.log(`[AmnisService] ${coinType.split('::').pop()} balance via CoinStore: ${Number(balance) / 1e8} (${balance} octas)`);
+      return balance;
+    } catch (fallbackError) {
+      console.log(`[AmnisService] ${coinType.split('::').pop()} balance = 0 (no resource)`);
+      return '0';
+    }
+  } catch (error: any) {
+    // Resource not existing is expected for tokens user hasn't interacted with
+    if (error?.status === 404 || error?.message?.includes('Resource not found')) {
+      console.log(`[AmnisService] ${coinType.split('::').pop()} balance = 0 (no resource)`);
+      return '0';
+    }
+    
+    // If rate limited, try alternative endpoint
+    if (error?.status === 429) {
+      console.log('[AmnisService] Rate limit hit, switching endpoint...');
+      try {
+        const altConfig = new AptosConfig({
+          network: Network.MAINNET,
+          fullnode: getNextEndpoint(),
+        });
+        const altAptos = new Aptos(altConfig);
+        const resource = await altAptos.getAccountResource({
+          accountAddress,
+          resourceType: `0x1::coin::CoinStore<${coinType}>`,
+        });
+        return (resource as any).coin.value || '0';
+      } catch (retryError: any) {
+        console.warn(`[AmnisService] Retry failed for ${coinType}`);
+        return '0';
+      }
+    }
+    
+    console.warn(`[AmnisService] Error fetching balance for ${coinType}:`, error?.message || error);
     return '0';
   }
 }
@@ -134,7 +241,8 @@ export async function getStakingStats(): Promise<StakingStats> {
       estimatedStAptAPR: AMNIS_CONFIG.estimatedAPR.stAPT,
     };
   } catch (error) {
-    console.error('Error fetching staking stats:', error);
+    console.error('[AmnisService] Error fetching staking stats:', error);
+    console.error('[AmnisService] Error details:', error instanceof Error ? error.message : 'Unknown error');
     return {
       totalAptStaked: '0',
       amAptSupply: '0',
@@ -162,7 +270,7 @@ async function getTotalAptStaked(): Promise<string> {
     // Returns [total, active, pending_inactive]
     return result[0]?.toString() || '0';
   } catch (error) {
-    console.warn('Could not fetch total APT staked:', error);
+    console.warn('[AmnisService] Could not fetch total APT staked:', error);
     return '0';
   }
 }
@@ -210,69 +318,83 @@ async function getStAptExchangeRate(): Promise<number> {
 
 /**
  * Stake APT to receive amAPT (1:1 ratio)
+ * Uses deposit_entry from router.move
  * @param amountInOctas - Amount in APT base units (1 APT = 1e8 octas)
+ * @param recipientAddress - Address to receive amAPT
  */
 export function buildStakeTransaction(
-  amountInOctas: string
+  amountInOctas: string,
+  recipientAddress: string
 ): StakingTransaction {
   return {
-    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.core}::${AMNIS_CONFIG.functions.stake}`,
-    type_arguments: [AMNIS_CONFIG.tokenTypes.APT],
-    arguments: [amountInOctas],
+    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.router}::${AMNIS_CONFIG.functions.depositEntry}`,
+    type_arguments: [],
+    arguments: [amountInOctas, recipientAddress],
   };
 }
 
 /**
  * Stake amAPT to receive stAPT (auto-compounding vault)
+ * Uses stake_entry from router.move
  * @param amountInOctas - Amount in amAPT base units
+ * @param recipientAddress - Address to receive stAPT
  */
 export function buildMintStAptTransaction(
-  amountInOctas: string
+  amountInOctas: string,
+  recipientAddress: string
 ): StakingTransaction {
   return {
-    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.core}::${AMNIS_CONFIG.functions.mintStApt}`,
+    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.router}::${AMNIS_CONFIG.functions.stakeEntry}`,
     type_arguments: [],
-    arguments: [amountInOctas],
+    arguments: [amountInOctas, recipientAddress],
   };
 }
 
 /**
  * Redeem stAPT to receive amAPT
+ * Uses unstake_entry from router.move
  * @param amountInOctas - Amount in stAPT base units
+ * @param recipientAddress - Address to receive amAPT
  */
 export function buildRedeemStAptTransaction(
-  amountInOctas: string
+  amountInOctas: string,
+  recipientAddress: string
 ): StakingTransaction {
   return {
-    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.core}::${AMNIS_CONFIG.functions.redeemStApt}`,
+    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.router}::${AMNIS_CONFIG.functions.unstakeEntry}`,
     type_arguments: [],
-    arguments: [amountInOctas],
+    arguments: [amountInOctas, recipientAddress],
   };
 }
 
 /**
- * Instant unstake amAPT to APT (via DEX swap, incurs small fee)
- * @param amountInOctas - Amount in amAPT base units
+ * Instant unstake stAPT to amAPT (then swap amAPT to APT on DEX)
+ * Uses unstake_entry from router.move
+ * @param amountInOctas - Amount in stAPT base units
+ * @param recipientAddress - Address to receive amAPT
  */
 export function buildInstantUnstakeTransaction(
-  amountInOctas: string
+  amountInOctas: string,
+  recipientAddress: string
 ): StakingTransaction {
+  // First convert stAPT → amAPT, then user swaps amAPT → APT on DEX
   return {
-    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.core}::${AMNIS_CONFIG.functions.instantUnstake}`,
+    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.router}::${AMNIS_CONFIG.functions.unstakeEntry}`,
     type_arguments: [],
-    arguments: [amountInOctas],
+    arguments: [amountInOctas, recipientAddress],
   };
 }
 
 /**
- * Request delayed unstake (14-day unbonding, no fee)
+ * Request delayed unstake (30-day unbonding, no fee)
+ * Uses request_withdrawal_entry from router.move
  * @param amountInOctas - Amount in amAPT base units
  */
 export function buildRequestUnstakeTransaction(
   amountInOctas: string
 ): StakingTransaction {
   return {
-    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.core}::${AMNIS_CONFIG.functions.requestUnstake}`,
+    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.router}::${AMNIS_CONFIG.functions.requestWithdrawEntry}`,
     type_arguments: [],
     arguments: [amountInOctas],
   };
@@ -280,13 +402,14 @@ export function buildRequestUnstakeTransaction(
 
 /**
  * Claim unstaked APT after unbonding period
+ * Uses withdraw_entry from router.move
  * @param requestId - Unstake request identifier
  */
 export function buildClaimUnstakeTransaction(
   requestId: string
 ): StakingTransaction {
   return {
-    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.core}::${AMNIS_CONFIG.functions.claimUnstake}`,
+    function: `${AMNIS_CONFIG.contractAddress}::${AMNIS_CONFIG.modules.router}::${AMNIS_CONFIG.functions.claimWithdrawEntry}`,
     type_arguments: [],
     arguments: [requestId],
   };

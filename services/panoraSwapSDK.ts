@@ -181,7 +181,7 @@ class RetryManager {
 
         if (attempt < maxRetries) {
           const delay = baseDelay * Math.pow(2, attempt);
-          console.log(`Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
+          // console.log(`Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
@@ -316,7 +316,7 @@ class PanoraSwapSDKService {
     const cachedQuote = this.quoteCache.getCachedQuote(cacheKey);
     
     if (cachedQuote) {
-      console.log('Returning cached quote');
+      // console.log('Returning cached quote');
       return cachedQuote;
     }
 
@@ -401,10 +401,10 @@ class PanoraSwapSDKService {
 
     const requestDebug = Object.fromEntries(queryParams.entries());
 
-    console.log('[Panora SDK] Request URL:', requestUrl);
-    console.log('[Panora SDK] Request params:', requestDebug);
-    console.log('[Panora SDK] API URL:', this.apiUrl);
-    console.log('[Panora SDK] Has API Key:', !!this.apiKey);
+    // console.log('[Panora SDK] Request URL:', requestUrl);
+    // console.log('[Panora SDK] Request params:', requestDebug);
+    // console.log('[Panora SDK] API URL:', this.apiUrl);
+    // console.log('[Panora SDK] Has API Key:', !!this.apiKey);
 
     const response = await fetch(requestUrl, {
       method: 'POST',
@@ -414,12 +414,12 @@ class PanoraSwapSDKService {
       },
     });
 
-    console.log('[Panora SDK] Response Status:', response.status, response.statusText);
+    // console.log('[Panora SDK] Response Status:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Panora SDK] Error Response:', errorText);
-      console.error('[Panora SDK] Request that failed:', requestDebug);
+      // console.error('[Panora SDK] Error Response:', errorText);
+      // console.error('[Panora SDK] Request that failed:', requestDebug);
 
       let errorData;
       try {
@@ -446,7 +446,7 @@ class PanoraSwapSDKService {
     }
 
     const rawData = await response.json();
-    console.log('[Panora SDK] Response Success:', rawData);
+    // console.log('[Panora SDK] Response Success:', rawData);
     
     return this.normalizeQuoteResponse(rawData);
   }
@@ -618,10 +618,10 @@ class PanoraSwapSDKService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[Panora SDK] Simulation failed:', response.status, errorText);
+        // console.error('[Panora SDK] Simulation failed:', response.status, errorText);
 
         if (errorText.includes('Expected input type "TransactionSignature"')) {
-          console.warn('[Panora SDK] Skipping simulation: fullnode requires real signature');
+          // console.warn('[Panora SDK] Skipping simulation: fullnode requires real signature');
           return true;
         }
 
@@ -633,7 +633,7 @@ class PanoraSwapSDKService {
       
       return success === true;
     } catch (error) {
-      console.error('[Panora SDK] Simulation error:', error);
+      // console.error('[Panora SDK] Simulation error:', error);
       return false;
     }
   }
@@ -757,15 +757,15 @@ class PanoraSwapSDKService {
       }
 
       const errorText = await response.text();
-      console.error('[Panora SDK] Gas estimation simulate failed:', response.status, errorText);
+      // console.error('[Panora SDK] Gas estimation simulate failed:', response.status, errorText);
 
       if (errorText.includes('Expected input type "TransactionSignature"')) {
-        console.warn('[Panora SDK] Using fallback gas estimate due to missing signature');
+        // console.warn('[Panora SDK] Using fallback gas estimate due to missing signature');
       }
       
       return SWAP_CONSTANTS.DEFAULT_GAS_LIMIT * SWAP_CONSTANTS.GAS_UNIT_PRICE / 1e8;
     } catch (error) {
-      console.error('[Panora SDK] Gas estimation error:', error);
+      // console.error('[Panora SDK] Gas estimation error:', error);
       return SWAP_CONSTANTS.DEFAULT_GAS_LIMIT * SWAP_CONSTANTS.GAS_UNIT_PRICE / 1e8;
     }
   }
@@ -785,7 +785,7 @@ class PanoraSwapSDKService {
 
       return true;
     } catch (error) {
-      console.error('[Panora SDK] Transaction confirmation failed:', error);
+      // console.error('[Panora SDK] Transaction confirmation failed:', error);
       return false;
     }
   }

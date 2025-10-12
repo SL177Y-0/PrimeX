@@ -33,7 +33,7 @@ import WithdrawContent from '../trading/withdraw';
 import TradingInterface from '../../components/TradingInterface';
 import { SwapInterface } from '../../components/SwapInterface';
 import { WalletConnection } from '../../components/WalletConnection';
-import { StakingInterface } from '../../components/StakingInterface';
+import { StakingHub } from '../../components/StakingHub';
 
 // Responsive breakpoints following 2025 best practices
 const BREAKPOINTS = {
@@ -189,7 +189,7 @@ export default function TradeScreen() {
       case 'merkle-trading':
         return <TradingInterface />;
       case 'staking':
-        return <StakingInterface />;
+        return <StakingHub />;
       case 'swap':
         return <SwapInterface />;
       case 'spot-trading':

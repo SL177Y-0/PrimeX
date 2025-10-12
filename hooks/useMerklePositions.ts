@@ -1,41 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../app/providers/WalletProvider';
-import { merklePositionService } from '../services/merklePositionService';
-import { realPositionService } from '../services/realPositionService';
-import { realMerkleService, MerklePosition, TradingActivity } from '../services/realMerkleService';
-import { merkleService } from '../services/merkleService';
-import { Position, TradeHistoryItem, Address } from '../types/merkle';
-import { APP_CONFIG } from '../config/appConfig';
+import { merkleSdkService } from '../services/merkleSdkService';
+import { Position, TradeHistoryItem } from '../types/merkle';
 import { log } from '../utils/logger';
 
 // Re-export types for compatibility
 export type { Position, TradeHistoryItem };
-
-// Helper function to map activity types to actions
-const mapActivityTypeToAction = (type: string): 'open' | 'close' | 'increase' | 'decrease' => {
-  switch (type) {
-    case 'position_opened':
-      return 'open';
-    case 'position_closed':
-      return 'close';
-    case 'position_modified':
-      return 'increase';
-    default:
-      return 'open';
-  }
-};
-
-// Helper function to map status types
-const mapStatusType = (status: string): 'OPEN' | 'CLOSING' | 'CLOSED' | 'LIQUIDATED' => {
-  switch (status) {
-    case 'active':
-      return 'OPEN';
-    case 'closed':
-      return 'CLOSED';
-    default:
-      return 'OPEN';
-  }
-};
 
 export const useMerklePositions = () => {
   const { account } = useWallet();
@@ -57,89 +27,23 @@ export const useMerklePositions = () => {
     try {
       log.trade('Fetching positions and activities for:', account.address);
 
-      // Use Real Merkle Trade SDK for production data
-      if (APP_CONFIG.USE_REAL_BLOCKCHAIN_DATA && !APP_CONFIG.USE_MOCK_POSITIONS) {
-        log.trade('REAL DATA MODE: Using official Merkle Trade SDK');
-        
-        try {
-          // Use the official Merkle Trade SDK
-          const [fetchedPositions, fetchedActivities] = await Promise.all([
-            realMerkleService.fetchPositions(account.address),
-            realMerkleService.fetchTradingHistory(account.address)
-          ]);
-          
-          // Convert MerklePosition to Position format for compatibility
-          const compatiblePositions = fetchedPositions.map(pos => ({
-            id: pos.id,
-            pair: pos.pair,
-            side: pos.side,
-            sizeUSDC: pos.size, // Map size to sizeUSDC for compatibility
-            size: pos.size, // Also keep size property
-            collateral: pos.collateral,
-            collateralUSDC: pos.collateral, // Required by Position type
-            leverage: pos.leverage,
-            entryPrice: pos.entryPrice,
-            markPrice: pos.markPrice,
-            pnl: pos.pnl,
-            pnlUSDC: pos.pnl, // Required by Position type
-            pnlPercentage: pos.pnlPercentage,
-            pnlPercent: pos.pnlPercentage, // Required by Position type
-            liquidationPrice: pos.liquidationPrice,
-            fundingFee: pos.fundingFee,
-            timestamp: pos.timestamp,
-            status: mapStatusType(pos.status) // Map to correct status type
-          }));
-          
-          // Convert TradingActivity to TradeHistoryItem format
-          const compatibleActivities = fetchedActivities.map(act => ({
-            id: act.id,
-            type: act.type,
-            pair: act.pair,
-            side: act.side,
-            size: act.size,
-            price: act.price,
-            timestamp: act.timestamp,
-            txHash: act.txHash,
-            fee: act.fee,
-            pnl: act.pnl,
-            action: mapActivityTypeToAction(act.type) // Required by TradeHistoryItem type
-          }));
-          
-          setPositions(compatiblePositions);
-          setActivities(compatibleActivities);
-          
-          log.trade(`Loaded ${compatiblePositions.length} real positions, ${compatibleActivities.length} real activities from SDK`);
-          
-        } catch (realDataError) {
-          log.warn('Failed to fetch real SDK data, falling back to mock:', realDataError);
-          // Fall back to mock data
-          const [fetchedPositions, fetchedActivities] = await Promise.all([
-            merklePositionService.fetchPositions(account.address as Address),
-            merklePositionService.fetchTradingHistory(account.address as Address)
-          ]);
-          setPositions(fetchedPositions || []);
-          setActivities(fetchedActivities || []);
-        }
-      } else {
-        // Use mock data for development
-        log.trade('MOCK DATA MODE: Using mock data for development');
-        
-        const [fetchedPositions, fetchedActivities] = await Promise.all([
-          merklePositionService.fetchPositions(account.address as Address),
-          merklePositionService.fetchTradingHistory(account.address as Address)
-        ]);
-        setPositions(fetchedPositions || []);
-        setActivities(fetchedActivities || []);
-        
-        log.trade(`Loaded ${fetchedPositions?.length || 0} mock positions, ${fetchedActivities?.length || 0} mock activities`);
-      }
+      // Use official Merkle SDK service (no mocks, direct REST)
+      const [fetchedPositions, fetchedActivities] = await Promise.all([
+        merkleSdkService.fetchPositions(account.address),
+        merkleSdkService.fetchTradingHistory(account.address)
+      ]);
+      
+      setPositions(fetchedPositions);
+      setActivities(fetchedActivities);
+      
+      log.trade(`Loaded ${fetchedPositions.length} positions, ${fetchedActivities.length} activities from Merkle API`);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch positions';
       setError(errorMessage);
       log.error('Error fetching positions:', err);
       
-      // Still show mock data on error for development
+      // Return empty arrays on error (no mock fallback)
       setPositions([]);
       setActivities([]);
     } finally {
@@ -147,39 +51,23 @@ export const useMerklePositions = () => {
     }
   }, [account?.address]);
 
-  // Subscribe to real-time position updates
-  useEffect(() => {
-    if (!account?.address) return;
-
-    const unsubscribePositions = merklePositionService.subscribeToPositions((updatedPositions: Position[]) => {
-      setPositions(updatedPositions);
-      log.trade('Positions updated via subscription:', updatedPositions.length);
-    });
-
-    const unsubscribeActivities = merklePositionService.subscribeToActivities((updatedActivities: TradeHistoryItem[]) => {
-      setActivities(updatedActivities);
-      log.trade('Activities updated via subscription:', updatedActivities.length);
-    });
-
-    return () => {
-      unsubscribePositions();
-      unsubscribeActivities();
-    };
-  }, [account?.address]);
+  // Real-time updates disabled for now (would require WebSocket integration)
+  // Positions will refresh on manual refresh or auto-refresh interval
 
   // Fetch positions when account changes
   useEffect(() => {
     fetchPositions();
   }, [fetchPositions]);
 
-  // Auto-refresh positions every 30 seconds
+  // Auto-refresh positions every 60 seconds (reduced frequency to prevent scroll jumps)
   useEffect(() => {
     if (!account?.address) return;
 
     const interval = setInterval(() => {
       log.trade('Auto-refreshing positions...');
+      // Only fetch if component is still mounted and user hasn't scrolled recently
       fetchPositions();
-    }, 30000);
+    }, 60000); // Increased from 30s to 60s
 
     return () => clearInterval(interval);
   }, [fetchPositions, account?.address]);
@@ -207,7 +95,7 @@ export const useMerklePositions = () => {
   
   /**
    * Close a position (full or partial)
-   * Uses merkleService to create close transaction
+   * Uses Merkle SDK to create close transaction
    */
   const closePosition = useCallback(async (params: {
     positionId: string;
@@ -223,21 +111,27 @@ export const useMerklePositions = () => {
     try {
       log.trade('Closing position:', params);
 
-      // Convert to microunits (6 decimals)
+      // Convert to microunits (6 decimals for USDC)
       const sizeDeltaBigInt = BigInt(Math.floor(params.sizeDelta * 1e6));
       const collateralDeltaBigInt = BigInt(Math.floor(params.collateralDelta * 1e6));
 
-      // Create close transaction via merkleService
-      const { closeTransaction } = await merkleService.closePosition({
+      // Find position to determine side
+      const position = positions.find(p => p.id === params.positionId);
+      if (!position) {
+        throw new Error('Position not found');
+      }
+
+      // Create close transaction using SDK (isIncrease=false for closing)
+      const closeTransaction = await merkleSdkService.createMarketOrderPayload({
         pair: params.pair,
         userAddress: account.address,
-        positionId: params.positionId,
         sizeDelta: sizeDeltaBigInt,
         collateralDelta: collateralDeltaBigInt,
-        isPartial: params.isPartial,
+        isLong: position.side === 'long',
+        isIncrease: false, // false = close/decrease position
       });
 
-      log.trade('Close transaction created, ready for wallet signature');
+      log.trade('Close transaction created via SDK, ready for wallet signature');
       
       // Return transaction for wallet to sign
       return closeTransaction;
@@ -246,10 +140,11 @@ export const useMerklePositions = () => {
       log.error('Error closing position:', err);
       throw new Error(errorMessage);
     }
-  }, [account?.address]);
+  }, [account?.address, positions]);
 
   /**
    * Update Stop Loss and Take Profit for a position
+   * Note: This feature requires manual transaction construction
    */
   const updateTPSL = useCallback(async (params: {
     positionId: string;
@@ -264,33 +159,22 @@ export const useMerklePositions = () => {
     try {
       log.trade('Updating TP/SL:', params);
 
-      // Convert to microunits (6 decimals)
-      const slPriceBigInt = params.stopLossPrice 
-        ? BigInt(Math.floor(params.stopLossPrice * 1e6)) 
-        : undefined;
-      const tpPriceBigInt = params.takeProfitPrice 
-        ? BigInt(Math.floor(params.takeProfitPrice * 1e6)) 
-        : undefined;
+      // Find position to determine side
+      const position = positions.find(p => p.id === params.positionId);
+      if (!position) {
+        throw new Error('Position not found');
+      }
 
-      // Create update transaction via merkleService
-      const { updateTransaction } = await merkleService.updateTPSL({
-        pair: params.pair,
-        userAddress: account.address,
-        positionId: params.positionId,
-        stopLossPrice: slPriceBigInt,
-        takeProfitPrice: tpPriceBigInt,
-      });
-
-      log.trade('TP/SL update transaction created, ready for wallet signature');
+      // Note: TP/SL update requires the update_position contract function
+      // For now, recommend closing and reopening with new TP/SL
+      throw new Error('TP/SL update not yet implemented. Please close and reopen position with new values.');
       
-      // Return transaction for wallet to sign
-      return updateTransaction;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update TP/SL';
       log.error('Error updating TP/SL:', err);
       throw new Error(errorMessage);
     }
-  }, [account?.address]);
+  }, [account?.address, positions]);
 
   // Calculate portfolio metrics for compatibility
   const totalPnL = positions?.reduce((sum, pos) => {

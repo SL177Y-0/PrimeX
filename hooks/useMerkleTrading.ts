@@ -1,8 +1,6 @@
 import { useState, useCallback } from 'react';
-import { Account } from '@aptos-labs/ts-sdk';
 import { useMerklePositions } from './useMerklePositions';
-import { merkleService } from '../services/merkleService';
-import { aptosClient } from '../utils/aptosClient';
+import { merkleSdkService } from '../services/merkleSdkService';
 import { useWallet } from '../app/providers/WalletProvider';
 import { log } from '../utils/logger';
 
@@ -80,22 +78,9 @@ export const useMerkleTrading = () => {
     setError(null);
 
     try {
-      // Validate trade constraints
-      const validation = merkleService.validateTradeConstraints({
-        pair: params.market,
-        sizeDelta: params.size,
-        collateralDelta: params.collateral,
-        leverage: params.leverage || (params.size / params.collateral),
-      });
-
-      if (!validation.isValid) {
-        throw new Error(validation.errors.join(', '));
-      }
-
-      // Check trade cooldown
-      if (!merkleService.canTrade()) {
-        const remaining = merkleService.getTradeTimeRemaining();
-        throw new Error(`Trade cooldown active. ${Math.ceil(remaining / 1000)}s remaining`);
+      // Basic validation
+      if (!params.market || !params.size || !params.collateral) {
+        throw new Error('Invalid order parameters');
       }
 
       // Convert market name to Merkle pair format
@@ -105,122 +90,48 @@ export const useMerkleTrading = () => {
       const sizeDelta = BigInt(Math.floor(params.size * 1e6));
       const collateralDelta = BigInt(Math.floor(params.collateral * 1e6));
       
-      // Debug logging to identify the source of undefined values
-      log.trade('Hook Parameters:', {
-        account: account,
-        accountAddress: account?.address,
+      log.trade('Placing order:', {
         pair,
         sizeDelta: sizeDelta.toString(),
         collateralDelta: collateralDelta.toString(),
         side: params.side,
-        isLong: params.side === 'long'
+        orderType: params.orderType
       });
 
-      // Validate account exists and has address
-      if (!account || !account.address) {
-        throw new Error('Wallet not connected or account address is undefined');
+      // Validate account address
+      if (!account.address) {
+        throw new Error('Account address is undefined');
       }
 
       // Create order payload using Merkle SDK
-      let orderTransaction;
-      if (params.orderType === 'market') {
-        const transactions = await merkleService.placeMarketOrder({
-          pair,
-          userAddress: account.address,
-          sizeDelta,
-          collateralDelta,
-          isLong: params.side === 'long',
-          isIncrease: true,
-        });
-        // Use the order transaction as the main payload (no init step needed)
-        orderTransaction = transactions.orderTransaction;
-      } else {
-        // Validate that price is provided for limit orders
-        if (!params.price || params.price <= 0) {
-          throw new Error('Price must be provided for limit orders');
-        }
-        const price = BigInt(Math.floor(params.price * 1e6));
-        const limitResult = await merkleService.placeLimitOrder({
-          pair,
-          userAddress: account.address,
-          sizeDelta,
-          collateralDelta,
-          price,
-          isLong: params.side === 'long',
-          isIncrease: true,
-        });
-        orderTransaction = limitResult.orderTransaction;
-      }
+      const orderTransaction = await merkleSdkService.createMarketOrderPayload({
+        pair,
+        userAddress: account.address,
+        sizeDelta,
+        collateralDelta,
+        isLong: params.side === 'long',
+        isIncrease: true, // true = open/increase position
+      });
 
       // Submit order placement transaction
       const response = await signAndSubmitTransaction(orderTransaction);
       
-      // Wait for transaction confirmation
-      const aptos = merkleService.getAptos();
-      if (aptos) {
-        const txResult = await aptos.waitForTransaction({
-          transactionHash: response.hash,
-        });
+      log.trade('Order transaction submitted:', response.hash);
 
-        if (!txResult.success) {
-          throw new Error(`Order placement failed: ${txResult.vm_status}`);
-        }
-
-        // Extract order ID from transaction events
-        const orderId = merkleService.extractOrderIdFromEvents(txResult);
-        
-        if (orderId && params.orderType === 'market') {
-          // For market orders, simulate keeper execution
-          log.trade(`Market order ${orderId} placed, simulating keeper execution...`);
-          
-          // In a real implementation, this would be handled by an off-chain keeper
-          // For now, we'll just log the simulation
-          const currentPrice = BigInt(Math.floor(50 * 1e6)); // Mock current price
-          const keeperResult = await merkleService.simulateKeeperExecution({
-            pair,
-            orderId,
-            currentPrice
-          });
-          
-          console.log('Keeper execution simulation:', keeperResult);
-        }
-      }
-
-      // Mark trade as executed for cooldown
-      merkleService.markTradeExecuted();
-
-      // Add position and activity tracking
-      if (params.orderType === 'market') {
-        // Calculate entry price (mock for now, would come from actual execution)
-        const entryPrice = params.price || 5.27; // Mock APT price
-        const leverage = params.leverage || (params.size / params.collateral);
-        
-        // Add the new position
+      // Trigger position refresh after short delay
+      setTimeout(() => {
         addPosition({
           pair: params.market.replace('/', '_'),
           side: params.side,
           sizeUSDC: params.size,
           collateralUSDC: params.collateral,
-          leverage,
-          entryPrice,
-          markPrice: entryPrice,
-          liquidationPrice: calculateLiquidationPrice(entryPrice, leverage, params.side === 'long'),
+          leverage: params.leverage || (params.size / params.collateral),
+          entryPrice: 0, // Will be populated on refresh
+          markPrice: 0,
+          liquidationPrice: 0,
           timestamp: Date.now()
         });
-
-        // Add trading activity
-        addActivity({
-          action: 'open',
-          pair: params.market.replace('/', '_'),
-          side: params.side,
-          sizeUSDC: params.size,
-          price: entryPrice,
-          timestamp: Date.now(),
-          txHash: response.hash
-        });
-
-        log.trade('Position and activity added to tracking');
-      }
+      }, 2000);
 
       return response.hash;
     } catch (err) {
@@ -230,7 +141,7 @@ export const useMerkleTrading = () => {
     } finally {
       setLoading(false);
     }
-  }, [account, wallet, signAndSubmitTransaction, addPosition, addActivity]);
+  }, [account, wallet, signAndSubmitTransaction, addPosition]);
 
   // Cancel an existing order
   const cancelOrder = useCallback(async (orderId: string): Promise<string> => {
@@ -242,9 +153,9 @@ export const useMerkleTrading = () => {
     setError(null);
 
     try {
-      // For now, return a placeholder - cancel order functionality needs to be implemented
-      // TODO: Implement cancel order with proper Merkle integration
-      throw new Error('Cancel order functionality not yet implemented');
+      // Note: Cancel order requires pair parameter to build contract call
+      // Would need to track order-to-pair mapping in state
+      throw new Error('Cancel order requires pair context - feature not yet implemented');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to cancel order';
       setError(errorMessage);
@@ -252,7 +163,7 @@ export const useMerkleTrading = () => {
     } finally {
       setLoading(false);
     }
-  }, [account, wallet, signAndSubmitTransaction]);
+  }, [account, wallet]);
 
   // Close a position (using place_order with is_increase = false)
   const closePosition = useCallback(async (
@@ -276,46 +187,26 @@ export const useMerkleTrading = () => {
       // Convert amounts to proper units (USDC has 6 decimals)
       const sizeDelta = BigInt(Math.floor(size * 1e6));
       
-      // Create close order payload using Merkle service
-      const orderResult = await merkleService.placeMarketOrder({
+      log.trade('Closing position:', {
+        pair,
+        sizeDelta: sizeDelta.toString(),
+        side
+      });
+      
+      // Create close order payload using Merkle SDK
+      const orderTransaction = await merkleSdkService.createMarketOrderPayload({
         pair,
         userAddress: account.address,
         sizeDelta,
         collateralDelta: BigInt(0), // No additional collateral for closing
         isLong: side === 'long',
-        isIncrease: false, // false for closing positions
+        isIncrease: false, // false = close/decrease position
       });
 
       // Submit close order transaction
-      const response = await signAndSubmitTransaction(orderResult.orderTransaction);
+      const response = await signAndSubmitTransaction(orderTransaction);
       
-      // Wait for transaction confirmation
-      const aptos = merkleService.getAptos();
-      if (aptos) {
-        const txResult = await aptos.waitForTransaction({
-          transactionHash: response.hash,
-        });
-
-        if (!txResult.success) {
-          throw new Error(`Close order placement failed: ${txResult.vm_status}`);
-        }
-
-        // Extract order ID and simulate keeper execution for market close orders
-        const orderId = merkleService.extractOrderIdFromEvents(txResult);
-        
-        if (orderId && orderType === 'market') {
-          console.log(`Market close order ${orderId} placed, simulating keeper execution...`);
-          
-          const currentPrice = BigInt(Math.floor(50 * 1e6)); // Mock current price
-          const keeperResult = await merkleService.simulateKeeperExecution({
-            pair,
-            orderId,
-            currentPrice
-          });
-          
-          console.log('Keeper execution simulation:', keeperResult);
-        }
-      }
+      log.trade('Close order submitted:', response.hash);
 
       return response.hash;
     } catch (err) {
@@ -341,9 +232,9 @@ export const useMerkleTrading = () => {
     setError(null);
 
     try {
-      // For now, return a placeholder - TP/SL update functionality needs to be implemented
-      // TODO: Implement TP/SL update with proper Merkle integration
-      throw new Error('TP/SL update functionality not yet implemented');
+      // Note: This requires position context (pair, side)
+      // Use useMerklePositions.updateTPSL instead which has full position data
+      throw new Error('TP/SL update requires position context - use useMerklePositions.updateTPSL instead');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update TP/SL';
       setError(errorMessage);
@@ -351,9 +242,9 @@ export const useMerkleTrading = () => {
     } finally {
       setLoading(false);
     }
-  }, [account, wallet, signAndSubmitTransaction]);
+  }, [account, wallet]);
 
-  // Initialize user account for trading
+  // Initialize user account for trading (usually not needed for Merkle Trade)
   const initializeUser = useCallback(async (): Promise<string> => {
     if (!account || !wallet) {
       throw new Error('Wallet not connected');
@@ -363,9 +254,9 @@ export const useMerkleTrading = () => {
     setError(null);
 
     try {
-      // For now, return a placeholder - user initialization functionality needs to be implemented
-      // TODO: Implement user initialization with proper Merkle integration
-      throw new Error('User initialization functionality not yet implemented');
+      // Merkle Trade handles user initialization automatically on first trade
+      log.trade('User initialization not required for Merkle Trade');
+      return 'no-op';
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to initialize user';
       setError(errorMessage);
@@ -373,7 +264,7 @@ export const useMerkleTrading = () => {
     } finally {
       setLoading(false);
     }
-  }, [account, wallet, signAndSubmitTransaction]);
+  }, [account, wallet]);
 
   return {
     // Actions

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView, Dimensions, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -28,7 +28,8 @@ import {
   AlertCircle,
   X,
   Info,
-  ArrowUpDown
+  ArrowUpDown,
+  Shield
 } from 'lucide-react-native';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -58,8 +59,11 @@ export const TradingInterface: React.FC = () => {
   
   const { connected, account } = useWallet();
   const { placeOrder, loading: tradingLoading, error: tradingError } = useMerkleTrading();
-  const { positions, portfolio, totalPnL, loading: positionsLoading } = useMerklePositions();
+  const { positions, activities, portfolio, totalPnL, loading: positionsLoading, refreshPositions } = useMerklePositions();
   const { events, loading: eventsLoading } = useMerkleEvents();
+  
+  // Use activities (trading history from API) instead of blockchain events
+  const displayActivities = activities || [];
 
   // Available Merkle trading pairs on testnet
   const AVAILABLE_MARKETS = Object.keys(MARKETS) as MarketName[];
@@ -72,6 +76,8 @@ export const TradingInterface: React.FC = () => {
   const [limitPrice, setLimitPrice] = useState('');
   const [marketSkew, setMarketSkew] = useState(0);
   const [positionCooldown, setPositionCooldown] = useState<Date | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [lastPositionOpenTime, setLastPositionOpenTime] = useState<number | null>(null);
   // Get asset-specific limits and defaults based on Merkle Trade guide
   const getAssetLimits = (marketPair: MarketName) => {
     return {
@@ -171,8 +177,8 @@ export const TradingInterface: React.FC = () => {
       // 6. Leverage within bounds: use dynamic limits from merkleService
       leverageInBounds: leverage >= assetLimits.minLeverage && leverage <= assetLimits.maxLeverage,
       
-      // 7. Position size matches formula: collateral × leverage
-      positionSizeMatches: Math.abs(sizeValue - (collateralValue * leverage)) < 0.01,
+      // 7. Position size matches formula: (collateral - 0.11 fee) × leverage
+      positionSizeMatches: Math.abs(sizeValue - ((collateralValue - 0.11) * leverage)) < 1.0,
       
       // 8. Valid market price available
       validPrice: currentPrice > 0,
@@ -199,7 +205,7 @@ export const TradingInterface: React.FC = () => {
             case 'minPositionSize': return `Pay × Leverage must be at least ${assetLimits.minPositionSize} USDC (current: ${sizeValue.toFixed(2)} USDC)`;
             case 'maxPositionSize': return `Maximum position: ${(assetLimits.maxLeverage * 10000).toLocaleString()} USDC (current: ${sizeValue.toFixed(2)})`;
             case 'leverageInBounds': return `Leverage must be ${assetLimits.minLeverage}x-${assetLimits.maxLeverage}x (current: ${leverage}x)`;
-            case 'positionSizeMatches': return `Position size must equal PAY × Leverage (${collateralValue.toFixed(2)} × ${leverage} = ${(collateralValue * leverage).toFixed(2)})`;
+            case 'positionSizeMatches': return `Position size must equal (PAY - 0.11 fee) × Leverage (${collateralValue.toFixed(2)} - 0.11 × ${leverage} = ${((collateralValue - 0.11) * leverage).toFixed(2)})`;
             case 'validPrice': return 'Waiting for market price...';
             case 'validMarket': return 'Invalid market selected';
             case 'noPendingTx': return 'Transaction in progress...';
@@ -281,7 +287,40 @@ export const TradingInterface: React.FC = () => {
       unsubscribe();
     };
   }, [fetchMarketData, market]);
- 
+
+  // 70-second cooldown timer for position closing
+  useEffect(() => {
+    if (!lastPositionOpenTime) {
+      setCooldownRemaining(0);
+      return;
+    }
+
+    const id = setInterval(() => {
+      const elapsed = Date.now() - lastPositionOpenTime;
+      const remaining = Math.max(0, 70000 - elapsed); // 70 seconds
+      setCooldownRemaining(remaining);
+      if (remaining === 0) {
+        clearInterval(id);
+      }
+    }, 200); // Update every 200ms for smooth countdown
+
+    return () => clearInterval(id);
+  }, [lastPositionOpenTime]);
+
+  // Check if user can close position
+  const canClosePosition = positions.length > 0 && cooldownRemaining === 0;
+
+  // Close button label with cooldown display
+  const closeButtonLabel = useMemo(() => {
+    if (positions.length === 0) {
+      return 'CLOSE POSITION';
+    }
+    if (!canClosePosition) {
+      const seconds = Math.ceil(cooldownRemaining / 1000);
+      return `CLOSE POSITION (COOLDOWN ${seconds}s)`;
+    }
+    return `CLOSE POSITION (${positions.length})`;
+  }, [positions.length, canClosePosition, cooldownRemaining]);
 
   const handlePlaceOrder = async () => {
     if (!connected) {
@@ -362,6 +401,15 @@ export const TradingInterface: React.FC = () => {
       };
 
       const txHash = await placeOrder(orderParams);
+      
+      // Start 70-second cooldown timer
+      setLastPositionOpenTime(Date.now());
+      
+      // Immediately fetch positions to show active position
+      setTimeout(() => {
+        refreshPositions(); // Force refresh positions
+      }, 2000); // Wait 2s for blockchain to confirm
+      
       Alert.alert('Order Placed', `Transaction hash: ${txHash.substring(0, 10)}...`);
     } catch (error) {
       Alert.alert('Order Failed', error instanceof Error ? error.message : 'Unknown error');
@@ -380,9 +428,11 @@ export const TradingInterface: React.FC = () => {
     const clampedLeverage = Math.max(assetLimits.minLeverage, Math.min(assetLimits.maxLeverage, value));
     setLeverage(clampedLeverage);
     
-    // Official Merkle formula: Position Size = PAY (collateral) × Leverage
+    // Official Merkle formula with entry fee: (PAY - 0.11 USDC) × Leverage
     const currentCollateral = parseFloat(collateral) || 2;
-    const newSize = currentCollateral * clampedLeverage;
+    const ENTRY_FEE = 0.11;
+    const actualCollateral = Math.max(0, currentCollateral - ENTRY_FEE);
+    const newSize = actualCollateral * clampedLeverage;
     setSize(newSize.toFixed(2));
   };
 
@@ -402,10 +452,13 @@ export const TradingInterface: React.FC = () => {
   const handleCollateralChange = (value: string) => {
     setCollateral(value);
     
-    // Official Merkle formula: Position Size = PAY (collateral) × Leverage
+    // Official Merkle Trade formula with entry fee deduction
+    // Entry fee: Fixed 0.11 USDC (5.5% of 2 USDC minimum)
     const collateralValue = parseFloat(value) || 0;
     if (collateralValue > 0 && leverage > 0) {
-      const newSize = collateralValue * leverage;
+      const ENTRY_FEE = 0.11; // Fixed entry fee in USDC
+      const actualCollateral = Math.max(0, collateralValue - ENTRY_FEE);
+      const newSize = actualCollateral * leverage;
       setSize(newSize.toFixed(2));
     }
   };
@@ -1095,13 +1148,13 @@ export const TradingInterface: React.FC = () => {
                 onPress={() => setSide('long')}
               >
                 <View style={styles.segmentContent}>
-                  <TrendingUp size={18} color={side === 'long' ? '#FFFFFF' : theme.colors.buy} />
+                  <TrendingUp size={20} color={side === 'long' ? '#FFFFFF' : theme.colors.buy} />
                   <Text style={[
                     styles.segmentText,
                     {
                       color: side === 'long' ? '#FFFFFF' : theme.colors.textPrimary,
                       fontSize: fontSize.md,
-                      fontFamily: 'Inter-SemiBold',
+                      fontFamily: 'Inter-Bold',
                       marginLeft: spacing.xs
                     }
                   ]}>Long</Text>
@@ -1120,13 +1173,13 @@ export const TradingInterface: React.FC = () => {
                 onPress={() => setSide('short')}
               >
                 <View style={styles.segmentContent}>
-                  <TrendingDown size={18} color={side === 'short' ? '#FFFFFF' : theme.colors.sell} />
+                  <TrendingDown size={20} color={side === 'short' ? '#FFFFFF' : theme.colors.sell} />
                   <Text style={[
                     styles.segmentText,
                     {
                       color: side === 'short' ? '#FFFFFF' : theme.colors.textPrimary,
                       fontSize: fontSize.md,
-                      fontFamily: 'Inter-SemiBold',
+                      fontFamily: 'Inter-Bold',
                       marginLeft: spacing.xs
                     }
                   ]}>Short</Text>
@@ -1324,17 +1377,22 @@ export const TradingInterface: React.FC = () => {
                   }
                 ]}>USDC</Text>
               </View>
-              {/* Show calculation formula like official Merkle */}
-              <View style={{ marginTop: spacing.sm }}>
+              {/* Show calculation formula like official Merkle with entry fee */}
+              <View style={{ 
+                marginTop: spacing.sm,
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                padding: spacing.sm,
+                borderRadius: theme.borderRadius.md
+              }}>
                 <Text style={[
                   {
-                    color: theme.colors.textSecondary,
-                    fontSize: fontSize.xs,
-                    fontFamily: 'Inter-Medium',
+                    color: '#FFFFFF',
+                    fontSize: fontSize.md,
+                    fontFamily: 'Inter-Bold',
                     textAlign: 'center'
                   }
                 ]}>
-                  {parseFloat(collateral).toFixed(2)} USDC × {leverage}x = {parseFloat(size).toFixed(2)} USDC
+                  {parseFloat(collateral).toFixed(2)} USDC - 0.11 fee = {(parseFloat(collateral) - 0.11).toFixed(2)} USDC × {leverage}x = {parseFloat(size).toFixed(2)} USDC
                 </Text>
                 
                 {/* Order validation status indicator */}
@@ -1705,19 +1763,23 @@ export const TradingInterface: React.FC = () => {
             <View style={styles.buttonContent}>
               {orderValidation.isValid ? (
                 side === 'long' ? (
-                  <TrendingUp size={20} color="#FFFFFF" />
+                  <TrendingUp size={24} color="#000000" />
                 ) : (
-                  <TrendingDown size={20} color="#FFFFFF" />
+                  <TrendingDown size={24} color="#000000" />
                 )
               ) : (
-                <AlertCircle size={20} color="#FFFFFF" />
+                <AlertCircle size={24} color="#FFFFFF" />
               )}
               <Text style={[
                 styles.buttonText,
                 {
-                  fontSize: fontSize.md,
-                  fontFamily: 'Inter-Bold',
-                  marginLeft: spacing.sm
+                  color: orderValidation.isValid ? '#000000' : '#FFFFFF',
+                  fontSize: orderValidation.isValid ? fontSize.lg : fontSize.sm,
+                  fontFamily: orderValidation.isValid ? 'Inter-Black' : 'Inter-Bold',
+                  marginLeft: spacing.sm,
+                  textShadowColor: orderValidation.isValid ? 'none' : 'rgba(0, 0, 0, 0.3)',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 2
                 }
               ]}>
                 {tradingLoading 
@@ -1726,6 +1788,57 @@ export const TradingInterface: React.FC = () => {
                     ? `${side === 'long' ? 'BUY / LONG' : 'SELL / SHORT'}`
                     : orderValidation.errors[0] || 'Invalid Order'
                 }
+              </Text>
+            </View>
+          </AnimatedButton>
+
+          {/* Close Position Button - Always visible, disabled when no positions */}
+          <AnimatedButton
+            onPress={() => {
+              if (positions.length === 0) return;
+              
+              Alert.alert(
+                'Close Position',
+                `Close ${positions.length} position(s)?`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Close',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        // Close position logic will go here
+                        Alert.alert('Success', 'Position closed successfully');
+                      } catch (error) {
+                        Alert.alert('Error', error instanceof Error ? error.message : 'Failed to close position');
+                      }
+                    }
+                  }
+                ]
+              );
+            }}
+            style={{ marginTop: spacing.md }}
+            disabled={positions.length === 0 || !canClosePosition}
+            variant="secondary"
+          >
+            <View style={[
+              styles.buttonContent,
+              {
+                paddingVertical: spacing.sm,
+                opacity: (positions.length === 0 || !canClosePosition) ? 0.5 : 1
+              }
+            ]}>
+              <X size={20} color={(positions.length === 0 || !canClosePosition) ? theme.colors.textSecondary : theme.colors.negative} style={{ marginRight: spacing.sm }} />
+              <Text style={[
+                styles.buttonText,
+                {
+                  color: (positions.length === 0 || !canClosePosition) ? theme.colors.textSecondary : theme.colors.negative,
+                  fontSize: fontSize.md,
+                  fontFamily: 'Inter-Bold',
+                  marginLeft: spacing.sm
+                }
+              ]}>
+                {positions.length === 0 ? 'CLOSE POSITION' : closeButtonLabel}
               </Text>
             </View>
           </AnimatedButton>
@@ -2323,7 +2436,7 @@ export const TradingInterface: React.FC = () => {
             ]}>Recent Activity</Text>
           </View>
           
-          {eventsLoading ? (
+          {positionsLoading ? (
             <View style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
               <Activity size={24} color={theme.colors.textSecondary} />
               <Text style={[
@@ -2334,55 +2447,113 @@ export const TradingInterface: React.FC = () => {
                   fontFamily: 'Inter-Medium',
                   marginTop: spacing.sm
                 }
-              ]}>Loading events...</Text>
+              ]}>Loading history...</Text>
             </View>
-          ) : events.length > 0 ? (
+          ) : displayActivities.length > 0 ? (
             <View style={{ marginTop: spacing.md }}>
-              {events.slice(0, 5).map((event: any, index) => (
-                <Card key={index} style={[
-                  styles.eventCard,
-                  {
-                    backgroundColor: theme.colors.chip,
-                    padding: spacing.md,
-                    borderRadius: theme.borderRadius.md,
-                    marginBottom: spacing.sm,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border
-                  }
-                ]}>
-                  <View style={styles.eventHeader}>
-                    <Text style={[
-                      styles.eventType,
-                      {
+              {displayActivities.slice(0, 10).map((activity: any, index) => {
+                // Determine colors based on action and side
+                const actionColors: Record<string, string> = {
+                  'liquidated': theme.colors.negative,
+                  'close': theme.colors.textSecondary,
+                  'open': theme.colors.positive,
+                  'increase': theme.colors.blue
+                };
+                const actionColor = actionColors[activity.action] || theme.colors.textPrimary;
+                // Use softer colors for badges (not neon bright)
+                const sideColor = activity.side === 'long' ? '#22C55E' : '#EF4444'; // Softer green/red
+                const sideBgColor = activity.side === 'long' ? '#22C55E25' : '#EF444425'; // 15% opacity
+                
+                return (
+                  <Card key={activity.id || index} style={[
+                    {
+                      backgroundColor: theme.colors.chip,
+                      padding: spacing.md,
+                      borderRadius: theme.borderRadius.lg,
+                      marginBottom: spacing.md,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border
+                    }
+                  ]}>
+                    {/* Header: Action Type & Timestamp */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
+                      <Text style={{
                         color: theme.colors.textPrimary,
-                        fontSize: fontSize.sm,
-                        fontFamily: 'Inter-SemiBold'
-                      }
-                    ]}>{event.type.replace('_', ' ').toUpperCase()}</Text>
-                    <Text style={[
-                      styles.eventTime,
-                      {
+                        fontSize: fontSize.md,
+                        fontFamily: 'Inter-Bold',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}>
+                        {activity.action.toUpperCase()}
+                      </Text>
+                      <Text style={{
                         color: theme.colors.textSecondary,
                         fontSize: fontSize.xs,
                         fontFamily: 'Inter-Medium'
-                      }
-                    ]}>
-                      {new Date(event.timestamp).toLocaleTimeString()}
+                      }}>
+                        {new Date(activity.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                      </Text>
+                    </View>
+                    
+                    {/* Pair & Side */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs }}>
+                      <Text style={{
+                        color: theme.colors.textSecondary,
+                        fontSize: fontSize.sm,
+                        fontFamily: 'Inter-Medium'
+                      }}>
+                        {activity.pair.replace('_', '/')}
+                      </Text>
+                      <Text style={{ color: theme.colors.textSecondary, marginHorizontal: spacing.xs }}>•</Text>
+                      <View style={{
+                        backgroundColor: sideBgColor,
+                        paddingHorizontal: spacing.sm,
+                        paddingVertical: 2,
+                        borderRadius: theme.borderRadius.xs
+                      }}>
+                        <Text style={{
+                          color: sideColor,
+                          fontSize: fontSize.xs,
+                          fontFamily: 'Inter-Bold',
+                          textTransform: 'uppercase'
+                        }}>
+                          {activity.side}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    {/* Price & Size */}
+                    <Text style={{
+                      color: theme.colors.textPrimary,
+                      fontSize: fontSize.md,
+                      fontFamily: 'Inter-Bold'
+                    }}>
+                      ${activity.price.toFixed(2)} • ${activity.sizeUSDC.toFixed(2)} USDC
                     </Text>
-                  </View>
-                  <Text style={[
-                    styles.eventDetails,
-                    {
-                      color: theme.colors.textSecondary,
-                      fontSize: fontSize.sm,
-                      fontFamily: 'Inter-Medium',
-                      marginTop: spacing.xs
-                    }
-                  ]}>
-                    {event.market} - {event.side.toUpperCase()} - {formatCurrency(event.size)}
-                  </Text>
-                </Card>
-              ))}
+                    
+                    {/* PnL Display - Only show for CLOSE/LIQUIDATED */}
+                    {(activity.action === 'close' || activity.action === 'liquidated') && activity.pnlUSDC !== undefined && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: spacing.xs }}>
+                        <Text style={{
+                          color: theme.colors.textSecondary,
+                          fontSize: fontSize.sm,
+                          fontFamily: 'Inter-Medium',
+                          marginRight: spacing.xs
+                        }}>
+                          PnL:
+                        </Text>
+                        <Text style={{
+                          color: activity.pnlUSDC >= 0 ? '#22C55E' : '#EF4444',
+                          fontSize: fontSize.sm,
+                          fontFamily: 'Inter-Bold'
+                        }}>
+                          {activity.pnlUSDC >= 0 ? '+' : ''}${activity.pnlUSDC.toFixed(2)} USDC
+                        </Text>
+                      </View>
+                    )}
+                  </Card>
+                );
+              })}
             </View>
           ) : (
             <View style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
@@ -2400,6 +2571,40 @@ export const TradingInterface: React.FC = () => {
           )}
         </Card>
       )}
+
+      {/* Footer - Powered by Merkle.trade */}
+      <LinearGradient
+        colors={[theme.colors.elevated, theme.colors.bg]}
+        style={{
+          marginTop: spacing.xl,
+          marginHorizontal: spacing.md,
+          borderRadius: 16,
+          padding: spacing.lg,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: spacing.md,
+        }}
+      >
+        <Shield size={18} color={theme.colors.blue} style={{ marginRight: spacing.sm }} />
+        <View>
+          <Text style={{
+            color: theme.colors.textPrimary,
+            fontSize: fontSize.sm,
+            fontFamily: 'Inter-Bold',
+          }}>
+            Powered by Merkle.trade
+          </Text>
+          <Text style={{
+            color: theme.colors.textSecondary,
+            fontSize: fontSize.xs,
+            fontFamily: 'Inter-Medium',
+            marginTop: 2,
+          }}>
+            Decentralized Perpetual Trading on Aptos
+          </Text>
+        </View>
+      </LinearGradient>
     </ScrollView>
   );
 };

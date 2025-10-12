@@ -3,13 +3,8 @@
  * Allows easy enabling/disabling of logs throughout the application
  */
 
-// Configuration - disable logs automatically in Chrome browser contexts
-const isChromeBrowser = typeof navigator !== 'undefined' &&
-  typeof navigator.userAgent === 'string' &&
-  /chrome/i.test(navigator.userAgent) &&
-  !/edg|opr|brave/i.test(navigator.userAgent);
-
-const LOGGING_ENABLED = !isChromeBrowser;
+// Configuration - ALL LOGS DISABLED (Production mode)
+const LOGGING_ENABLED = false; // Set to true to enable logs for debugging
 
 // Log levels
 export enum LogLevel {
@@ -21,7 +16,7 @@ export enum LogLevel {
 }
 
 // Current log level - only logs at this level or higher will be shown
-const CURRENT_LOG_LEVEL = LogLevel.DEBUG;
+const CURRENT_LOG_LEVEL = LogLevel.CRITICAL; // Only critical errors if enabled
 
 class Logger {
   private isEnabled: boolean;

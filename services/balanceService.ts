@@ -101,7 +101,7 @@ export const fetchSingleTokenBalance = async (
 
     return 0;
   } catch (error) {
-    console.error(`Error fetching balance for ${tokenSymbol}:`, error);
+    // console.error(`Error fetching balance for ${tokenSymbol}:`, error);
     return 0;
   }
 };

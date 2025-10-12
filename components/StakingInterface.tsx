@@ -1,14 +1,3 @@
-/**
- * Staking Interface - Amnis Liquid Staking
- * 
- * Modern UI for Amnis Finance liquid staking operations
- * Features:
- * - APT -> amAPT staking (1:1 liquid derivative)
- * - amAPT -> stAPT vault (auto-compounding)
- * - Instant & delayed unstaking options
- * - Real-time balance & APR display
- */
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -20,13 +9,12 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useResponsive } from '../hooks/useResponsive';
+import { useTheme } from '../theme/ThemeProvider';
 import { globalTextInputStyle } from '../styles/globalStyles';
 import { useWallet } from '../app/providers/WalletProvider';
-import { Card } from './Card';
 import { GradientPillButton } from './GradientPillButton';
-import { SoftButton } from './SoftButton';
 import { SegmentedTabs } from './SegmentedTabs';
 import {
   TrendingUp,
@@ -56,37 +44,32 @@ import {
   type StakingStats,
 } from '../services/amnisService';
 import { AMNIS_CONFIG, STAKING_CONSTANTS } from '../config/constants';
+
 type StakeMode = 'stake' | 'vault' | 'unstake';
 type UnstakeMethod = 'instant' | 'delayed';
 
 export function StakingInterface() {
-  const { theme } = useTheme();
   const { spacing, fontSize, value } = useResponsive();
+  const { theme } = useTheme();
   const { connected, account, signAndSubmitTransaction } = useWallet();
   const [mode, setMode] = useState<StakeMode>('stake');
   const [unstakeMethod, setUnstakeMethod] = useState<UnstakeMethod>('instant');
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [balances, setBalances] = useState<StakingBalance>({
-    apt: '0',
-    amAPT: '0',
-    stAPT: '0',
-  });
+  const [balances, setBalances] = useState<StakingBalance>({ apt: '0', amAPT: '0', stAPT: '0' });
   const [stats, setStats] = useState<StakingStats | null>(null);
 
-  // Fetch data on mount and wallet connection
   useEffect(() => {
-    if (connected && account) {
-      fetchData();
-      const interval = setInterval(fetchData, STAKING_CONSTANTS.REFRESH_INTERVAL);
-      return () => clearInterval(interval);
-    }
+    if (!connected || !account) return;
+
+    fetchData();
+    const interval = setInterval(fetchData, STAKING_CONSTANTS.REFRESH_INTERVAL);
+    return () => clearInterval(interval);
   }, [connected, account]);
 
   const fetchData = async () => {
     if (!account) return;
-    
     setRefreshing(true);
     try {
       const [userBalances, stakingStats] = await Promise.all([
@@ -96,45 +79,42 @@ export function StakingInterface() {
       setBalances(userBalances);
       setStats(stakingStats);
     } catch (error) {
-      console.error('Error fetching staking data:', error);
-    } finally {
+      console.error('[StakingInterface] Error fetching staking data:', error);
+      console.error('[StakingInterface] Error details:', {
+        accountAddress: account?.address,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally{
       setRefreshing(false);
     }
   };
 
-  // Calculate outputs based on mode
   const calculateOutput = useCallback(() => {
     const inputAmount = parseFloat(amount) || 0;
-    
     if (mode === 'stake') {
       return calculateAmAptOutput(inputAmount);
-    } else if (mode === 'vault') {
+    }
+    if (mode === 'vault') {
       const rate = stats?.stAptExchangeRate || 1.0;
       return calculateStAptOutput(inputAmount, rate);
-    } else {
-      // unstake
-      const rate = stats?.stAptExchangeRate || 1.0;
-      return calculateAmAptFromStApt(inputAmount, rate);
     }
+    const rate = stats?.stAptExchangeRate || 1.0;
+    return calculateAmAptFromStApt(inputAmount, rate);
   }, [amount, mode, stats]);
 
-  // Get current balance for selected mode
   const getCurrentBalance = useCallback(() => {
     if (mode === 'stake') return fromOctas(balances.apt);
     if (mode === 'vault') return fromOctas(balances.amAPT);
-    return fromOctas(balances.stAPT); // unstake
+    return fromOctas(balances.stAPT);
   }, [mode, balances]);
 
-  // Validate current input
   const validateInput = useCallback(() => {
     const inputAmount = parseFloat(amount) || 0;
     const balance = getCurrentBalance();
     const minAmount = AMNIS_CONFIG.minAmounts.stake;
-
     return validateStakingAmount(inputAmount, balance, minAmount);
   }, [amount, getCurrentBalance]);
 
-  // Handle staking transaction
   const handleStake = async () => {
     if (!connected || !account) {
       Alert.alert('Wallet Not Connected', 'Please connect your wallet first');
@@ -153,136 +133,110 @@ export function StakingInterface() {
       let transaction;
 
       if (mode === 'stake') {
-        transaction = buildStakeTransaction(amountOctas);
+        transaction = buildStakeTransaction(amountOctas, account.address);
       } else if (mode === 'vault') {
-        transaction = buildMintStAptTransaction(amountOctas);
+        transaction = buildMintStAptTransaction(amountOctas, account.address);
       } else {
-        // unstake
-        if (unstakeMethod === 'instant') {
-          transaction = buildInstantUnstakeTransaction(amountOctas);
-        } else {
-          transaction = buildRequestUnstakeTransaction(amountOctas);
-        }
+        transaction =
+          unstakeMethod === 'instant'
+            ? buildInstantUnstakeTransaction(amountOctas, account.address)
+            : buildRequestUnstakeTransaction(amountOctas);
       }
 
       const result = await signAndSubmitTransaction(transaction);
-      
-      Alert.alert(
-        'Transaction Submitted',
-        `Transaction hash: ${result.hash.substring(0, 20)}...`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setAmount('');
-              fetchData();
-            },
+      Alert.alert('Transaction Submitted', `Transaction hash: ${result.hash.substring(0, 20)}...`, [
+        {
+          text: 'OK',
+          onPress: () => {
+            setAmount('');
+            fetchData();
           },
-        ]
-      );
+        },
+      ]);
     } catch (error: any) {
-      console.error('Staking transaction failed:', error);
-      Alert.alert(
-        'Transaction Failed',
-        error.message || 'Please try again'
-      );
+      console.error('[StakingInterface] Transaction failed:', error);
+      console.error('[StakingInterface] Transaction details:', {
+        mode,
+        unstakeMethod,
+        amount,
+        accountAddress: account?.address,
+        errorMessage: error?.message || 'Unknown error',
+        errorStack: error?.stack,
+      });
+      Alert.alert('Transaction Failed', error.message || 'Please try again');
     } finally {
       setLoading(false);
     }
   };
 
-  // Quick amount buttons
   const setQuickAmount = (percentage: number) => {
     const balance = getCurrentBalance();
     const quickAmount = (balance * percentage) / 100;
     setAmount(quickAmount.toFixed(6));
   };
-
-  if (!connected || !account) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-        <View style={styles.emptyState}>
-          <WalletIcon size={64} color={theme.colors.textSecondary} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
-            Wallet Not Connected
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-            Connect your Aptos wallet to start liquid staking
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
   const outputAmount = calculateOutput();
   const validation = validateInput();
   const estimatedFee = estimateGasFee();
 
+  const aprCards = [
+    {
+      key: 'liquid',
+      gradient: ['#1A1B25', '#12121C'] as const,
+      icon: <TrendingUp size={18} color={theme.colors.blue} />,
+      label: 'amAPT APR',
+      value:
+        stats?.estimatedAmAptAPR != null
+          ? formatAPR(stats.estimatedAmAptAPR)
+          : '—',
+    },
+    {
+      key: 'vault',
+      gradient: ['#1A1B25', '#12121C'] as const,
+      icon: <Zap size={18} color="#a78bfa" />,
+      label: 'stAPT APR',
+      value:
+        stats?.estimatedStAptAPR != null
+          ? formatAPR(stats.estimatedStAptAPR)
+          : '—',
+    },
+  ];
+
+  if (!connected || !account) {
+    return (
+      <View style={[styles.container, styles.disconnectedContainer]}>
+        <LinearGradient colors={['#050608', '#050608']} style={styles.disconnectedCard}>
+          <WalletIcon size={60} color="rgba(255,255,255,0.35)" />
+          <Text style={styles.disconnectedTitle}>Wallet Not Connected</Text>
+          <Text style={styles.disconnectedSubtitle}>
+            Connect your Aptos wallet to start earning liquid staking rewards.
+          </Text>
+        </LinearGradient>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.bg }]}
-      contentContainerStyle={styles.scrollContent}
+      style={styles.container}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: 10 }]}
       showsVerticalScrollIndicator={false}
-      bounces={true}
     >
-      {/* Stats Cards */}
-      <View style={styles.statsRow}>
-        <Card
-          style={[
-            styles.statCard,
-            {
-              backgroundColor: theme.colors.chip,
-              padding: spacing.md,
-              borderRadius: value({ xs: 12, md: 14, lg: 16 }),
-            },
-          ]}
-          elevated
-        >
-          <View style={[styles.statIcon, { backgroundColor: `${theme.colors.positive}15` }]}>
-            <TrendingUp size={18} color={theme.colors.positive} />
-          </View>
-          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-            amAPT APR
-          </Text>
-          <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
-            {formatAPR(stats?.estimatedAmAptAPR || AMNIS_CONFIG.estimatedAPR.amAPT)}
-          </Text>
-        </Card>
-
-        <Card
-          style={[
-            styles.statCard,
-            {
-              backgroundColor: theme.colors.chip,
-              padding: spacing.md,
-              borderRadius: value({ xs: 12, md: 14, lg: 16 }),
-            },
-          ]}
-          elevated
-        >
-          <View style={[styles.statIcon, { backgroundColor: `${theme.colors.purple}15` }]}>
-            <Zap size={18} color={theme.colors.purple} />
-          </View>
-          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-            stAPT APR
-          </Text>
-          <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
-            {formatAPR(stats?.estimatedStAptAPR || AMNIS_CONFIG.estimatedAPR.stAPT)}
-          </Text>
-        </Card>
+      <View style={styles.headerRow}>
+        <Text style={styles.headerTitle}>Stake & Earn</Text>
+        <Text style={styles.headerSubtitle}>Powered by Amnis Finance</Text>
       </View>
 
-      {/* Mode Selector */}
-      <Card
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.colors.chip,
-            padding: spacing.md,
-            borderRadius: value({ xs: 12, md: 14, lg: 16 }),
-          },
-        ]}
-      >
+      <View style={styles.statsRow}>
+        {aprCards.map((card) => (
+          <LinearGradient key={card.key} colors={card.gradient as any} style={styles.statCard}>
+            <View style={styles.statIcon}>{card.icon}</View>
+            <Text style={styles.statLabel}>{card.label}</Text>
+            <Text style={styles.statValue}>{card.value}</Text>
+          </LinearGradient>
+        ))}
+      </View>
+
+      <LinearGradient colors={['#1A1B25', '#12121C'] as const} style={styles.glassCard}>
         <SegmentedTabs
           options={['Stake APT', 'stAPT Vault', 'Unstake']}
           selectedIndex={mode === 'stake' ? 0 : mode === 'vault' ? 1 : 2}
@@ -290,237 +244,124 @@ export function StakingInterface() {
             const modes: StakeMode[] = ['stake', 'vault', 'unstake'];
             setMode(modes[index]);
           }}
+          // containerStyle removed - not supported
         />
-      </Card>
+      </LinearGradient>
 
-      {/* Balance Display */}
-      <Card
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.colors.chip,
-            padding: spacing.md,
-            borderRadius: value({ xs: 12, md: 14, lg: 16 }),
-          },
-        ]}
-      >
-        <View style={styles.balanceRow}>
-          <Text style={[styles.balanceLabel, { color: theme.colors.textSecondary }]}>
-            Available Balance
+      <LinearGradient colors={['#050608', '#050608'] as const} style={styles.balanceCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <Text style={styles.balanceValue}>
+            {getCurrentBalance().toFixed(6)} {mode === 'stake' ? 'APT' : mode === 'vault' ? 'amAPT' : 'stAPT'}
           </Text>
-          <Pressable onPress={fetchData} disabled={refreshing}>
-            {refreshing ? (
-              <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-            ) : (
-              <Text style={[styles.balanceValue, { color: theme.colors.textPrimary }]}>
-                {getCurrentBalance().toFixed(6)}{' '}
-                {mode === 'stake' ? 'APT' : mode === 'vault' ? 'amAPT' : 'stAPT'}
-              </Text>
-            )}
-          </Pressable>
+          {account && (
+            <Text style={[styles.balanceLabel, { fontSize: 10, marginTop: 4 }]}>
+              {account.address.slice(0, 6)}...{account.address.slice(-4)}
+            </Text>
+          )}
         </View>
-      </Card>
+        <Pressable style={styles.refreshButton} onPress={fetchData} disabled={refreshing}>
+          {refreshing ? (
+            <ActivityIndicator size="small" color="#7C5CFF" />
+          ) : (
+            <Text style={styles.refreshText}>Refresh</Text>
+          )}
+        </Pressable>
+      </LinearGradient>
 
-      {/* Amount Input */}
-      <Card
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.colors.chip,
-            padding: spacing.md,
-            borderRadius: value({ xs: 12, md: 14, lg: 16 }),
-          },
-        ]}
-      >
-        <Text
-          style={{
-            color: theme.colors.textSecondary,
-            fontSize: fontSize.sm,
-            marginBottom: spacing.xs,
-          }}
-        >
-          Amount
-        </Text>
-        <View
-          style={[
-            styles.inputContainer,
-            {
-              backgroundColor: theme.colors.surface,
-              borderRadius: value({ xs: 10, md: 12, lg: 14 }),
-              paddingHorizontal: spacing.sm,
-              paddingVertical: spacing.xs,
-              gap: spacing.xs,
-            },
-          ]}
-        >
+      <View style={styles.inputCard}>
+        <Text style={[styles.inputLabel, { fontSize: fontSize.sm }]}>Amount</Text>
+        <View style={styles.inputWrapper}>
           <TextInput
-            style={[
-              styles.input,
-              {
-                color: theme.colors.textPrimary,
-                fontSize: value({ xs: 18, sm: 20, md: 22, lg: 24 }),
-              },
-              globalTextInputStyle,
-            ]}
+            style={[styles.input, { fontSize: value({ xs: 20, md: 22, lg: 24 }) }, globalTextInputStyle]}
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
             placeholder="0.00"
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor="rgba(255,255,255,0.35)"
           />
-          <Text
-            style={[
-              styles.inputSuffix,
-              {
-                color: theme.colors.textSecondary,
-                marginLeft: spacing.xs,
-                fontSize: fontSize.sm,
-              },
-            ]}
-          >
+          <Text style={styles.inputSuffix}>
             {mode === 'stake' ? 'APT' : mode === 'vault' ? 'amAPT' : 'stAPT'}
           </Text>
         </View>
 
-        {/* Quick Amount Buttons */}
-        <View
-          style={[
-            styles.quickButtons,
-            {
-              gap: spacing.xs,
-              marginBottom: spacing.sm,
-            },
-          ]}
-        >
+        <View style={styles.quickButtonsRow}>
           {[25, 50, 75, 100].map((percentage) => (
-            <Pressable
-              key={percentage}
-              style={[
-                styles.quickButton,
-                {
-                  backgroundColor: theme.colors.surface,
-                  paddingVertical: spacing.xs,
-                  borderRadius: value({ xs: 8, md: 10, lg: 12 }),
-                },
-              ]}
-              onPress={() => setQuickAmount(percentage)}
-            >
-              <Text
-                style={[
-                  styles.quickButtonText,
-                  { color: theme.colors.textPrimary, fontSize: fontSize.xs },
-                ]}
-              >
-                {percentage}%
-              </Text>
+            <Pressable key={percentage} style={styles.quickButton} onPress={() => setQuickAmount(percentage)}>
+              <Text style={styles.quickButtonText}>{percentage}%</Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Output Display */}
         {parseFloat(amount) > 0 && (
-          <View
-            style={[
-              styles.outputContainer,
-              {
-                marginTop: spacing.xs,
-                gap: spacing.xs,
-              },
-            ]}
-          >
-            <ArrowDownUp size={16} color={theme.colors.textSecondary} />
-            <Text style={[styles.outputText, { color: theme.colors.textPrimary }]}>
-              You will receive: {outputAmount.toFixed(6)}{' '}
+          <View style={styles.outputRow}>
+            <ArrowDownUp size={16} color={theme.colors.blue} />
+            <Text style={styles.outputText}>
+              You will receive {outputAmount.toFixed(6)}{' '}
               {mode === 'stake' ? 'amAPT' : mode === 'vault' ? 'stAPT' : 'amAPT'}
             </Text>
           </View>
         )}
-      </Card>
+      </View>
 
-      {/* Unstake Method Selection */}
       {mode === 'unstake' && (
-        <Card
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.chip,
-              padding: spacing.md,
-              borderRadius: value({ xs: 12, md: 14, lg: 16 }),
-            },
-          ]}
-        >
-          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-            Unstake Method
-          </Text>
-          
+        <View style={styles.methodGroup}>
           <Pressable
             style={[
-              styles.methodOption,
-              {
-                backgroundColor: unstakeMethod === 'instant' ? theme.colors.surface : 'transparent',
-                borderColor: unstakeMethod === 'instant' ? theme.colors.orange : theme.colors.surface,
-              },
+              styles.methodCard,
+              unstakeMethod === 'instant' && styles.methodCardActive,
             ]}
             onPress={() => setUnstakeMethod('instant')}
           >
             <View style={styles.methodHeader}>
-              <Zap size={20} color={theme.colors.orange} />
-              <Text style={[styles.methodTitle, { color: theme.colors.textPrimary }]}>
-                Instant Unstake
-              </Text>
+              <LinearGradient colors={['#F59E0B', '#F97316']} style={styles.methodIcon}>
+                <Zap size={18} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.methodTitle}>Instant Unstake</Text>
             </View>
-            <Text style={[styles.methodDescription, { color: theme.colors.textSecondary }]}>
-              Get APT immediately via DEX swap • Small fee applies (~0.3%)
+            <Text style={styles.methodDescription}>
+              Swap stAPT for APT instantly via DEX. Small liquidity fee applies (~0.3%).
             </Text>
           </Pressable>
 
           <Pressable
             style={[
-              styles.methodOption,
-              {
-                backgroundColor: unstakeMethod === 'delayed' ? theme.colors.surface : 'transparent',
-                borderColor: unstakeMethod === 'delayed' ? theme.colors.blue : theme.colors.surface,
-              },
+              styles.methodCard,
+              unstakeMethod === 'delayed' && styles.methodCardActive,
             ]}
             onPress={() => setUnstakeMethod('delayed')}
           >
             <View style={styles.methodHeader}>
-              <Clock size={20} color={theme.colors.blue} />
-              <Text style={[styles.methodTitle, { color: theme.colors.textPrimary }]}>
-                Delayed Unstake
-              </Text>
+              <LinearGradient colors={['#38BDF8', '#2563EB']} style={styles.methodIcon}>
+                <Clock size={18} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.methodTitle}>Delayed Unstake</Text>
             </View>
-            <Text style={[styles.methodDescription, { color: theme.colors.textSecondary }]}>
-              14-day unbonding period • No fees • Claim after waiting period
+            <Text style={styles.methodDescription}>
+              14-day unbonding period with zero fees. Claim APT once the waiting period ends.
             </Text>
           </Pressable>
-        </Card>
+        </View>
       )}
 
-      {/* Info Box */}
-      <Card
-        style={[
-          styles.card,
-          styles.infoBox,
-          {
-            backgroundColor: `${theme.colors.blue}10`,
-            padding: spacing.md,
-            borderRadius: value({ xs: 12, md: 14, lg: 16 }),
-            gap: spacing.sm,
-          },
-        ]}
+      <LinearGradient
+        colors={['#050608', '#050608'] as const}
+        style={styles.infoCard}
       >
-        <Info size={16} color={theme.colors.blue} />
-        <Text style={[styles.infoText, { color: theme.colors.textPrimary }]}>
-          {mode === 'stake' && 'Stake APT to receive amAPT (1:1). amAPT is liquid and can be used in DeFi while earning staking rewards.'}
-          {mode === 'vault' && 'Stake amAPT in the stAPT vault for auto-compounding rewards. Higher APR but less liquid.'}
-          {mode === 'unstake' && unstakeMethod === 'instant' && 'Instant unstake swaps your stAPT for APT via DEX. Quick but incurs a small swap fee.'}
-          {mode === 'unstake' && unstakeMethod === 'delayed' && 'Delayed unstake has no fees but requires 14 days for unbonding. You can claim your APT after the period ends.'}
+        <Info size={18} color={theme.colors.blue} />
+        <Text style={styles.infoText}>
+          {mode === 'stake' &&
+            'Stake APT to receive amAPT (1:1). amAPT stays liquid for DeFi composability while earning staking rewards.'}
+          {mode === 'vault' &&
+            'Deposit amAPT into the auto-compounding stAPT vault to maximise yield. Rewards accrue every epoch.'}
+          {mode === 'unstake' && unstakeMethod === 'instant' &&
+            'Instant unstake uses DEX liquidity for immediate exit. Great for speed, includes a small market fee.'}
+          {mode === 'unstake' && unstakeMethod === 'delayed' &&
+            'Delayed unstake avoids fees and redeems 1:1 after the 14-day unbonding period. Claim when it unlocks.'}
         </Text>
-      </Card>
+      </LinearGradient>
 
-      {/* Action Button */}
-      <View style={styles.actionContainer}>
+      <View style={styles.actionBlock}>
         <GradientPillButton
           title={
             loading
@@ -529,29 +370,21 @@ export function StakingInterface() {
               ? 'Stake APT'
               : mode === 'vault'
               ? 'Enter Vault'
-              : 'Unstake'
+              : unstakeMethod === 'instant'
+              ? 'Instant Unstake'
+              : 'Request Unstake'
           }
           onPress={handleStake}
           disabled={loading || !validation.valid}
-          variant="primary"
-          style={styles.actionButton}
+          style={styles.ctaButton}
         />
         {!validation.valid && validation.error && (
-          <Text style={[styles.errorText, { color: theme.colors.negative }]}>
-            {validation.error}
-          </Text>
+          <Text style={styles.errorText}>{validation.error}</Text>
         )}
-        <Text style={[styles.feeText, { color: theme.colors.textSecondary }]}>
-          Estimated fee: ~{estimatedFee.toFixed(4)} APT
-        </Text>
+        <Text style={styles.feeText}>Estimated fee ~{estimatedFee.toFixed(4)} APT</Text>
       </View>
 
-      {/* Additional Info */}
-      <View style={styles.additionalInfo}>
-        <Text style={[styles.additionalInfoText, { color: theme.colors.textSecondary }]}>
-          Powered by Amnis Finance • Liquid Staking on Aptos
-        </Text>
-      </View>
+      <Text style={styles.poweredText}>Liquid Staking on Aptos • Amnis Finance</Text>
     </ScrollView>
   );
 }
@@ -559,191 +392,266 @@ export function StakingInterface() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#050608',
   },
   scrollContent: {
-    padding: 12,
-    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
+  disconnectedContainer: {
     justifyContent: 'center',
+    alignItems: 'center',
     padding: 24,
-    minHeight: 300,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
-    marginTop: 16,
-    marginBottom: 8,
+  disconnectedCard: {
+    width: '90%',
+    maxWidth: 360,
+    borderRadius: 28,
+    paddingVertical: 32,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    gap: 14,
   },
-  emptySubtitle: {
+  disconnectedTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  disconnectedSubtitle: {
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    textAlign: 'center',
     lineHeight: 20,
+    textAlign: 'center',
+  },
+  headerRow: {
+    marginBottom: 20,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '700',
+  },
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    marginTop: 4,
   },
   statsRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   statCard: {
     flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    minHeight: 120,
+    borderRadius: 20,
+    padding: 18,
     justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
   statIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   statLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter-Medium',
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
     marginBottom: 6,
-    textAlign: 'center',
   },
   statValue: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
-    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
   },
-  card: {
+  glassCard: {
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    padding: 14,
     marginBottom: 16,
   },
-  balanceRow: {
+  segmentedContainer: {
+    backgroundColor: 'transparent',
+  },
+  balanceCard: {
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   balanceLabel: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 12,
+    marginBottom: 6,
   },
   balanceValue: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  refreshButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(124,92,255,0.18)',
+  },
+  refreshText: {
+    color: '#4DD5FF', // Accent color
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  inputCard: {
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   inputLabel: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    marginBottom: 8,
+    color: 'rgba(255,255,255,0.68)',
+    fontWeight: '600',
+    marginBottom: 6,
   },
-  inputContainer: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    width: '100%',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    backgroundColor: 'rgba(5,10,26,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,92,255,0.22)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 14,
   },
   input: {
     flex: 1,
-    fontSize: 24,
-    fontFamily: 'Inter-Bold',
-    paddingVertical: 0,
-    paddingHorizontal: 0,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   inputSuffix: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
     marginLeft: 12,
   },
-  quickButtons: {
+  quickButtonsRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 10,
   },
   quickButton: {
     flex: 1,
-    padding: 10,
-    borderRadius: 8,
+    backgroundColor: 'rgba(12,21,41,0.8)',
+    borderRadius: 12,
+    paddingVertical: 10,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(64,82,128,0.4)',
   },
   quickButtonText: {
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '600',
   },
-  outputContainer: {
+  outputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(76, 194, 255, 0.1)',
   },
   outputText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
+    color: '#E0F2FF',
+    fontSize: 12,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    marginBottom: 12,
+  methodGroup: {
+    marginBottom: 18,
+    gap: 12,
   },
-  methodOption: {
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 2,
-    marginBottom: 12,
-    minHeight: 80,
+  methodCard: {
+    borderRadius: 18,
+    padding: 18,
+    backgroundColor: 'rgba(15,21,40,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(61,86,140,0.25)',
+  },
+  methodCardActive: {
+    borderColor: '#4DD5FF',
+    shadowColor: '#4DD5FF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 8,
   },
   methodHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
+    gap: 12,
+    marginBottom: 10,
+  },
+  methodIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   methodTitle: {
-    fontSize: 15,
-    fontFamily: 'Inter-SemiBold',
-    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   methodDescription: {
-    fontSize: 12,
-    fontFamily: 'Inter-Medium',
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 13,
     lineHeight: 18,
-    paddingLeft: 30,
   },
-  infoBox: {
+  infoCard: {
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 22,
     flexDirection: 'row',
-    gap: 12,
     alignItems: 'flex-start',
+    gap: 12,
   },
   infoText: {
-    flex: 1,
+    color: '#E4E9FF',
     fontSize: 13,
-    fontFamily: 'Inter-Medium',
-    lineHeight: 18,
+    lineHeight: 20,
+    flex: 1,
   },
-  actionContainer: {
-    marginTop: 8,
+  actionBlock: {
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 16,
   },
-  actionButton: {
-    marginBottom: 8,
+  ctaButton: {
+    alignSelf: 'stretch',
   },
   errorText: {
-    fontSize: 13,
-    fontFamily: 'Inter-Medium',
-    textAlign: 'center',
-    marginBottom: 8,
+    color: '#F87171',
+    fontSize: 12,
   },
   feeText: {
+    color: 'rgba(255,255,255,0.55)',
     fontSize: 12,
-    fontFamily: 'Inter-Medium',
+  },
+  poweredText: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 11,
     textAlign: 'center',
-  },
-  additionalInfo: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  additionalInfoText: {
-    fontSize: 12,
-    fontFamily: 'Inter-Medium',
+    marginTop: 8,
   },
 });

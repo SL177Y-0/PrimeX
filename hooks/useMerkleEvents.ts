@@ -163,11 +163,11 @@ export const useMerkleEvents = () => {
           } as FundingEvent;
 
         default:
-          console.warn('Unknown event type:', eventType);
+          // console.warn('Unknown event type:', eventType);
           return null;
       }
     } catch (err) {
-      console.error('Error processing event:', err);
+      // console.error('Error processing event:', err);
       return null;
     }
   }, []);
@@ -224,7 +224,7 @@ export const useMerkleEvents = () => {
       subscriptionRef.current = cleanup;
       setIsSubscribed(true);
     } catch (err) {
-      console.error('Error subscribing to events:', err);
+      // console.error('Error subscribing to events:', err);
       setError(err instanceof Error ? err.message : 'Failed to subscribe to events');
     } finally {
       setLoading(false);
@@ -252,7 +252,7 @@ export const useMerkleEvents = () => {
       const userSpecificEvents = events.filter(event => event.user === account.address);
       setUserEvents(userSpecificEvents.slice(0, limit));
     } catch (err) {
-      console.error('Error fetching user history:', err);
+      // console.error('Error fetching user history:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch user history');
     } finally {
       setLoading(false);

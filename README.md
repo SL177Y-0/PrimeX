@@ -1,462 +1,861 @@
-# PrismX: Professional Aptos DeFi Trading Platform
 
-**A sophisticated decentralized finance trading application engineered for the Aptos blockchain ecosystem**
+# PrismX: Advanced Aptos DeFi Trading Platform
 
-PrismX represents the convergence of institutional-grade trading capabilities with cutting-edge blockchain technology. Built on React Native and Expo, this platform delivers seamless access to Merkle Trade's leveraged perpetual contracts and Panora's automated market maker protocols, all wrapped in an intuitive, responsive interface designed for both retail and professional traders.
+## Overview
 
-The application architecture emphasizes security, performance, and user experience through native mobile optimization, real-time market data integration, and comprehensive wallet connectivity solutions. Every component has been meticulously crafted to ensure reliability in high-frequency trading environments while maintaining the accessibility that modern DeFi demands.
+PrismX is a production-grade decentralized finance trading platform engineered specifically for the Aptos blockchain ecosystem. Built with React Native 0.79.5 and Expo SDK 53, it delivers institutional-quality trading infrastructure with native mobile optimization, real-time market intelligence, and comprehensive DeFi protocol integration.
+
+The platform synthesizes four critical DeFi primitives into a unified trading interface: leveraged perpetual futures via Merkle Trade, automated market making through Panora Exchange, liquid staking via Amnis Finance, and professional-grade wallet connectivity with persistent session management. Every architectural decision prioritizes security, performance, type safety, and developer experience.
 
 ## Core Capabilities
 
-### Advanced Leverage Trading Engine
-**Merkle Trade Integration with Institutional-Grade Validation**
+### Leveraged Perpetual Futures Trading
 
-The platform provides access to five major cryptocurrency perpetual markets: APT/USDC, BTC/USDC, ETH/USDC, SOL/USDC, and DOGE/USDC. Our trading engine implements the exact validation logic found in Merkle Trade's official interface, ensuring seamless compatibility and preventing transaction failures.
+**Merkle Trade Protocol Integration**
 
-Key specifications include minimum collateral requirements of 2 USDC, leverage ranges from 3x to 150x, and dynamic position sizing calculated as PAY × leverage. The system enforces maximum position limits of 1.5M USDC and implements comprehensive pre-flight checks to validate wallet connectivity, market liquidity, and transaction parameters.
+Production implementation of Merkle Trade's mainnet perpetual futures contracts with complete feature parity to the official platform. The trading engine supports five cryptocurrency pairs with USDC collateral:
 
-*Implementation: `components/TradingInterface.tsx`, `hooks/useMerkleTrading.ts`, `hooks/useMerklePositions.ts`, `hooks/useMerkleEvents.ts`*
+- **Supported Markets**: APT/USDC, BTC/USDC, ETH/USDC, SOL/USDC, DOGE/USDC
+- **Leverage Range**: 3x to 150x with dynamic risk-adjusted position sizing
+- **Minimum Collateral**: 2 USDC per position (PAY)
+- **Maximum Position**: 1,500,000 USDC
+- **Position Formula**: Position Size = PAY (Collateral) × Leverage
 
-### Automated Market Making via Panora Protocol
-**Seamless Token Swapping with Advanced Risk Management**
+**Smart Contract Architecture**
 
-The integrated Panora swap functionality provides instant liquidity access across the Aptos ecosystem. Our implementation includes sophisticated quote aggregation, customizable slippage protection, comprehensive transaction data validation, and pre-execution simulation to prevent failed transactions.
+All trading operations execute against mainnet contract `0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06` using the `managed_trading` module. Type arguments follow strict ordering: `[PairType, CollateralType]` where pair types reference `pair_types::APT_USD` structure and collateral uses `fa_box::W_USDC` wrapped fungible asset standard.
 
-The swap engine performs real-time validation of transaction payloads, simulates execution on Aptos full nodes before submission, and provides detailed transaction previews to ensure users maintain full control over their trades.
+**Validation System**
 
-*Implementation: `components/SwapInterface.tsx`, `services/panoraSwapService.ts`, `services/panoraSwapSDK.ts`*
+Pre-transaction validation engine implements identical business logic to Merkle's official interface:
+- Wallet connection verification and balance checks
+- Minimum and maximum collateral bounds enforcement
+- Position size calculation validation (PAY × leverage formula)
+- Market price availability confirmation via multiple oracles
+- Leverage limit enforcement within 3x-150x range
+- Transaction payload structural integrity verification
 
-### Enterprise-Grade Wallet Infrastructure
-**Multi-Modal Connectivity with Persistent Session Management**
+**Position Management Features**
+- Opening positions with market execution
+- Closing positions with partial or full exit options
+- Take-profit and stop-loss management via `update_position_tp_sl_v3` function
+- Real-time profit and loss calculations with mark-to-market pricing
+- Position history tracking and event streaming via blockchain subscriptions
+- Advanced risk management with position monitoring
 
-PrismX supports both browser extension and mobile deep-link wallet connections through Petra wallet integration. The system implements automatic reconnection logic, persistent session management via encrypted local storage, and comprehensive error handling for network interruptions.
+**Technical Implementation**
+- [components/TradingInterface.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/TradingInterface.tsx:0:0-0:0) (106KB): Professional trading UI with 15+ validation states
+- [hooks/useMerkleTrading.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/hooks/useMerkleTrading.ts:0:0-0:0) (8.7KB): Transaction construction and execution logic
+- [hooks/useMerklePositions.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/hooks/useMerklePositions.ts:0:0-0:0) (7.3KB): Portfolio state management with automatic refresh
+- [hooks/useMerkleEvents.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/hooks/useMerkleEvents.ts:0:0-0:0) (9.9KB): Real-time blockchain event streaming
+- [services/merkleSdkService.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/services/merkleSdkService.ts:0:0-0:0) (16.6KB): Official Merkle Trade SDK integration
+- [components/SLTPEditorModal.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/SLTPEditorModal.tsx:0:0-0:0) (17.4KB): Advanced risk management interface
+- [components/ClosePositionModal.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/ClosePositionModal.tsx:0:0-0:0) (15.8KB): Position exit workflow
 
-Advanced features include extension availability detection, automatic session recovery on application restart, secure message signing capabilities, and graceful fallback mechanisms when primary connection methods are unavailable.
+### Automated Market Making
 
-*Implementation: `app/providers/WalletProvider.tsx`*
+**Panora Exchange Integration**
 
-### Real-Time Market Intelligence
-**Native Charting with Professional-Grade Data Feeds**
+Full-stack integration with Panora's automated market maker protocol providing instant token swaps across the Aptos ecosystem:
 
-The platform features a custom-built candlestick charting engine using React Native SVG, eliminating WebView dependencies while maintaining professional trading chart functionality. Market data is sourced from CoinGecko's enterprise APIs, providing real-time price feeds, historical data, and comprehensive market statistics.
+- Real-time quote aggregation with intelligent routing
+- Customizable slippage tolerance (0.1% to 5%)
+- Pre-execution transaction simulation on Aptos fullnode
+- Multi-hop routing optimization for best execution
+- Popular trading pair recommendations with liquidity depth
+- Comprehensive fee breakdown and price impact analysis
 
-Chart capabilities include multiple timeframe support, volume overlay visualization, responsive design optimization, and seamless integration with the application's theming system.
+**Security Architecture**
 
-*Implementation: `services/realMarketDataService.ts`, `components/CandleChart.tsx`*
+Multi-layered transaction validation before blockchain submission:
+1. Transaction data payload validation against expected router addresses
+2. Function signature verification for approved contract methods
+3. Argument type checking and bounds validation
+4. Aptos fullnode simulation execution to prevent failures
+5. Gas estimation and transaction fee preview
+6. Final wallet signature request with user confirmation
 
-### Centralized Configuration Management
-**Type-Safe Contract and Market Configuration**
+**Implementation Stack**
+- [components/SwapInterface.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/SwapInterface.tsx:0:0-0:0) (33.4KB): Feature-complete swap interface with modern UI
+- [services/panoraSwapSDK.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/services/panoraSwapSDK.ts:0:0-0:0) (22.6KB): SDK wrapper with comprehensive error handling
+- [services/panoraSwapService.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/services/panoraSwapService.ts:0:0-0:0) (12.6KB): Quote aggregation and validation logic
+- Integration with WalletProvider for secure transaction signing
 
-All blockchain interactions are managed through a centralized configuration system that maintains type safety while providing flexibility for different network environments. The system includes comprehensive Aptos network settings, Merkle Trade contract addresses, trading function definitions, and market-specific parameters.
+### Liquid Staking Infrastructure
 
-Configuration management ensures consistent behavior across development and production environments while maintaining the flexibility to adapt to protocol upgrades and new market additions.
+**Amnis Finance Protocol Integration**
 
-*Implementation: `config/constants.ts`, `config/appConfig.ts`*
+Native integration with Amnis Finance liquid staking protocol on Aptos mainnet, enabling users to earn staking rewards while maintaining liquidity:
 
-### High-Performance API Gateway
-**Dedicated Proxy Infrastructure with Rate Limiting**
+**Dual-Token Model**
+- **amAPT Token**: Liquid staking derivative providing instant liquidity and tradability
+- **stAPT Token**: Auto-compounding stake position maximizing long-term yield
+- Flexible conversion between token types based on strategy
 
-The included Node.js proxy server provides optimized access to Merkle Trade APIs with built-in CORS handling, request rate limiting, and connection pooling. This infrastructure layer ensures reliable API access while protecting against rate limiting and providing consistent performance across different network conditions.
+**Staking Features**
+- Stake APT to receive liquid staking derivatives
+- Unstake operations with protocol-defined waiting periods
+- Real-time portfolio value tracking across both token types
+- APY monitoring with historical performance analytics
+- Integration with trading features for leveraged staking strategies
+- Balance tracking and transaction history
 
-*Implementation: `server/proxy.js`, `scripts/start-proxy.bat`*
+**Technical Implementation**
+- [services/amnisService.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/services/amnisService.ts:0:0-0:0) (17.8KB): Core staking operations and protocol interaction
+- [services/amnisEnhancedService.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/services/amnisEnhancedService.ts:0:0-0:0) (26.2KB): Advanced staking features and analytics
+- [components/StakingInterface.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/StakingInterface.tsx:0:0-0:0) (19.1KB): Professional staking UI
+- [components/StakingDashboard.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/StakingDashboard.tsx:0:0-0:0) (20.2KB): Portfolio overview and analytics
+- [components/StakingHub.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/StakingHub.tsx:0:0-0:0) (3.1KB): Navigation and feature discovery
+- Mainnet-only deployment (Amnis Finance operates exclusively on mainnet)
 
-## Technology Architecture
+### Multi-Wallet Connectivity System
 
-### Frontend Framework
-**React Native 0.79.5** with **Expo SDK 53** provides the foundation for cross-platform mobile and web deployment. The architecture leverages **Expo Router** for type-safe, file-based navigation that scales efficiently across different screen sizes and platform constraints.
+**Universal Wallet Infrastructure**
 
-### Development Ecosystem
-**TypeScript 5.8** ensures compile-time type safety and enhanced developer experience, while **ESLint 9** and **Babel 7** maintain code quality and modern JavaScript compatibility. The development workflow is optimized for rapid iteration without compromising production stability.
+Production-ready wallet connectivity supporting multiple connection methods and wallet providers with persistent session management:
+
+**Supported Wallets**
+- **Petra Wallet**: Primary integration with browser extension and mobile deeplink
+- **Martian Wallet**: Multi-chain support with advanced features
+- **Pontem Wallet**: Aptos-native solution optimized for ecosystem
+- **Fewcha Wallet**: Mobile-optimized wallet with streamlined UX
+
+**Connection Methods**
+
+Browser Extension Mode:
+- Automatic detection of installed wallet extensions
+- Direct window object injection via `window.aptos` interface
+- Real-time connection state monitoring and updates
+- Account change event listeners for multi-account support
+- Network change detection with automatic reconnection
+
+Mobile Deeplink Mode:
+- Universal link generation with custom scheme `prismx://`
+- Wallet-specific deeplink routing and callback handling
+- Session persistence across application restarts
+- Graceful fallback when extension unavailable
+
+**Session Management Architecture**
+
+Persistent wallet sessions implemented with AsyncStorage:
+- Automatic reconnection on application launch
+- Encrypted session data storage for security
+- Graceful session invalidation on network errors
+- Manual disconnect with complete state cleanup
+- Cross-platform session synchronization (iOS, Android, Web)
+
+**Transaction Signing Compatibility**
+
+Petra-compatible transaction payload structure ensuring reliability:
+```typescript
+{
+  type: 'entry_function_payload',
+  function: '0x5ae6...::managed_trading::place_order_v3',
+  type_arguments: string[],  // Always array, never undefined
+  arguments: any[]            // Always array, never undefined
+}
+```
+
+Direct transmission to [window.aptos.signAndSubmitTransaction](cci:1://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/app/providers/WalletProvider.tsx:31:6-31:75) without intermediate wrappers or transformations to maintain compatibility with Petra's expected API structure.
+
+**Implementation**
+- [app/providers/WalletProvider.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/app/providers/WalletProvider.tsx:0:0-0:0) (442 lines): Core wallet context and logic
+- [components/WalletConnection.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/WalletConnection.tsx:0:0-0:0) (10.2KB): Connection interface and UI
+- AsyncStorage integration for encrypted session persistence
+- WalletConnect v2 protocol support for broader compatibility
+
+### Market Data and Analytics
+
+**Real-Time Price Infrastructure**
+
+Multi-source market data aggregation with intelligent fallback mechanisms:
+
+**Data Sources**
+- **CoinGecko API**: Primary price feed with 5-minute granularity and historical data
+- **Fallback Caching**: Local price caching for offline resilience and reduced latency
+- **Symbol Mapping**: Internal `APT_USD` format to external `APT/USDC` display conversion
+
+**Native Charting Engine**
+
+Custom-built React Native SVG charting eliminating WebView dependencies:
+- Professional candlestick rendering with OHLCV data
+- Volume overlay with normalized scaling and color coding
+- Multiple timeframe support (1H, 4H, 1D, 1W, 1M)
+- Touch-responsive crosshair with real-time price tooltips
+- Optimized rendering for mobile devices with 60fps animations
+- Memory-efficient data structure management for large datasets
+
+**Market Statistics**
+- 24-hour price change tracking with percentage calculations
+- Volume analysis and trend indicators
+- High and low price bounds for risk assessment
+- Real-time ticker updates with 5-second refresh intervals
+- Market sentiment indicators
+
+**Technical Implementation**
+- [services/realMarketDataService.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/services/realMarketDataService.ts:0:0-0:0) (10.4KB): CoinGecko integration and caching
+- [utils/priceService.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/utils/priceService.ts:0:0-0:0) (11.8KB): Price aggregation and normalization logic
+- [components/CandleChart.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/CandleChart.tsx:0:0-0:0) (13.1KB): Native SVG charting component
+- [utils/chartDataConverter.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/utils/chartDataConverter.ts:0:0-0:0) (3.5KB): Data transformation utilities
+
+## Technical Architecture
+
+### Framework Foundation
+
+**Core Technology Stack**
+- **React Native 0.79.5**: Latest stable release with New Architecture support enabled
+- **Expo SDK 53**: Managed workflow with custom native module support
+- **TypeScript 5.8**: Strict mode with comprehensive type coverage across codebase
+- **Expo Router 5.1**: File-based routing with type-safe navigation and deep linking
+
+**New Architecture Benefits**
+- JSI (JavaScript Interface) for synchronous native calls without bridge
+- Turbo Modules for lazy-loaded native code and reduced bundle size
+- Fabric renderer for improved UI performance and concurrent rendering
+- Memory efficiency improvements and faster app startup
 
 ### Blockchain Integration Layer
-- **@aptos-labs/ts-sdk**: Core Aptos blockchain interactions and transaction management
-- **@merkletrade/ts-sdk**: Planned integration for official Merkle Trade protocol access
-- **@panoraexchange/swap-sdk**: Automated market maker integration for token swapping
 
-### User Interface and State Management
-**Zustand 5** provides lightweight, performant state management without the complexity of traditional Redux patterns. **React Native Reanimated 3** delivers 60fps animations running on the UI thread, while **react-native-svg** enables professional-grade charting without WebView dependencies. **Lucide React Native** supplies a comprehensive icon system optimized for mobile performance.
-
-### Network Infrastructure
-Custom networking layer built on **fetch API** for client-side requests and **Axios** for proxy server operations, ensuring consistent error handling and request/response transformation across all API interactions.
-
-## Application Architecture
-
-### Modular Component Organization
-
-The codebase follows a domain-driven design pattern with clear separation of concerns:
-
+**Aptos SDK Integration**
 ```
-app/                          # Expo Router navigation structure
-├── _layout.tsx              # Root application layout and providers
-├── (tabs)/                  # Tab-based navigation screens
-│   ├── _layout.tsx         # Tab navigation configuration
-│   ├── index.tsx           # Dashboard and portfolio overview
-│   └── deposit.tsx         # Asset deposit workflows
-└── providers/              # Application-wide context providers
-    └── WalletProvider.tsx  # Wallet connectivity and session management
+@aptos-labs/ts-sdk ^1.39.0
+├── Account management and cryptographic operations
+├── Transaction construction, signing, and simulation
+├── Event subscription and WebSocket streaming
+├── Type-safe contract interaction via generated types
+└── Network client configuration with retry logic
 
-components/                   # Reusable UI components
-├── TradingInterface.tsx     # Advanced leverage trading interface
-├── SwapInterface.tsx        # Token swap and AMM interactions
-├── CandleChart.tsx         # Native SVG candlestick charting
-├── WalletConnection.tsx    # Multi-modal wallet connectivity
-├── PositionsList.tsx       # Portfolio position management
-└── ClosePositionModal.tsx  # Position closure workflows
+@merkletrade/ts-sdk ^1.0.3
+├── Official Merkle Trade contract bindings
+├── Position and order management utilities
+├── Type definitions for all contract structures
+└── Helper functions for common trading operations
 
-config/                      # Centralized configuration management
-├── constants.ts            # Blockchain contracts and market definitions
-└── appConfig.ts           # Application-wide settings and feature flags
-
-hooks/                       # Custom React hooks for blockchain interactions
-├── useMerkleTrading.ts     # Leverage trading operations and validation
-├── useMerklePositions.ts   # Portfolio and position state management
-└── useMerkleEvents.ts      # Real-time blockchain event subscriptions
-
-services/                    # Business logic and external API integrations
-├── merkleService.ts        # Core Merkle Trade protocol interactions
-├── realMerkleService.ts    # Production-ready Merkle API implementations
-├── officialMerkleService.ts # Official SDK integration layer
-├── panoraSwapService.ts    # Panora protocol swap operations
-├── panoraSwapSDK.ts       # Panora SDK wrapper and utilities
-└── realMarketDataService.ts # Market data aggregation and caching
-
-utils/                       # Shared utilities and helper functions
-├── aptosClient.ts          # Aptos blockchain client configuration
-├── priceService.ts         # Price feed aggregation and normalization
-└── logger.ts              # Structured logging and debugging utilities
-
-server/                      # Backend proxy infrastructure
-├── proxy.js               # Express.js API gateway with rate limiting
-└── .env.example          # Server environment configuration template
+@panoraexchange/swap-sdk ^1.3.0
+├── Swap routing and quote aggregation
+├── Transaction data generation with validation
+├── Slippage calculation utilities
+└── Multi-hop path optimization
 ```
 
-### Design Principles
+**Network Configuration**
 
-**Separation of Concerns**: Each module has a single, well-defined responsibility with minimal coupling to other system components.
+Multi-network support with environment-based selection:
+- Mainnet: `https://fullnode.mainnet.aptoslabs.com/v1`
+- Testnet: `https://fullnode.testnet.aptoslabs.com/v1`
+- Custom RPC endpoints via environment variables
+- API key management for enhanced rate limits
+- Automatic failover to backup nodes
 
-**Type Safety**: Comprehensive TypeScript coverage ensures compile-time error detection and enhanced developer experience.
+### State Management and UI
 
-**Performance Optimization**: Strategic use of React Native's performance primitives, including Reanimated for UI thread animations and efficient state management patterns.
+**State Architecture**
+- **Zustand 5.0.8**: Lightweight state management without boilerplate
+- **React Context**: Wallet and theme providers
+- **AsyncStorage**: Persistent local storage for settings and sessions
+- **In-Memory Caching**: Price and market data optimization
 
-**Scalability**: Modular architecture supports easy addition of new trading pairs, protocols, and user interface components without affecting existing functionality.
+**Animation and Graphics**
+- **React Native Reanimated 3.17**: 60fps animations on UI thread
+- **react-native-svg 15.11**: Vector graphics for charts and icons
+- **Expo Linear Gradient 14.1**: Smooth gradient backgrounds
+- **Lucide React Native 0.475**: Comprehensive icon system
 
-## Environment Configuration
+**UI Components**
+- [components/GradientPillButton.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/GradientPillButton.tsx:0:0-0:0): Animated button with gradient effects
+- [components/ModalSheet.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/ModalSheet.tsx:0:0-0:0): Bottom sheet modal for mobile UX
+- [components/SegmentedTabs.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/SegmentedTabs.tsx:0:0-0:0): Tab navigation component
+- [components/Card.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/Card.tsx:0:0-0:0): Reusable card container with theming
 
-### Application Environment Variables
+### Project Structure
 
-The platform requires comprehensive environment configuration to ensure secure and reliable operation across different deployment contexts.
+```
+TRADE_APP_UI/
+│
+├── app/                                 # Expo Router navigation
+│   ├── _layout.tsx                     # Root layout with providers
+│   ├── (tabs)/                         # Tab-based navigation
+│   │   ├── _layout.tsx                 # Tab bar configuration
+│   │   ├── index.tsx                   # Dashboard/home screen
+│   │   ├── trade.tsx                   # Trading interface (23.9KB)
+│   │   ├── market.tsx                  # Market overview (15.2KB)
+│   │   ├── wallet.tsx                  # Wallet management (12.7KB)
+│   │   ├── deposit.tsx                 # Asset deposits (18.3KB)
+│   │   ├── withdraw.tsx                # Withdrawals (15.6KB)
+│   │   └── settings.tsx                # App settings (11.8KB)
+│   ├── trading/                        # Trading sub-routes
+│   └── providers/
+│       └── WalletProvider.tsx          # Global wallet context
+│
+├── components/                          # Reusable UI components
+│   ├── TradingInterface.tsx            # Main trading UI (106.2KB)
+│   ├── SwapInterface.tsx               # Token swap UI (33.4KB)
+│   ├── StakingInterface.tsx            # Staking UI (19.1KB)
+│   ├── StakingDashboard.tsx            # Staking overview (20.2KB)
+│   ├── WalletConnection.tsx            # Wallet connect modal (10.2KB)
+│   ├── CandleChart.tsx                 # SVG charting (13.1KB)
+│   ├── PositionsList.tsx               # Portfolio positions (10.5KB)
+│   ├── PositionCard.tsx                # Individual position (10.6KB)
+│   ├── ClosePositionModal.tsx          # Position exit (15.8KB)
+│   ├── SLTPEditorModal.tsx             # TP/SL editor (17.4KB)
+│   ├── GradientPillButton.tsx          # Custom button (4.0KB)
+│   └── ... (14 more components)
+│
+├── config/                              # Configuration management
+│   ├── constants.ts                    # Blockchain and app constants
+│   └── appConfig.ts                    # Feature flags and settings
+│
+├── hooks/                               # Custom React hooks
+│   ├── useMerkleTrading.ts             # Trading operations (8.7KB)
+│   ├── useMerklePositions.ts           # Position management (7.3KB)
+│   ├── useMerkleEvents.ts              # Event streaming (9.9KB)
+│   ├── useResponsive.ts                # Responsive design (2.3KB)
+│   └── useFrameworkReady.ts            # App initialization
+│
+├── services/                            # Business logic layer
+│   ├── merkleSdkService.ts             # Merkle SDK wrapper (16.6KB)
+│   ├── merkleService.ts                # Core Merkle logic (1.4KB)
+│   ├── panoraSwapSDK.ts                # Panora SDK wrapper (22.6KB)
+│   ├── panoraSwapService.ts            # Swap logic (12.6KB)
+│   ├── amnisService.ts                 # Amnis staking (17.8KB)
+│   ├── amnisEnhancedService.ts         # Advanced staking (26.2KB)
+│   ├── realMarketDataService.ts        # Market data (10.4KB)
+│   └── balanceService.ts               # Balance queries (3.1KB)
+│
+├── utils/                               # Utility functions
+│   ├── aptosClient.ts                  # Aptos client config (10.6KB)
+│   ├── priceService.ts                 # Price aggregation (11.8KB)
+│   ├── logger.ts                       # Structured logging (2.7KB)
+│   ├── number.ts                       # Number formatting (2.0KB)
+│   └── chartDataConverter.ts           # Chart data utils (3.5KB)
+│
+├── theme/                               # Design system
+│   ├── colors.ts                       # Color palette
+│   ├── typography.ts                   # Font system
+│   ├── spacing.ts                      # Layout spacing
+│   └── index.ts                        # Theme exports
+│
+├── types/                               # TypeScript definitions
+│   └── aptos.ts                        # Aptos type extensions
+│
+├── store/                               # Zustand stores
+│   └── useStore.ts                     # Global state
+│
+├── scripts/                             # Automation scripts
+│   └── start-proxy.bat                 # Windows proxy launcher
+│
+├── server/                              # Backend proxy (optional)
+│   ├── proxy.js                        # Express API gateway
+│   └── package.json                    # Server dependencies
+│
+├── .env                                 # Environment configuration
+├── .env.example                         # Environment template
+├── app.json                             # Expo configuration
+├── package.json                         # Project dependencies
+├── tsconfig.json                        # TypeScript config
+└── README.md                            # This file
+```
 
-**Primary Configuration** (`.env` in project root):
+## Installation and Setup
 
+### Prerequisites
+
+**Required Software**
+- Node.js 18.0 or higher with npm 9.0+
+- Git for version control
+- Code editor with TypeScript support (VS Code recommended)
+
+**Platform-Specific Requirements**
+- **iOS Development**: macOS with Xcode 14+ and iOS Simulator
+- **Android Development**: Android Studio with API level 31+ and AVD Manager
+- **Web Development**: Modern browser (Chrome, Firefox, Safari)
+
+**Optional Tools**
+- Petra Wallet browser extension for wallet testing
+- Aptos CLI for blockchain debugging
+- React Native Debugger for advanced debugging
+
+### Installation Steps
+
+**1. Clone Repository**
 ```bash
-# Aptos Blockchain Configuration
-EXPO_PUBLIC_APTOS_NETWORK=mainnet                    # Network selection: mainnet/testnet/devnet
+git clone <repository-url>
+cd TRADE_APP_UI
+```
+
+**2. Install Dependencies**
+```bash
+npm install
+```
+
+This installs all required packages including:
+- React Native and Expo SDK
+- Aptos blockchain SDKs
+- UI component libraries
+- Development tools and linters
+
+**3. Environment Configuration**
+
+Copy the example environment file:
+```bash
+cp .env.example .env
+```
+
+Edit [.env](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/.env:0:0-0:0) with your configuration:
+```bash
+# Aptos Network Configuration
+EXPO_PUBLIC_APTOS_NETWORK=mainnet
 EXPO_PUBLIC_APTOS_NODE_URL=https://fullnode.mainnet.aptoslabs.com/v1
-EXPO_PUBLIC_APTOS_MAINNET_API_KEY=your_mainnet_key   # Production API access
-EXPO_PUBLIC_APTOS_TESTNET_API_KEY=your_testnet_key   # Development API access
+EXPO_PUBLIC_APTOS_MAINNET_API_KEY=your_mainnet_api_key
+EXPO_PUBLIC_APTOS_TESTNET_API_KEY=your_testnet_api_key
 
 # Smart Contract Addresses
 EXPO_PUBLIC_MERKLE_CONTRACT_ADDRESS=0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06
 
-# Wallet Integration
-EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id # Optional: WalletConnect v2 support
+# Application Configuration
+EXPO_PUBLIC_APP_NAME=PrismX
+EXPO_PUBLIC_APP_SCHEME=prismx
+EXPO_PUBLIC_DEEP_LINK_BASE=prismx://
 
-# Application Identity
-EXPO_PUBLIC_APP_NAME=PrismX                          # Application display name
-EXPO_PUBLIC_APP_SCHEME=prismx                        # Deep linking scheme
-EXPO_PUBLIC_DEEP_LINK_BASE=prismx://                 # Deep link URL base
+# Optional: WalletConnect Support
+EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 ```
 
-**Proxy Server Configuration** (`server/.env`):
-
-```bash
-PROXY_PORT=3001                                      # API gateway port
-NODE_ENV=development                                 # Environment mode
-
-# API Endpoints (environment-specific)
-# development = https://api.testnet.merkle.trade
-# production  = https://api.merkle.trade
-```
-
-### Configuration Architecture
-
-The application employs a multi-layered configuration system designed for flexibility and maintainability:
-
-**Core Configuration** (`config/constants.ts`):
-- **APTOS_CONFIG**: Blockchain network settings, node URLs, and API key management
-- **MERKLE_CONFIG**: Smart contract addresses and module identifiers
-- **TRADING_FUNCTIONS**: Complete ABI function definitions for all supported operations
-- **MERKLE_ASSET_TYPES**: Type-safe definitions for pair types (`pair_types::APT_USD`) and collateral types (`fa_box::W_USDC`)
-- **MARKETS**: Comprehensive market definitions including `APT_USD`, `BTC_USD`, `ETH_USD`, `SOL_USD`, `DOGE_USD` with display names and type argument specifications `[PairType, CollateralType]`
-
-**Feature Configuration** (`config/appConfig.ts`):
-- Development and production feature flags
-- Performance optimization settings
-- Real-time update intervals and caching policies
-- UI behavior customization options
-
-## Development Workflow
-
-### System Requirements
-
-**Development Environment**:
-- Node.js 18.0 or higher with npm package manager
-- Expo CLI (global installation optional - `npx expo` provides equivalent functionality)
-- iOS Simulator (macOS) or Android Studio with AVD Manager for device emulation
-- Modern code editor with TypeScript support (VS Code recommended)
-
-**Optional Tools**:
-- Petra Wallet browser extension for testing wallet connectivity
-- Aptos CLI for blockchain interaction debugging
-- React Native Debugger for advanced debugging capabilities
-
-### Installation and Setup
-
-**1. Dependency Installation**
-```bash
-npm install
-```
-This command installs all required dependencies including React Native, Expo SDK, blockchain SDKs, and development tools.
-
-**2. Environment Configuration**
-Copy `.env.example` to `.env` and configure with your specific API keys and network preferences. Ensure all required environment variables are properly set before proceeding.
-
-**3. Development Server Launch**
+**4. Start Development Server**
 ```bash
 npm run dev
 ```
-Starts the Expo development server with hot reloading and debugging capabilities enabled.
 
-**4. Platform-Specific Deployment**
-- **Mobile Device**: Scan the generated QR code with Expo Go application
-- **iOS Simulator**: Press `i` in the terminal to launch iOS simulator
-- **Android Emulator**: Press `a` in the terminal to launch Android emulator
-- **Web Browser**: Press `w` to open web version (development only)
+This launches the Expo development server with:
+- Metro bundler for JavaScript compilation
+- Hot module reloading for instant updates
+- Interactive command menu for platform selection
 
-### Proxy Server Infrastructure
+**5. Launch on Platform**
 
-**Automated Setup (Windows)**:
-Execute `scripts/start-proxy.bat` for automated dependency installation and server startup.
+From the development server terminal:
+- Press `i` for iOS Simulator (macOS only)
+- Press `a` for Android Emulator
+- Press `w` for web browser
+- Scan QR code with Expo Go app for physical device
 
-**Manual Setup (All Platforms)**:
+### Optional: Proxy Server Setup
+
+The proxy server provides CORS handling and API rate limiting for production deployments.
+
+**Windows (Automated)**
+```bash
+scripts\start-proxy.bat
+```
+
+**All Platforms (Manual)**
 ```bash
 cd server
 npm install
 npm start
 ```
 
-The proxy server provides essential infrastructure for production-grade API access:
-- **CORS Handling**: Resolves cross-origin request limitations
-- **Rate Limiting**: Prevents API quota exhaustion
-- **Request Caching**: Improves response times for frequently accessed data
-- **Error Handling**: Provides consistent error responses across all API endpoints
+Server runs on `http://localhost:3001` by default. Configure port in `server/.env`:
+```bash
+PROXY_PORT=3001
+NODE_ENV=development
+```
 
-**Default Configuration**: `http://localhost:3001`
+## Configuration Reference
 
-## Feature Specifications
+### Application Constants
 
-### Advanced Wallet Management System
-**Multi-Protocol Connectivity with Enterprise-Grade Session Management**
+**config/constants.ts** - Core configuration management:
 
-The wallet infrastructure provides seamless connectivity across multiple interaction patterns:
+```typescript
+// Aptos Network Settings
+export const APTOS_CONFIG = {
+  network: 'mainnet',  // mainnet | testnet | devnet
+  nodeUrl: 'https://fullnode.mainnet.aptoslabs.com/v1',
+  indexerUrl: 'https://indexer.mainnet.aptoslabs.com/v1',
+  apiKeys: { mainnet: '...', testnet: '...' }
+};
 
-- **Browser Extension Integration**: Automatic detection and connection to Petra wallet extensions with real-time availability monitoring
-- **Mobile Deep Link Protocol**: Sophisticated deep linking system for mobile wallet applications with fallback mechanisms
-- **Persistent Session Architecture**: Encrypted session storage using AsyncStorage with automatic reconnection logic and session validation
-- **Cross-Platform Compatibility**: Unified wallet interface that adapts to different platform capabilities and constraints
+// Merkle Trade Configuration
+export const MERKLE_CONFIG = {
+  contractAddress: '0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06',
+  tradingModule: 'managed_trading',
+  tradingCalcModule: 'trading_calc'
+};
 
-*Technical Implementation: `app/providers/WalletProvider.tsx`*
+// Market Definitions
+export const MARKETS = {
+  'APT_USD': {
+    name: 'APT/USDC',
+    displayName: 'APT/USDC',
+    baseAsset: 'APT',
+    quoteAsset: 'USDC',
+    decimals: 8,
+    minSize: 2,
+    maxLeverage: 150,
+    typeArguments: [MERKLE_ASSET_TYPES.APT_USD, MERKLE_ASSET_TYPES.USDC]
+  },
+  // ... BTC, ETH, SOL, DOGE configurations
+};
 
-### Professional Leverage Trading Platform
-**Merkle Trade Integration with Institutional-Grade Risk Management**
+// Amnis Finance Configuration
+export const AMNIS_CONFIG = {
+  contractAddress: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a',
+  stakingModule: 'router',
+  amapt: {
+    type: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::amapt_token::AmnisApt',
+    decimals: 8
+  },
+  stapt: {
+    type: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt',
+    decimals: 8
+  }
+};
+```
 
-The trading engine implements comprehensive validation and risk management systems:
+### UI Configuration
 
-- **Regulatory Compliance**: Validation logic mirrors official Merkle Trade requirements including minimum PAY thresholds of 2 USDC and maximum position limits
-- **Dynamic Leverage Management**: Support for leverage ranges from 3x to 150x with real-time position size calculations and risk assessment
-- **Market Data Integration**: Internal market keying using underscore format (`APT_USD`) with user-friendly display formatting (`APT/USDC`)
-- **Real-Time Event Processing**: Comprehensive event subscription system for position updates, order fills, and market movements
-- **Multi-Service Architecture**: Layered service implementation supporting both development and production API endpoints
+```typescript
+export const UI_CONFIG = {
+  refreshIntervals: {
+    positions: 30000,   // 30 seconds
+    prices: 5000,       // 5 seconds
+    events: 60000,      // 1 minute
+    portfolio: 15000    // 15 seconds
+  },
+  animations: {
+    fast: 150,
+    normal: 300,
+    slow: 500
+  },
+  colors: {
+    success: '#10b981',
+    error: '#ef4444',
+    warning: '#f59e0b',
+    primary: '#6366f1'
+  }
+};
+```
 
-*Technical Implementation: `hooks/useMerkleEvents.ts`, `services/realMerkleService.ts`, `services/officialMerkleService.ts`*
+## Development Workflow
 
-### Automated Market Making Integration
-**Panora Protocol with Advanced Transaction Safety**
+### Available Scripts
 
-The swap functionality provides institutional-grade transaction processing:
+**Development**
+```bash
+npm run dev           # Start Expo development server
+npm run typecheck     # TypeScript type checking
+npm run lint          # ESLint code quality check
+```
 
-- **Intelligent Quote Aggregation**: Real-time quote fetching with slippage protection and price impact analysis
-- **Pre-Execution Validation**: Comprehensive transaction data validation and simulation before blockchain submission
-- **Risk Management**: Multi-layered transaction verification including payload validation and execution simulation
-- **Seamless Wallet Integration**: Direct integration with wallet signing infrastructure for secure transaction execution
+**Production**
+```bash
+npm run build:web     # Build web production bundle
+```
 
-*Technical Implementation: Components and services provide complete swap workflow management*
+**Server Operations**
+```bash
+cd server
+npm start             # Start proxy server (production)
+npm run dev           # Start with auto-reload (development)
+```
 
-### Professional Market Data Infrastructure
-**Real-Time Data with Native Charting Solutions**
+### Development Best Practices
 
-The market data system delivers professional-grade market intelligence:
+**Type Safety**
+- All components use strict TypeScript
+- No `any` types without explicit justification
+- Comprehensive interface definitions for blockchain interactions
 
-- **Enterprise Data Feeds**: Integration with CoinGecko's professional APIs for real-time price data and market statistics
-- **Native Chart Rendering**: Custom-built candlestick charting using React Native SVG, eliminating WebView dependencies and improving performance
-- **Multi-Timeframe Support**: Comprehensive timeframe options with volume overlay and technical indicator support
-- **Responsive Design**: Chart rendering optimized for different screen sizes and orientations
+**Code Organization**
+- Components under 500 lines (TradingInterface exception due to complexity)
+- Single responsibility principle per module
+- Separation of UI, business logic, and blockchain interaction
 
-*Technical Implementation: `services/realMarketDataService.ts`, `components/CandleChart.tsx`*
+**Performance Optimization**
+- React Native Reanimated for 60fps animations
+- Memoization of expensive computations
+- Lazy loading of non-critical components
+- Efficient re-render prevention with React.memo
 
-## Build System and Development Scripts
+**Testing Strategy**
+- Manual testing on iOS, Android, and Web platforms
+- Wallet integration testing with Petra testnet
+- Transaction simulation before mainnet deployment
+- Error boundary implementation for graceful failures
 
-### Primary Development Commands
+## Security Considerations
 
-**Development Workflow**:
-- `npm run dev` — Launches Expo development server with hot reloading and debugging capabilities
-- `npm run build:web` — Generates optimized web bundle for production deployment
-- `npm run lint` — Executes ESLint with project-specific rules and TypeScript integration
-- `npm run typecheck` — Performs comprehensive TypeScript type checking without compilation
+### Wallet Security
 
-### Server Infrastructure Commands
+**Private Key Management**
+- Private keys never stored in application
+- All signing operations delegated to wallet providers
+- Session tokens encrypted in AsyncStorage
+- Automatic session invalidation on security events
 
-**Proxy Server Management** (executed in `server/` directory):
-- `npm start` — Production server launch with optimized performance settings
-- `npm run dev` — Development server with automatic restart on file changes via nodemon
-- `npm run prod` — Production deployment with environment-specific optimizations
+**Transaction Safety**
+- Pre-execution simulation on Aptos fullnode
+- Comprehensive payload validation before signing
+- Gas estimation and fee preview
+- User confirmation required for all transactions
 
-### Build Optimization
+### Smart Contract Interaction
 
-The build system implements several performance optimizations:
-- **Tree Shaking**: Eliminates unused code from final bundles
-- **Code Splitting**: Lazy loading for non-critical components
-- **Asset Optimization**: Automatic image compression and SVG optimization
-- **Bundle Analysis**: Integrated tools for monitoring bundle size and dependencies
+**Type Argument Validation**
+- Strict type checking for all contract calls
+- Verification of type argument ordering: [PairType, CollateralType]
+- Validation of contract addresses before execution
+- Function name verification against known ABI
 
-## Application Workflows
+**Error Handling**
+- Graceful degradation on network failures
+- User-friendly error messages for blockchain errors
+- Automatic retry logic with exponential backoff
+- Comprehensive logging for debugging
 
-### Leverage Trading Architecture
-**Comprehensive Trading System with Multi-Layer Validation**
+### API Security
 
-The trading workflow implements a sophisticated multi-component architecture:
+**Environment Variables**
+- No secrets committed to version control
+- Separate keys for development and production
+- API key rotation support
+- Rate limiting on proxy server
 
-**User Interface Layer** (`components/TradingInterface.tsx`):
-- Professional trading interface with real-time validation feedback
-- Dynamic position sizing with leverage calculations
-- Market selection with comprehensive pair support
-- Order preview and confirmation workflows
+**Network Security**
+- HTTPS enforcement for all external requests
+- Certificate pinning for critical APIs
+- Request timeout configuration
+- CORS handling via proxy server
 
-**Business Logic Layer**:
-- `hooks/useMerkleTrading.ts`: Core trading operations and transaction management
-- `hooks/useMerklePositions.ts`: Portfolio state management and position tracking
-- `hooks/useMerkleEvents.ts`: Real-time blockchain event processing and subscription management
+## Troubleshooting Guide
 
-**Service Integration Layer**:
-- `services/merkleService.ts`: Core protocol interaction abstractions
-- `services/realMerkleService.ts`: Production-ready API implementations with error handling
-- Configuration management via `config/constants.ts` for market definitions and trading limits
+### Common Issues
 
-### Token Swap Infrastructure
-**Automated Market Making with Advanced Safety Mechanisms**
+**Wallet Connection Failures**
 
-The swap system provides institutional-grade token exchange capabilities:
+Issue: Petra wallet extension not detected
+```
+Solution:
+1. Verify Petra extension is installed and enabled
+2. Check browser console for window.aptos object
+3. Reload application and retry connection
+4. Clear browser cache and local storage
+```
 
-**User Experience Layer** (`components/SwapInterface.tsx`):
-- Intuitive token selection with popular pair recommendations
-- Real-time quote updates with slippage protection
-- Transaction preview with detailed fee breakdown
-- Execution confirmation with comprehensive safety checks
+Issue: Mobile deeplink not working
+```
+Solution:
+1. Verify prismx:// scheme in app.json
+2. Check wallet app is installed on device
+3. Test deeplink with: adb shell am start -W -a android.intent.action.VIEW -d "prismx://connect"
+4. Verify callback URL handling in WalletProvider
+```
 
-**Protocol Integration Layer**:
-- `services/panoraSwapService.ts`: Core swap logic with quote aggregation and validation
-- `services/panoraSwapSDK.ts`: SDK wrapper providing consistent API abstractions
-- Seamless integration with wallet provider for secure transaction signing and submission
+**Transaction Execution Errors**
 
-## Platform Integration and Deep Linking
+Issue: "Simulation failed" error
+```
+Solution:
+1. Verify sufficient APT balance for gas fees
+2. Check collateral amount meets 2 USDC minimum
+3. Ensure position size calculation is correct (PAY × leverage)
+4. Verify market price is available from oracle
+5. Check leverage is within 3x-150x bounds
+```
 
-### Application Configuration Management
+Issue: "Type resolution failure" error
+```
+Solution:
+1. Verify type arguments order: [PairType, CollateralType]
+2. Check pair type uses pair_types module (e.g., pair_types::APT_USD)
+3. Verify collateral type uses fa_box module (e.g., fa_box::W_USDC)
+4. Ensure contract address matches mainnet deployment
+```
 
-The platform implements comprehensive deep linking support through `app.json` configuration:
+**Market Data Issues**
 
-**Deep Link Schema**: `prismx://` provides universal linking across mobile and web platforms
-**Android Integration**: Custom intent filters enable seamless wallet connectivity and transaction handling
-**iOS Compatibility**: Universal links support for App Store distribution and wallet integration
+Issue: Charts not loading
+```
+Solution:
+1. Check CoinGecko API rate limits
+2. Verify symbol mapping in realMarketDataService.ts
+3. Ensure internal format (APT_USD) matches configuration
+4. Check network connectivity and fallback caching
+```
 
-**Configuration Customization**: Update scheme identifiers and package IDs in `app.json` to match your deployment requirements and branding specifications.
+Issue: Price display inconsistency
+```
+Solution:
+1. Verify decimal conversion (APT = 8 decimals, USDC = 6 decimals)
+2. Check price formatting in number.ts utilities
+3. Ensure consistent use of microunits in calculations
+4. Validate price service aggregation logic
+```
 
-## Security Architecture and Best Practices
+**Build and Deployment Issues**
 
-### Cryptographic Security Standards
+Issue: Metro bundler errors
+```
+Solution:
+1. Clear Metro cache: npx expo start -c
+2. Delete node_modules and reinstall: rm -rf node_modules && npm install
+3. Clear watchman: watchman watch-del-all
+4. Reset Expo cache: rm -rf .expo
+```
 
-The application implements enterprise-grade security measures across all blockchain interactions:
+Issue: TypeScript compilation errors
+```
+Solution:
+1. Run type check: npm run typecheck
+2. Verify tsconfig.json configuration
+3. Check for missing type definitions
+4. Update @types packages to latest versions
+```
 
-**API Key Management**: 
-- Environment-based key isolation prevents accidental exposure in version control
-- Separate key management for development, staging, and production environments
-- Automatic key rotation support for enhanced security posture
+### Network Configuration
 
-**Transaction Security**:
-- **Petra Wallet Integration**: Transaction payloads must maintain strict structural integrity with guaranteed array initialization for `type_arguments` and `arguments` parameters
-- **Direct Payload Transmission**: Petra extension integration requires direct payload transmission to `window.aptos.signAndSubmitTransaction` without intermediate wrapper objects
-- **Pre-Execution Validation**: Comprehensive transaction simulation and validation before blockchain submission
+**Mainnet vs Testnet**
 
-**Data Protection**:
-- Encrypted local storage for sensitive user data and session information
-- Secure communication protocols for all external API interactions
-- Comprehensive input validation and sanitization across all user interfaces
+Critical: Merkle Trade and Amnis Finance only exist on **mainnet**. Attempting to use testnet will result in contract resolution failures.
 
-## Diagnostic and Troubleshooting Guide
+Configuration for mainnet:
+```bash
+EXPO_PUBLIC_APTOS_NETWORK=mainnet
+EXPO_PUBLIC_APTOS_NODE_URL=https://fullnode.mainnet.aptoslabs.com/v1
+```
 
-### Common Integration Issues
+For Panora swaps and basic wallet testing, testnet can be used:
+```bash
+EXPO_PUBLIC_APTOS_NETWORK=testnet
+EXPO_PUBLIC_APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1
+```
 
-**Wallet Connectivity Problems**:
-- **Browser Extension Detection**: Verify Petra wallet extension installation and enable developer mode if necessary. The `WalletConnection` component provides real-time availability status and diagnostic information.
-- **Connection State Management**: Clear browser cache and local storage if experiencing persistent connection issues. The application implements automatic reconnection logic that may require manual reset in edge cases.
+## Deployment
 
-**Transaction Execution Failures**:
-- **Petra Payload Structure**: Transaction payloads must include complete structure with `type`, `function`, `type_arguments: []`, and `arguments: []` properties. Arrays must be initialized as empty arrays rather than undefined values to prevent runtime errors.
-- **Direct API Integration**: Petra extension requires direct payload transmission to `window.aptos.signAndSubmitTransaction` without intermediate object wrapping or transformation.
+### Production Build
 
-**Market Data and Symbol Resolution**:
-- **Symbol Format Consistency**: Internal market keys utilize underscore format (`APT_USD`) while display formats use slash notation (`APT/USDC`). Verify mapping consistency in `services/realMarketDataService.ts` and `config/constants.ts`.
-- **API Rate Limiting**: Implement appropriate request throttling and caching strategies to prevent API quota exhaustion during high-frequency data updates.
+**Web Deployment**
+```bash
+npm run build:web
+```
 
-**Trading Position Management**:
-- **Minimum Position Requirements**: Merkle Trade enforces minimum PAY requirements of 2 USDC with reasonable leverage ratios (e.g., 50x leverage resulting in 100 USDC position size) as configured in `TradingInterface` default parameters.
-- **Position Size Validation**: Ensure position calculations follow the formula: Position Size = PAY × Leverage, with comprehensive validation before transaction submission.
+Output directory: `dist/` - Deploy to static hosting (Vercel, Netlify, AWS S3)
 
-**Network Configuration**:
-- **Mainnet Dependency**: Merkle Trade contracts and pair types are exclusively available on Aptos mainnet. Ensure `EXPO_PUBLIC_APTOS_NETWORK=mainnet` configuration when targeting live trading functionality.
-- **Environment Synchronization**: Verify all environment variables are properly synchronized between development and production configurations.
+**Mobile Deployment**
 
-## Development Roadmap and Future Enhancements
+iOS (requires macOS):
+```bash
+eas build --platform ios --profile production
+```
 
-### Immediate Development Priorities
+Android:
+```bash
+eas build --platform android --profile production
+```
 
-**Real-Time Data Infrastructure**:
-- Implementation of WebSocket-based real-time updates when official SDK provides stable streaming capabilities
-- Enhanced market data feeds with sub-second price updates and order book depth information
-- Advanced charting features including technical indicators and drawing tools
+Requires EAS (Expo Application Services) account and configuration in `eas.json`.
 
-**Protocol Integration Expansion**:
-- Complete migration to official `@merkletrade/ts-sdk` methods in `realMerkleService` for enhanced reliability and feature parity
-- Integration of additional DeFi protocols for expanded trading opportunities
-- Cross-chain bridge integration for multi-blockchain asset management
+### Environment-Specific Configuration
 
-**User Experience Enhancements**:
-- Advanced order types including take-profit and stop-loss editing with UX parity to professional trading platforms
-- Portfolio analytics dashboard with comprehensive performance metrics and risk assessment tools
-- Social trading features with copy trading and strategy sharing capabilities
+**Production Environment**
+- Use mainnet contract addresses
+- Enable API key authentication
+- Configure production RPC endpoints with load balancing
+- Enable error tracking (Sentry, Bugsnag)
+- Implement analytics (Google Analytics, Mixpanel)
 
-### Long-Term Strategic Objectives
+**Staging Environment**
+- Use mainnet for contract compatibility
+- Enable debug logging
+- Implement feature flags for testing
+- Configure test wallets with small amounts
 
-**Institutional Features**:
-- Advanced risk management tools with position sizing algorithms and portfolio optimization
-- API access for algorithmic trading and institutional integration
-- Compliance and reporting tools for regulatory requirements
+## Performance Optimization
 
-**Platform Expansion**:
-- Additional market pairs and asset classes beyond current cryptocurrency offerings
-- Integration with traditional finance bridges and fiat on/off ramps
-- Mobile-first design optimizations with native iOS and Android applications
+### Bundle Size Optimization
+
+- Tree shaking enabled for unused code elimination
+- Code splitting for lazy-loaded routes
+- Dynamic imports for large dependencies
+- SVG optimization for icon assets
+
+### Runtime Performance
+
+- React Native Reanimated for UI thread animations
+- Zustand for efficient state management
+- Memoization of expensive calculations
+- Debounced API calls for price updates
+- Efficient re-render prevention with React.memo
+
+### Network Optimization
+
+- Request caching for market data
+- Price fallback caching for offline support
+- Batch API requests when possible
+- Connection pooling in proxy server
+- CDN usage for static assets
+
+## Development Roadmap
+
+### Immediate Priorities
+
+**Q1 2025**
+- WebSocket integration for real-time price streaming
+- Advanced order types (limit orders, stop-market)
+- Portfolio analytics dashboard with P&L tracking
+- Social features (copy trading, strategy sharing)
+
+**Q2 2025**
+- Mobile app optimization and native builds
+- Advanced charting with technical indicators
+- Multi-language support (i18next integration)
+- Fiat on/off-ramp integration
+
+### Long-Term Vision
+
+**Protocol Expansion**
+- Additional DEX integrations (Thala, Cellana)
+- Cross-chain bridge support
+- Options trading capabilities
+- Yield farming aggregator
+
+**Institutional Features**
+- API access for algorithmic trading
+- Advanced risk management tools
+- Compliance and reporting features
+- White-label deployment options
+
+**Platform Enhancements**
+- Native iOS and Android applications
+- Desktop application (Electron)
+- Browser extension for quick trading
+- Mobile widget support
+
+## Contributing
+
+This is a proprietary codebase. For contribution guidelines, please contact the development team.
+
+## Support and Documentation
+
+**Technical Support**
+- GitHub Issues: Report bugs and feature requests
+- Developer Documentation: Comprehensive API and architecture docs
+- Community Discord: Real-time support and discussion
+
+**Useful Resources**
+- Aptos Documentation: https://aptos.dev
+- Merkle Trade Docs: https://docs.merkle.trade
+- Panora Exchange: https://panora.exchange
+- Amnis Finance: https://amnis.finance
+- Expo Documentation: https://docs.expo.dev
 
 ## License
 
 Proprietary. All rights reserved.
 
+---
+
+**Built with precision engineering for the Aptos ecosystem.**
+
+---

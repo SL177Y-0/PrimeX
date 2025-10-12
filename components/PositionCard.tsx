@@ -79,7 +79,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({
                 <TrendingDown size={12} color="#FFFFFF" />
               }
               <Text style={styles.sideText}>
-                {position.side.toUpperCase()} {position.leverage.toFixed(1)}x
+                {position.side.toUpperCase()} {(position.leverage ?? 0).toFixed(1)}x
               </Text>
             </View>
           </View>
@@ -93,7 +93,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({
             <Text style={[styles.pnlPercent, { 
               color: isProfit ? theme.colors.positive : theme.colors.negative 
             }]}>
-              ({isProfit ? '+' : ''}{position.pnlPercent.toFixed(2)}%)
+              ({isProfit ? '+' : ''}{(position.pnlPercent ?? 0).toFixed(2)}%)
             </Text>
           </View>
         </View>

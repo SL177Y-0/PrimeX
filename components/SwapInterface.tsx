@@ -376,7 +376,7 @@ export function SwapInterface() {
   const { theme } = useTheme();
   const accentColors = useAccent();
   const { connected, account, signAndSubmitTransaction, connectExtension } = useWallet();
-  const { value } = useResponsive();
+  const { value, spacing, fontSize } = useResponsive();
 
   // Real token balances - fetched from blockchain
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({});
@@ -777,6 +777,31 @@ export function SwapInterface() {
           </View>
         </View>
       </Modal>
+      
+      {/* Powered by Footer */}
+      <View style={{
+        paddingVertical: spacing.lg,
+        paddingHorizontal: spacing.md,
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
+        marginTop: spacing.xl,
+      }}>
+        <Text style={{
+          color: theme.colors.textSecondary,
+          fontSize: fontSize.xs,
+          fontFamily: 'Inter-Medium',
+          letterSpacing: 0.5,
+        }}>
+          Powered by{' '}
+          <Text style={{
+            color: accentColors.from,
+            fontFamily: 'Inter-SemiBold',
+          }}>
+            PanoraSwap
+          </Text>
+        </Text>
+      </View>
     </ScrollView>
   );
 }

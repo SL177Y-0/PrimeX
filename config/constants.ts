@@ -379,44 +379,97 @@ export const SWAP_CONSTANTS = {
 // Contract address verified on mainnet explorer
 export const AMNIS_CONFIG = {
   contractAddress: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a',
+  
+  // Contract Modules
   modules: {
-    core: 'amnis_contract',
-    amaptToken: 'amapt_token',
-    staptToken: 'stapt_token',
-    delegationManager: 'delegation_manager',
+    router: 'router', // Main entry point for user transactions
+    amaptToken: 'amapt_token', // amAPT token module
+    staptToken: 'stapt_token', // stAPT token module
+    delegationManager: 'delegation_manager', // Validator delegation
+    withdrawal: 'withdrawal', // Withdrawal queue management
+    packageManager: 'package_manager', // Contract upgrades
+    treasury: 'treasury', // Protocol treasury
+    aptosGovernance: 'aptos_governance', // Governance participation
   },
+  
+  // Entry Functions (from router.move)
   functions: {
-    // APT -> amAPT (1:1 liquid staking)
-    stake: 'stake',
-    // amAPT -> stAPT (auto-compounding vault)
-    mintStApt: 'mint_st_apt',
-    // stAPT -> amAPT (redeem from vault)
-    redeemStApt: 'redeem_st_apt',
-    // amAPT -> APT instant (with fee via DEX)
-    instantUnstake: 'instant_unstake',
-    // amAPT -> APT delayed (14 days, no fee)
-    requestUnstake: 'request_unstake',
-    claimUnstake: 'claim_unstake',
+    // APT -> amAPT (1:1 liquid staking) - ENTRY FUNCTION
+    depositEntry: 'deposit_entry',
+    // APT -> stAPT directly - ENTRY FUNCTION
+    depositAndStakeEntry: 'deposit_and_stake_entry',
+    // amAPT -> stAPT (auto-compounding vault) - ENTRY FUNCTION
+    stakeEntry: 'stake_entry',
+    // stAPT -> amAPT (redeem from vault) - ENTRY FUNCTION
+    unstakeEntry: 'unstake_entry',
+    // amAPT -> APT delayed (30 days, no fee) - ENTRY FUNCTION
+    requestWithdrawEntry: 'request_withdrawal_entry',
+    claimWithdrawEntry: 'withdraw_entry',
+    // View functions
+    totalApt: 'total_apt',
+    stakePools: 'stake_pools',
   },
+  
+  // Token Types
   tokenTypes: {
     APT: '0x1::aptos_coin::AptosCoin',
     amAPT: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::amapt_token::AmnisApt',
     stAPT: '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt',
   },
+  
+  // Token Decimals (all use 8 decimals like APT)
   decimals: {
     APT: 8,
     amAPT: 8,
     stAPT: 8,
   },
+  
+  // Minimum Amounts
   minAmounts: {
-    stake: 0.1, // 0.1 APT minimum
-    unstake: 0.1, // 0.1 amAPT minimum
-    staptVault: 0.1, // 0.1 amAPT minimum for stAPT vault
+    stake: 0.01, // 0.01 APT minimum (no strict minimum)
+    unstake: 0.01, // 0.01 amAPT minimum
+    staptVault: 0.01, // 0.01 amAPT minimum for stAPT vault
   },
-  unbondingPeriod: 14 * 24 * 60 * 60, // 14 days in seconds
+  
+  // Protocol Parameters
+  unbondingPeriod: 30 * 24 * 60 * 60, // 30 days in seconds (Aptos lockup period)
+  depositFeeBps: 8, // <0.0008% deposit fee (refunded after epoch)
+  performanceFeeBps: 700, // 7% performance fee on rewards
+  
+  // APR Estimates (from official docs and analytics)
   estimatedAPR: {
-    amAPT: 7.0, // ~7% APR for amAPT holders
-    stAPT: 7.5, // ~7.5% APR for stAPT holders (includes auto-compound boost)
+    amAPT: 7.89, // Current 1:1 staking APR (updated)
+    stAPT: 10.5, // Auto-compounding vault APR
+  },
+  
+  // API Endpoints
+  api: {
+    baseUrl: 'https://api.amnis.finance',
+    endpoints: {
+      totalSupply: '/api/v1/am-apt/total-supply',
+      circulatingSupply: '/api/v1/am-apt/circulating-supply',
+    },
+  },
+  
+  // External APIs for metrics
+  externalApis: {
+    coingecko: {
+      priceUrl: 'https://api.coingecko.com/api/v3/simple/price',
+      tokenId: 'amnis-aptos',
+      historicalUrl: 'https://api.coingecko.com/api/v3/coins/amnis-aptos/market_chart',
+    },
+    defiLlama: {
+      protocolUrl: 'https://api.llama.fi/protocol/amnis-finance',
+    },
+  },
+  
+  // Market Stats (updated from on-chain data - Jan 2025)
+  stats: {
+    totalStakers: 460000, // ~460k stakers (from Aptos Foundation)
+    marketShare: 82, // >82% of Aptos liquid staking market
+    tvlUSD: 130000000, // ~$130M TVL (current)
+    totalAptStaked: 33000000, // ~33M APT staked
+    holders: 43354, // On-chain verified holders
   },
 } as const;
 
