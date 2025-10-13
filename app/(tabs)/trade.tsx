@@ -18,7 +18,8 @@ import {
   ArrowLeft,
   RefreshCw,
   Wallet,
-  TrendingUp
+  TrendingUp,
+  Percent
 } from 'lucide-react-native';
 
 // Import trading page components
@@ -34,6 +35,7 @@ import TradingInterface from '../../components/TradingInterface';
 import { SwapInterface } from '../../components/SwapInterface';
 import { WalletConnection } from '../../components/WalletConnection';
 import { StakingHub } from '../../components/StakingHub';
+import { LendDashboard } from '../../components/LendDashboard';
 
 // Responsive breakpoints following 2025 best practices
 const BREAKPOINTS = {
@@ -86,7 +88,7 @@ export default function TradeScreen() {
     '#F97316', // orange
     '#0EA5E9', // sky blue
     '#A855F7', // purple
-    '#22D3EE', // cyan
+    '#2AAA8A', // neon green (swap)
     '#FACC15', // amber
     '#EF4444', // red
     '#14B8A6', // teal
@@ -114,6 +116,12 @@ export default function TradeScreen() {
       title: 'Liquid Staking',
       subtitle: 'Earn APR with Amnis Finance',
       icon: TrendingUp,
+    },
+    {
+      id: 'lend-borrow',
+      title: 'Lend & Borrow',
+      subtitle: 'Supply & borrow on Aries Markets',
+      icon: Percent,
     },
     {
       id: 'swap',
@@ -190,6 +198,8 @@ export default function TradeScreen() {
         return <TradingInterface />;
       case 'staking':
         return <StakingHub />;
+      case 'lend-borrow':
+        return <LendDashboard />;
       case 'swap':
         return <SwapInterface />;
       case 'spot-trading':

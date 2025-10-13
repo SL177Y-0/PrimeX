@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView, Dimensions, Modal } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView, Dimensions, Modal, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Slider } from '@react-native-assets/slider';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAccent } from '../theme/useAccent';
+import { PAGE_ACCENTS } from '../theme/pageAccents';
 import { Card } from './Card';
 import { useWallet } from '../app/providers/WalletProvider';
 import { useMerkleTrading, PlaceOrderParams } from '../hooks/useMerkleTrading';
@@ -54,6 +55,8 @@ const getResponsiveValue = (values: { xs?: number; sm?: number; md?: number; lg?
 export const TradingInterface: React.FC = () => {
   const { theme } = useTheme();
   const accent = useAccent();
+  // Use page-specific orange accent
+  const pageAccent = PAGE_ACCENTS.LEVERAGE;
   const { width: screenWidth } = Dimensions.get('window');
   const isMobile = screenWidth < BREAKPOINTS.md;
   
@@ -2572,39 +2575,52 @@ export const TradingInterface: React.FC = () => {
         </Card>
       )}
 
-      {/* Footer - Powered by Merkle.trade */}
-      <LinearGradient
-        colors={[theme.colors.elevated, theme.colors.bg]}
-        style={{
-          marginTop: spacing.xl,
-          marginHorizontal: spacing.md,
-          borderRadius: 16,
-          padding: spacing.lg,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: spacing.md,
-        }}
-      >
-        <Shield size={18} color={theme.colors.blue} style={{ marginRight: spacing.sm }} />
-        <View>
+      {/* Footer */}
+      <View style={{
+        alignItems: 'center',
+        paddingVertical: spacing.md,
+        marginTop: spacing.md,
+      }}>
+        <Text style={{
+          color: 'rgba(255,255,255,0.35)',
+          fontSize: 11,
+          textAlign: 'center',
+          fontFamily: 'Inter-Medium',
+        }}>
+          Powered by{' '}
           <Text style={{
-            color: theme.colors.textPrimary,
-            fontSize: fontSize.sm,
-            fontFamily: 'Inter-Bold',
+            color: pageAccent.primary,
+            fontFamily: 'Inter-SemiBold',
           }}>
-            Powered by Merkle.trade
+            Merkle Trade
           </Text>
+        </Text>
+      </View>
+
+      {/* Loading Overlay */}
+      <Modal
+        visible={dataLoading}
+        transparent
+        animationType="fade"
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.9)',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+          <ActivityIndicator size="large" color={pageAccent.primary} />
           <Text style={{
-            color: theme.colors.textSecondary,
-            fontSize: fontSize.xs,
+            color: '#FFFFFF',
+            fontSize: fontSize.md,
             fontFamily: 'Inter-Medium',
-            marginTop: 2,
+            textAlign: 'center',
+            marginTop: spacing.md,
           }}>
-            Decentralized Perpetual Trading on Aptos
+            Loading...
           </Text>
         </View>
-      </LinearGradient>
+      </Modal>
     </ScrollView>
   );
 };

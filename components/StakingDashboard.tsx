@@ -20,6 +20,7 @@ import {
 import { AMNIS_CONFIG } from '../config/constants';
 import { useTheme } from '../theme/ThemeProvider';
 import { useResponsive } from '../hooks/useResponsive';
+import { PAGE_ACCENTS } from '../theme/pageAccents';
 import { useWallet } from '../app/providers/WalletProvider';
 import {
   fetchHistoricalAPR,
@@ -36,6 +37,9 @@ export function StakingDashboard() {
   const { theme } = useTheme();
   const { spacing } = useResponsive();
   const { connected, account } = useWallet();
+
+  // Use page-specific blue accent
+  const pageAccent = PAGE_ACCENTS.STAKING;
 
   const [stats, setStats] = useState<EnhancedStakingStats | null>(null);
   const [aprHistory, setAprHistory] = useState<APRDataPoint[]>([]);
@@ -55,7 +59,6 @@ export function StakingDashboard() {
   const gradients = useMemo(() => {
     const surface = theme.colors.surface;
     const elevated = theme.colors.elevated;
-    const blue = theme.colors.blue;
     return {
       tvl: [elevated, surface] as const,
       stakers: [elevated, surface] as const,
@@ -63,10 +66,10 @@ export function StakingDashboard() {
       validators: [elevated, surface] as const,
       aprLiquid: [elevated, surface] as const,
       aprVault: [elevated, surface] as const,
-      highlight: [withAlpha(blue, 0.7), withAlpha(blue, 0.2)] as const,
+      highlight: pageAccent.gradient as readonly [string, string],
       footer: [elevated, theme.colors.bg] as const,
     };
-  }, [theme.colors, withAlpha]);
+  }, [theme.colors, pageAccent]);
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -112,11 +115,11 @@ export function StakingDashboard() {
       {
         key: 'tvl',
         gradient: gradients.tvl,
-        icon: <TrendingUp size={22} color={theme.colors.blue} />,
+        icon: <TrendingUp size={22} color={pageAccent.primary} />,
         label: 'Total Value Locked',
         value: tvlUSD != null ? `$${formatLargeNumber(tvlUSD)}` : '—',
         caption: '+12.5% this month',
-        captionColor: '#22C55E',
+        captionColor: pageAccent.secondary,
       },
       {
         key: 'stakers',
@@ -125,7 +128,7 @@ export function StakingDashboard() {
         label: 'Total Stakers',
         value: totalStakers != null ? formatLargeNumber(totalStakers) : '—',
         caption: '#1 on Aptos',
-        captionColor: theme.colors.blue,
+        captionColor: pageAccent.primary,
       },
       {
         key: 'market',
@@ -134,7 +137,7 @@ export function StakingDashboard() {
         label: 'Market Dominance',
         value: marketShare != null ? `${marketShare.toFixed(0)}%` : '—',
         caption: 'Liquid Staking Leader',
-        captionColor: theme.colors.blue,
+        captionColor: pageAccent.primary,
       },
       {
         key: 'validators',
@@ -146,7 +149,7 @@ export function StakingDashboard() {
         captionColor: '#F59E0B',
       },
     ],
-    [gradients, marketShare, theme.colors, totalStakers, totalValidators, tvlUSD],
+    [gradients, marketShare, theme.colors, pageAccent, totalStakers, totalValidators, tvlUSD],
   );
 
   const aprCards = useMemo(
@@ -154,7 +157,7 @@ export function StakingDashboard() {
       {
         key: 'amapt',
         gradient: gradients.aprLiquid,
-        icon: <TrendingUp size={18} color={theme.colors.blue} />,
+        icon: <TrendingUp size={18} color={pageAccent.primary} />,
         badge: 'Liquid',
         label: 'amAPT APR',
         value: amAptAPR != null ? formatAPR(amAptAPR) : '—',
@@ -170,14 +173,14 @@ export function StakingDashboard() {
         description: 'Compounding vault rewards',
       },
     ],
-    [amAptAPR, gradients.aprLiquid, gradients.aprVault, stAptAPR, theme.colors.blue, theme.colors.purple],
+    [amAptAPR, gradients.aprLiquid, gradients.aprVault, stAptAPR, pageAccent, theme.colors.purple],
   );
 
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator size="large" color={theme.colors.blue} />
-        <Text style={styles.loadingText}>Loading Amnis Finance data…</Text>
+        <ActivityIndicator size="large" color={pageAccent.primary} />
+        <Text style={styles.loadingText}>Loading…</Text>
       </View>
     );
   }
@@ -193,7 +196,7 @@ export function StakingDashboard() {
         <View style={styles.heroGrid}>
           {heroCards.map((card) => (
             <LinearGradient key={card.key} colors={card.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
-              <View style={[styles.heroIcon, { backgroundColor: `${theme.colors.blue}1A` }]}>{card.icon}</View>
+              <View style={[styles.heroIcon, { backgroundColor: pageAccent.light }]}>{card.icon}</View>
               <Text style={styles.heroLabel}>{card.label}</Text>
               <Text style={styles.heroValue}>{card.value}</Text>
               <Text style={[styles.heroCaption, { color: card.captionColor }]}>{card.caption}</Text>
@@ -358,15 +361,27 @@ export function StakingDashboard() {
         </View>
       )}
 
-      <LinearGradient colors={gradients.footer as any} style={styles.footer}>
-        <View style={styles.footerIconContainer}>
-          <Shield size={18} color="#FFFFFF" />
-        </View>
-        <View style={styles.footerTextWrapper}>
-          <Text style={styles.footerTitle}>Powered by Amnis Finance</Text>
-          <Text style={styles.footerSubtitle}>#1 Liquid Staking on Aptos · 82% Market Share · 417K+ Stakers</Text>
-        </View>
-      </LinearGradient>
+      {/* Footer */}
+      <View style={{
+        alignItems: 'center',
+        paddingVertical: spacing.md,
+        marginTop: spacing.md,
+      }}>
+        <Text style={{
+          color: 'rgba(255,255,255,0.35)',
+          fontSize: 11,
+          textAlign: 'center',
+          fontFamily: 'Inter-Medium',
+        }}>
+          Powered by{' '}
+          <Text style={{
+            color: pageAccent.primary,
+            fontFamily: 'Inter-SemiBold',
+          }}>
+            Amnis Finance
+          </Text>
+        </Text>
+      </View>
     </ScrollView>
   );
 }

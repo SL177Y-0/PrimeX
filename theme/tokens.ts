@@ -290,4 +290,5 @@ export const brandPalettes = {
   LTC: { from: '#B5B5B5', to: '#8E8E8E' },
   LINK: { from: '#2A5ADA', to: '#1741AA' },
   APT: { from: '#00D1A0', to: '#00A077' },
+  blue: { from: '#0EA5E9', to: '#06B6D4' },
 };

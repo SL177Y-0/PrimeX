@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useResponsive } from '../hooks/useResponsive';
 import { useTheme } from '../theme/ThemeProvider';
+import { PAGE_ACCENTS } from '../theme/pageAccents';
 import { globalTextInputStyle } from '../styles/globalStyles';
 import { useWallet } from '../app/providers/WalletProvider';
 import { GradientPillButton } from './GradientPillButton';
@@ -51,6 +52,8 @@ type UnstakeMethod = 'instant' | 'delayed';
 export function StakingInterface() {
   const { spacing, fontSize, value } = useResponsive();
   const { theme } = useTheme();
+  // Use page-specific blue accent
+  const pageAccent = PAGE_ACCENTS.STAKING;
   const { connected, account, signAndSubmitTransaction } = useWallet();
   const [mode, setMode] = useState<StakeMode>('stake');
   const [unstakeMethod, setUnstakeMethod] = useState<UnstakeMethod>('instant');
@@ -182,7 +185,7 @@ export function StakingInterface() {
     {
       key: 'liquid',
       gradient: ['#1A1B25', '#12121C'] as const,
-      icon: <TrendingUp size={18} color={theme.colors.blue} />,
+      icon: <TrendingUp size={18} color={pageAccent.primary} />,
       label: 'amAPT APR',
       value:
         stats?.estimatedAmAptAPR != null
@@ -192,7 +195,7 @@ export function StakingInterface() {
     {
       key: 'vault',
       gradient: ['#1A1B25', '#12121C'] as const,
-      icon: <Zap size={18} color="#a78bfa" />,
+      icon: <Zap size={18} color={pageAccent.secondary} />,
       label: 'stAPT APR',
       value:
         stats?.estimatedStAptAPR != null
@@ -244,7 +247,7 @@ export function StakingInterface() {
             const modes: StakeMode[] = ['stake', 'vault', 'unstake'];
             setMode(modes[index]);
           }}
-          // containerStyle removed - not supported
+          accent="blue"
         />
       </LinearGradient>
 
@@ -262,9 +265,9 @@ export function StakingInterface() {
         </View>
         <Pressable style={styles.refreshButton} onPress={fetchData} disabled={refreshing}>
           {refreshing ? (
-            <ActivityIndicator size="small" color="#7C5CFF" />
+            <ActivityIndicator size="small" color={pageAccent.primary} />
           ) : (
-            <Text style={styles.refreshText}>Refresh</Text>
+            <Text style={[styles.refreshText, { color: pageAccent.primary }]}>Refresh</Text>
           )}
         </Pressable>
       </LinearGradient>
@@ -295,7 +298,7 @@ export function StakingInterface() {
 
         {parseFloat(amount) > 0 && (
           <View style={styles.outputRow}>
-            <ArrowDownUp size={16} color={theme.colors.blue} />
+            <ArrowDownUp size={16} color={pageAccent.primary} />
             <Text style={styles.outputText}>
               You will receive {outputAmount.toFixed(6)}{' '}
               {mode === 'stake' ? 'amAPT' : mode === 'vault' ? 'stAPT' : 'amAPT'}
@@ -309,7 +312,11 @@ export function StakingInterface() {
           <Pressable
             style={[
               styles.methodCard,
-              unstakeMethod === 'instant' && styles.methodCardActive,
+              unstakeMethod === 'instant' && {
+                ...styles.methodCardActive,
+                borderColor: pageAccent.primary,
+                shadowColor: pageAccent.primary,
+              },
             ]}
             onPress={() => setUnstakeMethod('instant')}
           >
@@ -327,7 +334,11 @@ export function StakingInterface() {
           <Pressable
             style={[
               styles.methodCard,
-              unstakeMethod === 'delayed' && styles.methodCardActive,
+              unstakeMethod === 'delayed' && {
+                ...styles.methodCardActive,
+                borderColor: pageAccent.primary,
+                shadowColor: pageAccent.primary,
+              },
             ]}
             onPress={() => setUnstakeMethod('delayed')}
           >
@@ -348,7 +359,7 @@ export function StakingInterface() {
         colors={['#050608', '#050608'] as const}
         style={styles.infoCard}
       >
-        <Info size={18} color={theme.colors.blue} />
+        <Info size={18} color={pageAccent.primary} />
         <Text style={styles.infoText}>
           {mode === 'stake' &&
             'Stake APT to receive amAPT (1:1). amAPT stays liquid for DeFi composability while earning staking rewards.'}
@@ -377,6 +388,7 @@ export function StakingInterface() {
           onPress={handleStake}
           disabled={loading || !validation.valid}
           style={styles.ctaButton}
+          accent="blue"
         />
         {!validation.valid && validation.error && (
           <Text style={styles.errorText}>{validation.error}</Text>
@@ -384,7 +396,17 @@ export function StakingInterface() {
         <Text style={styles.feeText}>Estimated fee ~{estimatedFee.toFixed(4)} APT</Text>
       </View>
 
-      <Text style={styles.poweredText}>Liquid Staking on Aptos • Amnis Finance</Text>
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          Powered by{' '}
+          <Text style={{
+            color: pageAccent.primary,
+            fontFamily: 'Inter-SemiBold',
+          }}>
+            Amnis Finance
+          </Text>
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -505,7 +527,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(124,92,255,0.18)',
   },
   refreshText: {
-    color: '#4DD5FF', // Accent color
     fontSize: 12,
     fontWeight: '600',
   },
@@ -588,8 +609,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(61,86,140,0.25)',
   },
   methodCardActive: {
-    borderColor: '#4DD5FF',
-    shadowColor: '#4DD5FF',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,
     shadowRadius: 16,
@@ -648,10 +667,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     fontSize: 12,
   },
-  poweredText: {
+  footer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginTop: 8,
+  },
+  footerText: {
     color: 'rgba(255,255,255,0.35)',
     fontSize: 11,
     textAlign: 'center',
-    marginTop: 8,
+    fontFamily: 'Inter-Medium',
   },
 });

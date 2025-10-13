@@ -30,6 +30,7 @@ import { useResponsive } from '../hooks/useResponsive';
 import { BREAKPOINTS } from '../hooks/useResponsive';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAccent } from '../theme/useAccent';
+import { PAGE_ACCENTS } from '../theme/pageAccents';
 import { useWallet } from '../app/providers/WalletProvider';
 
 // Alias for backward compatibility
@@ -374,10 +375,10 @@ function SwapDetails({ quote, slippage, onSlippageChange, fromAmount }: SwapDeta
 
 export function SwapInterface() {
   const { theme } = useTheme();
-  const accentColors = useAccent();
+  // Use page-specific cyan accent
+  const pageAccent = PAGE_ACCENTS.SWAP;
   const { connected, account, signAndSubmitTransaction, connectExtension } = useWallet();
   const { value, spacing, fontSize } = useResponsive();
-
   // Real token balances - fetched from blockchain
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({});
   const [loadingBalances, setLoadingBalances] = useState(false);
@@ -741,7 +742,7 @@ export function SwapInterface() {
                     Alert.alert('Transaction Hash', swapResultDetails.txHash);
                   }}
                 >
-                  <Text style={[styles.successHash, { color: accentColors.from }]}>
+                  <Text style={[styles.successHash, { color: pageAccent.primary }]}>
                     {swapResultDetails.txHash.slice(0, 10)}...
                   </Text>
                 </Pressable>
@@ -795,13 +796,38 @@ export function SwapInterface() {
         }}>
           Powered by{' '}
           <Text style={{
-            color: accentColors.from,
+            color: pageAccent.primary,
             fontFamily: 'Inter-SemiBold',
           }}>
             PanoraSwap
           </Text>
         </Text>
       </View>
+
+      {/* Loading Overlay */}
+      <Modal
+        visible={isLoading || isSwapping}
+        transparent
+        animationType="fade"
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.9)',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+          <ActivityIndicator size="large" color={pageAccent.primary} />
+          <Text style={{
+            color: '#FFFFFF',
+            fontSize: fontSize.md,
+            fontFamily: 'Inter-Medium',
+            textAlign: 'center',
+            marginTop: spacing.md,
+          }}>
+            Loading...
+          </Text>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

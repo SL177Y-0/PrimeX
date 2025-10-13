@@ -481,6 +481,183 @@ export const STAKING_CONSTANTS = {
   HIGH_SLIPPAGE_WARNING: 5, // 5% warning threshold
 } as const;
 
+// ============================================================================
+// Aries Markets Lending & Borrowing Configuration
+// ============================================================================
+
+export const ARIES_CONFIG = {
+  contractAddress: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f1554beb0750d4dae4c64e860da3',
+  
+  // Protocol Modules
+  modules: {
+    borrowType: 'borrow_type',
+    controller: 'controller',
+    reserve: 'reserve',
+    reserveConfig: 'reserve_config',
+    reserveDetails: 'reserve_details',
+    profile: 'profile',
+    profileFarm: 'profile_farm',
+    reserveFarm: 'reserve_farm',
+    oracle: 'oracle',
+    interestRateConfig: 'interest_rate_config',
+    emodeCategory: 'emode_category',
+  },
+  
+  // View Functions
+  viewFunctions: {
+    getReserve: 'get_reserve',
+    getUserProfile: 'get_user_profile',
+    getPoolInfo: 'get_pool_info',
+    getUserBorrowedAssets: 'get_borrowed_assets',
+    getUserDepositedAssets: 'get_deposited_assets',
+    getHealthFactor: 'get_health_factor',
+  },
+  
+  // Entry Functions
+  entryFunctions: {
+    deposit: 'deposit',
+    withdraw: 'withdraw',
+    borrow: 'borrow',
+    repay: 'repay',
+    addSubaccount: 'add_subaccount',
+    claimReward: 'claim_reward',
+    flashLoan: 'flash_loan',
+  },
+  
+  // Supported Assets (Paired Pools - Cross-Margin)
+  pairedAssets: {
+    APT: {
+      coinType: '0x1::aptos_coin::AptosCoin',
+      symbol: 'APT',
+      name: 'Aptos',
+      decimals: 8,
+      isWrapped: false,
+    },
+    USDC: {
+      coinType: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC',
+      symbol: 'USDC',
+      name: 'USD Coin',
+      decimals: 6,
+      isWrapped: false,
+    },
+    USDT: {
+      coinType: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDT',
+      symbol: 'USDT',
+      name: 'Tether USD',
+      decimals: 6,
+      isWrapped: false,
+    },
+    WBTC: {
+      coinType: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::WBTC',
+      symbol: 'WBTC',
+      name: 'Wrapped Bitcoin',
+      decimals: 8,
+      isWrapped: false,
+    },
+    SOL: {
+      coinType: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::SOL',
+      symbol: 'SOL',
+      name: 'Wrapped Solana',
+      decimals: 8,
+      isWrapped: false,
+    },
+  },
+  
+  // Isolated Assets (Wrapped for FA compatibility)
+  isolatedAssets: {
+    AWUSDC: {
+      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f5907926a9e58338f964a01b17fa::fa_to_coin_wrapper::WrappedUSDC',
+      symbol: 'AWUSDC',
+      name: 'Wrapped USDC',
+      decimals: 6,
+      isWrapped: true,
+      underlyingAsset: 'USDC',
+    },
+    AWUSDT: {
+      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f5907926a9e58338f964a01b17fa::fa_to_coin_wrapper::WrappedUSDT',
+      symbol: 'AWUSDT',
+      name: 'Wrapped USDT',
+      decimals: 6,
+      isWrapped: true,
+      underlyingAsset: 'USDT',
+    },
+    AWWBTC: {
+      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f5907926a9e58338f964a01b17fa::fa_to_coin_wrapper::WrappedWBTC',
+      symbol: 'AWWBTC',
+      name: 'Wrapped WBTC',
+      decimals: 8,
+      isWrapped: true,
+      underlyingAsset: 'WBTC',
+    },
+  },
+  
+  // Default Risk Parameters (typical values from docs)
+  defaultRiskParams: {
+    loanToValue: 7500, // 75% in basis points
+    liquidationThreshold: 8000, // 80% in basis points
+    liquidationBonus: 500, // 5% bonus
+    reserveRatio: 1000, // 10% reserve factor
+  },
+  
+  // Interest Rate Model Defaults
+  defaultInterestModel: {
+    minBorrowRate: 200, // 2% in basis points
+    optimalBorrowRate: 800, // 8%
+    maxBorrowRate: 3000, // 30%
+    optimalUtilization: 8000, // 80%
+  },
+  
+  // Protocol Stats (from DefiLlama & official sources)
+  stats: {
+    tvlUSD: 75000000, // ~$75M TVL
+    totalBorrowedUSD: 36000000, // ~$36M borrowed
+    totalUsers: 12000, // ~12k users
+    totalReserves: 20, // 20+ asset reserves
+  },
+  
+  // API & External Data
+  api: {
+    // Revela decompiler (for contract inspection only)
+    revelaUrl: 'https://revela.verichains.io/aptos',
+    // Official docs
+    docsUrl: 'https://docs.ariesmarkets.xyz',
+  },
+  
+  // Health Factor Thresholds
+  healthFactorThresholds: {
+    safe: 1.5, // >= 1.5 is safe
+    warning: 1.2, // 1.2-1.5 is warning
+    danger: 1.1, // 1.1-1.2 is danger
+    liquidation: 1.0, // < 1.0 can be liquidated
+  },
+  
+  // Fee Structure
+  fees: {
+    borrowFee: 10, // 0.10% in hundredth basis points
+    withdrawFee: 100, // 0.01%
+    flashLoanFee: 30, // 0.03%
+  },
+  
+  // Refresh Intervals
+  refreshIntervals: {
+    pools: 30000, // 30 seconds
+    userPositions: 15000, // 15 seconds
+    aprHistory: 300000, // 5 minutes
+    events: 60000, // 1 minute
+  },
+} as const;
+
+// Lending Constants
+export const LENDING_CONSTANTS = {
+  MIN_HEALTH_FACTOR: 1.0,
+  SAFE_HEALTH_FACTOR: 1.5,
+  WARNING_HEALTH_FACTOR: 1.2,
+  MIN_SUPPLY_AMOUNT: 0.01, // Minimum supply amount in native units
+  MIN_BORROW_AMOUNT: 0.01, // Minimum borrow amount
+  MAX_UTILIZATION: 0.95, // 95% max utilization warning
+  OPTIMAL_UTILIZATION: 0.80, // 80% optimal utilization
+} as const;
+
 // Type exports for better TypeScript support
 export type MarketName = keyof typeof MARKETS;
 export type WalletName = typeof WALLET_CONFIG.supportedWallets[number];

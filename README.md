@@ -108,6 +108,44 @@ Native integration with Amnis Finance liquid staking protocol on Aptos mainnet, 
 - [components/StakingHub.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/StakingHub.tsx:0:0-0:0) (3.1KB): Navigation and feature discovery
 - Mainnet-only deployment (Amnis Finance operates exclusively on mainnet)
 
+### Lending & Borrowing Infrastructure
+
+**Aries Markets Protocol Integration**
+
+Full-featured lending and borrowing platform integrated with Aries Markets, the leading DeFi lending protocol on Aptos with $75M+ TVL:
+
+**Protocol Architecture**
+- **Paired Pools**: Cross-margin lending with shared liquidity across multiple assets
+- **Isolated Pools**: Risk-isolated markets for single-asset lending/borrowing
+- **Dynamic Interest Rates**: Piecewise linear model with optimal utilization kink point
+- **Health Factor System**: Real-time liquidation risk monitoring and simulation
+
+**Supported Assets**
+- APT, USDC, USDT, WBTC, SOL for paired pools
+- Wrapped assets (AWUSDC, AWUSDT, AWWBTC) for isolated markets
+- 20+ total reserve markets with independent risk parameters
+
+**Core Features**
+- Supply assets to earn interest with dynamic APR (2-30% range)
+- Borrow against collateral with health factor protection
+- Real-time utilization tracking and APR calculations
+- Protocol overview dashboard with TVL, borrowing, and utilization metrics
+- User portfolio management with position breakdown
+- Safety validation before every transaction
+
+**Risk Management**
+- Health Factor thresholds: Safe (≥1.5), Warning (1.2-1.5), Danger (1.1-1.2), Liquidation (<1.0)
+- Max LTV enforcement per asset (typically 75%)
+- Liquidation threshold monitoring (typically 80%)
+- Action validation with projected health factor simulation
+
+**Technical Implementation**
+- [services/ariesLendingService.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/services/ariesLendingService.ts:0:0-0:0) (516 lines): Complete Aries protocol integration
+- [components/LendDashboard.tsx](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/components/LendDashboard.tsx:0:0-0:0) (510 lines): Professional lending UI
+- [hooks/useAriesLending.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/hooks/useAriesLending.ts:0:0-0:0) (230 lines): Data fetching with auto-refresh
+- [utils/ariesMath.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/utils/ariesMath.ts:0:0-0:0) (420 lines): Interest rate and health factor calculations
+- [types/aries.ts](cci:7://file:///c:/Users/Administrator/Downloads/TRADE_APP_UI/types/aries.ts:0:0-0:0) (220 lines): Complete TypeScript definitions
+
 ### Multi-Wallet Connectivity System
 
 **Universal Wallet Infrastructure**
@@ -333,6 +371,9 @@ TRADE_APP_UI/
 │   ├── colors.ts                       # Color palette
 │   ├── typography.ts                   # Font system
 │   ├── spacing.ts                      # Layout spacing
+│   ├── pageAccents.ts                  # Page-specific color schemes
+│   ├── useAccent.ts                    # Accent color hook
+│   ├── ThemeProvider.tsx               # Theme context provider
 │   └── index.ts                        # Theme exports
 │
 ├── types/                               # TypeScript definitions
@@ -355,6 +396,49 @@ TRADE_APP_UI/
 ├── tsconfig.json                        # TypeScript config
 └── README.md                            # This file
 ```
+
+## UI/UX Design System
+
+### Page-Specific Color Schemes
+
+Each major feature has a unique color identity while maintaining consistent layout and component structure:
+
+**Leverage Trading - Orange/Amber Theme**
+- Primary: `#F97316` (orange-500)
+- Used for: Merkle Trade perpetual futures interface
+- Accent gradients: Orange to Amber
+- Conveys: Energy, action, high-stakes trading
+
+**Liquid Staking - Blue/Sky Theme**
+- Primary: `#0EA5E9` (sky-500)
+- Used for: Amnis Finance liquid staking
+- Accent gradients: Sky to Cyan
+- Conveys: Trust, stability, long-term growth
+
+**Lend & Borrow - Purple/Violet Theme**
+- Primary: `#A855F7` (purple-500)
+- Used for: Aries Markets lending protocol
+- Accent gradients: Purple to Violet
+- Conveys: Wealth, sophistication, premium DeFi
+
+**Swap Tokens - Cyan/Teal Theme**
+- Primary: `#22D3EE` (cyan-400)
+- Used for: Panora Exchange token swaps
+- Accent gradients: Cyan to Teal
+- Conveys: Fresh, modern, fast transactions
+
+### Consistent UI Elements
+
+All pages share identical layout patterns:
+- Hero card grids with protocol overview metrics
+- Glassmorphic component backgrounds
+- Gradient accent cards and buttons
+- Loading states with page-specific colors
+- Interactive elements with haptic feedback
+- Responsive spacing and typography
+- Professional data visualization
+
+Implementation: `theme/pageAccents.ts` provides centralized color management with `PAGE_ACCENTS` constant and `usePageAccent()` hook.
 
 ## Installation and Setup
 
