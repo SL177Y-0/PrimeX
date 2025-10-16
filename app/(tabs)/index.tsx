@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { 
@@ -87,6 +87,34 @@ export default function TradeCenterScreen() {
     setHideBalances
   } = useAppStore();
   
+  // Scroll position ref to prevent jitter
+  const scrollViewRef = useRef<Animated.ScrollView>(null);
+  const scrollPositionRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const [isScrollRestoring, setIsScrollRestoring] = useState(false);
+
+  // Track scroll position to prevent jump on data update
+  const handleScroll = useCallback((event: any) => {
+    if (!isScrollRestoring) {
+      scrollPositionRef.current = event.nativeEvent.contentOffset.y;
+    }
+  }, [isScrollRestoring]);
+
+  // Restore scroll position when content changes
+  const handleContentSizeChange = useCallback((width: number, height: number) => {
+    const savedPosition = scrollPositionRef.current;
+    
+    if (contentHeightRef.current !== height && savedPosition > 0 && scrollViewRef.current) {
+      setIsScrollRestoring(true);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: savedPosition, animated: false });
+        setIsScrollRestoring(false);
+      }, 50);
+    }
+    
+    contentHeightRef.current = height;
+  }, []);
+  
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <View style={{ flex: 1 }}>
@@ -112,6 +140,7 @@ export default function TradeCenterScreen() {
         </Animated.View>
 
         <Animated.ScrollView 
+          ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={[styles.scrollContent, { 
             paddingTop: 60 + insets.top + 20,
@@ -121,6 +150,9 @@ export default function TradeCenterScreen() {
           showsHorizontalScrollIndicator={false}
           bounces={true}
           alwaysBounceVertical={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          onContentSizeChange={handleContentSizeChange}
         >
 
         {/* Portfolio Card */}

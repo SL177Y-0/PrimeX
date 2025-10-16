@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -46,6 +46,12 @@ export function StakingDashboard() {
   const [userRewards, setUserRewards] = useState<UserRewardSummary | null>(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState<30 | 60 | 90>(30);
   const [loading, setLoading] = useState(true);
+
+  // Scroll position ref to prevent jitter
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollPositionRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const [isScrolling, setIsScrolling] = useState(false);
 
   const withAlpha = useCallback((hex: string, alpha: number) => {
     const normalized = hex.replace('#', '');
@@ -176,6 +182,29 @@ export function StakingDashboard() {
     [amAptAPR, gradients.aprLiquid, gradients.aprVault, stAptAPR, pageAccent, theme.colors.purple],
   );
 
+  // Track scroll position to prevent jump on data update
+  // MUST be before early returns to maintain hook order
+  const handleScroll = useCallback((event: any) => {
+    if (!isScrolling) {
+      scrollPositionRef.current = event.nativeEvent.contentOffset.y;
+    }
+  }, [isScrolling]);
+
+  // Restore scroll position when content changes
+  const handleContentSizeChange = useCallback((width: number, height: number) => {
+    const savedPosition = scrollPositionRef.current;
+    
+    if (contentHeightRef.current !== height && savedPosition > 0 && scrollViewRef.current) {
+      setIsScrolling(true);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: savedPosition, animated: false });
+        setIsScrolling(false);
+      }, 50);
+    }
+    
+    contentHeightRef.current = height;
+  }, []);
+
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.colors.bg }]}>
@@ -187,9 +216,13 @@ export function StakingDashboard() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={[styles.container, { backgroundColor: theme.colors.bg }]}
       contentContainerStyle={[styles.scrollContent, { paddingHorizontal: spacing.md }]}
       showsVerticalScrollIndicator={false}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
+      onContentSizeChange={handleContentSizeChange}
     >
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Protocol Overview</Text>

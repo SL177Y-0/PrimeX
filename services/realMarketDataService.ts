@@ -1,5 +1,6 @@
 import { TRADING_CONSTANTS } from '../config/constants';
 import { log } from '../utils/logger';
+import { priceOracleService } from './priceOracleService';
 
 export interface RealMarketData {
   symbol: string;
@@ -33,8 +34,8 @@ export interface FundingRateData {
 class RealMarketDataService {
   private cache: Map<string, { data: RealMarketData; timestamp: number }> = new Map();
   private readonly CACHE_DURATION = 30000; // 30 seconds
-  private wsConnections: Map<string, WebSocket> = new Map();
   private subscribers: Map<string, Set<(data: RealMarketData) => void>> = new Map();
+  private pollingIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
 
   // Symbol mapping for different APIs
   // Using underscore format to match MARKETS keys in constants.ts
@@ -46,7 +47,7 @@ class RealMarketDataService {
     'DOGE_USD': { coingecko: 'dogecoin', binance: 'DOGEUSDT', symbol: 'DOGE', display: 'DOGE/USD' },
   };
 
-  // Get real market data from CoinGecko API
+  // Get real market data using priceOracleService (consolidated price logic)
   async getMarketData(symbol: string): Promise<RealMarketData | null> {
     try {
       // Check cache first
@@ -61,32 +62,19 @@ class RealMarketDataService {
         return null;
       }
 
-      // Fetch from CoinGecko API (free tier)
-      const response = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${mapping.coingecko}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true&include_last_updated_at=true`
-      );
-
-      if (!response.ok) {
-        throw new Error(`CoinGecko API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const coinData = data[mapping.coingecko];
-
-      if (!coinData) {
-        throw new Error(`No data found for ${mapping.coingecko}`);
-      }
+      // Use priceOracleService for price data (deduplication + Pyth/CoinGecko)
+      const priceData = await priceOracleService.getPrice(mapping.symbol);
 
       const marketData: RealMarketData = {
         symbol,
-        price: coinData.usd || 0,
-        change24h: coinData.usd_24h_change || 0,
-        changePercent24h: coinData.usd_24h_change || 0,
-        volume24h: coinData.usd_24h_vol || 0,
-        high24h: 0, // CoinGecko simple API doesn't provide high/low
-        low24h: 0,
-        marketCap: coinData.usd_market_cap,
-        lastUpdated: Date.now(),
+        price: priceData.priceUSD || 0,
+        change24h: 0, // Would need historical data
+        changePercent24h: 0, // Would need historical data
+        volume24h: 0, // Would need market data API
+        high24h: 0, // Would need OHLC data
+        low24h: 0, // Would need OHLC data
+        marketCap: undefined,
+        lastUpdated: priceData.timestamp,
       };
 
       // Cache the result
@@ -226,7 +214,6 @@ class RealMarketDataService {
     };
   }
 
-  private pollingIntervals: Map<string, any> = new Map();
 
   private startPolling(symbol: string) {
     if (this.pollingIntervals.has(symbol)) return;
@@ -295,10 +282,6 @@ class RealMarketDataService {
     
     // Clear cache
     this.cache.clear();
-    
-    // Close WebSocket connections
-    this.wsConnections.forEach(ws => ws.close());
-    this.wsConnections.clear();
   }
 }
 

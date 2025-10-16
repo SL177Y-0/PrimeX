@@ -45,6 +45,7 @@ import {
   type StakingStats,
 } from '../services/amnisService';
 import { AMNIS_CONFIG, STAKING_CONSTANTS } from '../config/constants';
+import { databaseService } from '../services/database.service';
 
 type StakeMode = 'stake' | 'vault' | 'unstake';
 type UnstakeMethod = 'instant' | 'delayed';
@@ -60,8 +61,22 @@ export function StakingInterface() {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [balances, setBalances] = useState<StakingBalance>({ apt: '0', amAPT: '0', stAPT: '0' });
+  const [balances, setBalances] = useState<StakingBalance | null>(null);
   const [stats, setStats] = useState<StakingStats | null>(null);
+
+  // Initialize staking feature on first access
+  useEffect(() => {
+    const initFeature = async () => {
+      if (!connected || !account?.address) return;
+      
+      const isInit = await databaseService.isFeatureInitialized(account.address, 'staking');
+      if (!isInit) {
+        await databaseService.initializeStakingFeature(account.address);
+      }
+    };
+    
+    initFeature();
+  }, [connected, account?.address]);
 
   useEffect(() => {
     if (!connected || !account) return;
@@ -106,6 +121,7 @@ export function StakingInterface() {
   }, [amount, mode, stats]);
 
   const getCurrentBalance = useCallback(() => {
+    if (!balances) return 0;
     if (mode === 'stake') return fromOctas(balances.apt);
     if (mode === 'vault') return fromOctas(balances.amAPT);
     return fromOctas(balances.stAPT);
@@ -147,6 +163,40 @@ export function StakingInterface() {
       }
 
       const result = await signAndSubmitTransaction(transaction);
+      
+      // ✅ Save staking position to Supabase (only for stake/vault, not unstake)
+      if (account?.address && (mode === 'stake' || mode === 'vault')) {
+        try {
+          const apr = mode === 'stake' 
+            ? (stats?.estimatedAmAptAPR || 0) 
+            : (stats?.estimatedAmAptAPR || 0); // Both use same APR source
+          
+          await databaseService.saveStakingPosition({
+            user_address: account.address,
+            stake_amount: amount,
+            stake_amount_usd: (parseFloat(amount) * 10).toString(), // Simplified USD calculation
+            protocol_name: 'Amnis Finance',
+            annual_percentage_yield: apr.toString(),
+            rewards_earned: '0',
+          });
+          
+          // Log transaction
+          await databaseService.saveTransaction({
+            user_address: account.address,
+            transaction_hash: result.hash,
+            transaction_type: 'stake',
+            asset_symbol: mode === 'vault' ? 'stAPT' : 'amAPT',
+            amount: amount,
+            amount_usd: (parseFloat(amount) * 10).toString(),
+            status: 'confirmed',
+          });
+          
+          console.log('[StakingInterface] ✅ Staking position saved to Supabase');
+        } catch (dbError) {
+          console.error('[StakingInterface] Failed to save to Supabase:', dbError);
+        }
+      }
+      
       Alert.alert('Transaction Submitted', `Transaction hash: ${result.hash.substring(0, 20)}...`, [
         {
           text: 'OK',

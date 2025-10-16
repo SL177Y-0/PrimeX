@@ -554,41 +554,51 @@ export const ARIES_CONFIG = {
       decimals: 8,
       isWrapped: false,
     },
-    SOL: {
-      coinType: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::SOL',
-      symbol: 'SOL',
-      name: 'Wrapped Solana',
-      decimals: 8,
-      isWrapped: false,
-    },
+    // SOL: Reserve not deployed on mainnet yet (vm_error_code: 2021)
+    // SOL: {
+    //   coinType: '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::SOL',
+    //   symbol: 'SOL',
+    //   name: 'Wrapped Solana',
+    //   decimals: 8,
+    //   isWrapped: false,
+    // },
   },
   
-  // Isolated Assets (Wrapped for FA compatibility)
+  // Isolated Assets (Wrapped from wrapped_coins module - from decompiled contract)
   isolatedAssets: {
-    AWUSDC: {
-      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f5907926a9e58338f964a01b17fa::fa_to_coin_wrapper::WrappedUSDC',
-      symbol: 'AWUSDC',
-      name: 'Wrapped USDC',
+    WrappedUSDC: {
+      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f1554beb0750d4dae4c64e860da3::wrapped_coins::WrappedUSDC',
+      symbol: 'WrappedUSDC',
+      name: 'Aries Wrapped USDC',
       decimals: 6,
       isWrapped: true,
       underlyingAsset: 'USDC',
     },
-    AWUSDT: {
-      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f5907926a9e58338f964a01b17fa::fa_to_coin_wrapper::WrappedUSDT',
-      symbol: 'AWUSDT',
-      name: 'Wrapped USDT',
-      decimals: 6,
-      isWrapped: true,
-      underlyingAsset: 'USDT',
-    },
-    AWWBTC: {
-      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f5907926a9e58338f964a01b17fa::fa_to_coin_wrapper::WrappedWBTC',
-      symbol: 'AWWBTC',
-      name: 'Wrapped WBTC',
+    WrappedWBTC: {
+      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f1554beb0750d4dae4c64e860da3::wrapped_coins::WrappedWBTC',
+      symbol: 'WrappedWBTC',
+      name: 'Aries Wrapped WBTC',
       decimals: 8,
       isWrapped: true,
       underlyingAsset: 'WBTC',
     },
+    WrappedXBTC: {
+      coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f1554beb0750d4dae4c64e860da3::wrapped_coins::WrappedXBTC',
+      symbol: 'WrappedXBTC',
+      name: 'Aries Wrapped XBTC',
+      decimals: 8,
+      isWrapped: true,
+      underlyingAsset: 'XBTC',
+    },
+    // WrappedStkAPT: Reserve not deployed (ERESERVE_RESERVE_NOT_EXIST: 0x7)
+    // WrappedStkAPT: {
+    //   coinType: '0x9770fa9c725cbd97eb50b2be5f7416efdfd1f1554beb0750d4dae4c64e860da3::wrapped_coins::WrappedStkAPT',
+    //   symbol: 'WrappedStkAPT',
+    //   name: 'Aries Wrapped StkAPT',
+    //   decimals: 8,
+    //   isWrapped: true,
+    //   underlyingAsset: 'stAPT',
+    // },
   },
   
   // Default Risk Parameters (typical values from docs)

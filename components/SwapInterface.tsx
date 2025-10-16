@@ -32,6 +32,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { useAccent } from '../theme/useAccent';
 import { PAGE_ACCENTS } from '../theme/pageAccents';
 import { useWallet } from '../app/providers/WalletProvider';
+import { databaseService } from '../services/database.service';
 
 // Alias for backward compatibility
 const panoraSwapService = panoraSwapSDK;
@@ -414,9 +415,23 @@ export function SwapInterface() {
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
   const [quote, setQuote] = useState<SwapQuoteResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [slippage, setSlippage] = useState(0.5);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
+  
+  // ✅ Initialize swap feature on first access
+  useEffect(() => {
+    const initFeature = async () => {
+      if (!connected || !account?.address) return;
+      
+      const isInit = await databaseService.isFeatureInitialized(account.address, 'swap');
+      if (!isInit) {
+        await databaseService.initializeSwapFeature(account.address);
+      }
+    };
+    
+    initFeature();
+  }, [connected, account?.address]);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [swapResultDetails, setSwapResultDetails] = useState<{
     txHash: string;
@@ -604,6 +619,40 @@ export function SwapInterface() {
         fromAmount,
         toAmount: normalizedPayload.arguments?.length ? String(toAmount) : toAmount,
       });
+
+      // ✅ Save swap to Supabase
+      if (account?.address) {
+        try {
+          const exchangeRate = parseFloat(toAmount) / parseFloat(fromAmount);
+          
+          await databaseService.saveSwap({
+            user_address: account.address,
+            from_token: fromTokenData?.symbol || fromToken,
+            to_token: toTokenData?.symbol || toToken,
+            from_amount: fromAmount,
+            to_amount: toAmount,
+            exchange_rate: exchangeRate.toString(),
+            slippage: '0', // Slippage calculated by Panora
+            transaction_hash: result.hash,
+            status: confirmed ? 'completed' : 'pending',
+          });
+          
+          // Log transaction
+          await databaseService.saveTransaction({
+            user_address: account.address,
+            transaction_hash: result.hash,
+            transaction_type: 'swap',
+            asset_symbol: `${fromTokenData?.symbol || fromToken}->${toTokenData?.symbol || toToken}`,
+            amount: fromAmount,
+            amount_usd: '0', // TODO: Calculate USD value
+            status: 'confirmed',
+          });
+          
+          console.log('[SwapInterface] ✅ Swap saved to Supabase');
+        } catch (dbError) {
+          console.error('[SwapInterface] Failed to save to Supabase:', dbError);
+        }
+      }
 
       setShowSuccessModal(true);
       

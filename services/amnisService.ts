@@ -8,42 +8,12 @@
  * @see https://docs.amnis.finance
  */
 
-import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { AMNIS_CONFIG, APTOS_CONFIG } from '../config/constants';
 import { log } from '../utils/logger';
-import { aptosClient } from '../utils/aptosClient'; // Use same client as swap page
+import { aptosClient } from '../utils/aptosClient'; // Unified Aptos client
 
-// Initialize Aptos client
 // Amnis Finance is MAINNET ONLY - no testnet deployment!
-const USE_TESTNET = false; // Amnis only works on mainnet
-
-const TESTNET_RPC_ENDPOINTS = [
-  'https://fullnode.testnet.aptoslabs.com/v1',
-  'https://aptos-testnet.pontem.network/v1',
-];
-
-const MAINNET_RPC_ENDPOINTS = [
-  'https://aptos-mainnet.pontem.network/v1',
-  'https://fullnode.mainnet.aptoslabs.com/v1',
-  'https://rpc.ankr.com/http/aptos/v1',
-];
-
-let currentEndpointIndex = 0;
-
-function getNextEndpoint(): string {
-  const endpoints = USE_TESTNET ? TESTNET_RPC_ENDPOINTS : MAINNET_RPC_ENDPOINTS;
-  const endpoint = endpoints[currentEndpointIndex];
-  currentEndpointIndex = (currentEndpointIndex + 1) % endpoints.length;
-  return endpoint;
-}
-
-const config = new AptosConfig({
-  network: USE_TESTNET ? Network.TESTNET : Network.MAINNET,
-  fullnode: getNextEndpoint(),
-});
-const aptos = new Aptos(config);
-
-console.log(`[AmnisService] Running on ${USE_TESTNET ? 'TESTNET' : 'MAINNET'}`);
+console.log('[AmnisService] Using shared aptosClient (mainnet)');
 
 // ============================================================================
 // Type Definitions
@@ -92,7 +62,7 @@ export async function getUserBalances(
   try {
     // Normalize address (ensure proper format)
     const normalizedAddress = userAddress.startsWith('0x') ? userAddress : `0x${userAddress}`;
-    console.log(`[AmnisService] Fetching balances for: ${normalizedAddress} (${USE_TESTNET ? 'TESTNET' : 'MAINNET'})`);
+    console.log(`[AmnisService] Fetching balances for: ${normalizedAddress}`);
     
     const [aptBalance, amAptBalance, stAptBalance] = await Promise.all([
       getTokenBalance(normalizedAddress, AMNIS_CONFIG.tokenTypes.APT),
@@ -130,7 +100,7 @@ async function getTokenBalance(
   coinType: string
 ): Promise<string> {
   try {
-    console.log(`[AmnisService] Querying ${coinType.split('::').pop()} for ${accountAddress.slice(0, 10)}... (${USE_TESTNET ? 'TESTNET' : 'MAINNET'})`);
+    console.log(`[AmnisService] Querying ${coinType.split('::').pop()} for ${accountAddress.slice(0, 10)}...`);
     
     // Use official SDK method for APT
     if (coinType === AMNIS_CONFIG.tokenTypes.APT) {
@@ -168,7 +138,7 @@ async function getTokenBalance(
 
     // Fallback: query CoinStore in case protocol still exposes Coin type
     try {
-      const resource = await aptos.getAccountResource({
+      const resource = await aptosClient.getAccountResource({
         accountAddress,
         resourceType: `0x1::coin::CoinStore<${coinType}>`,
       });
@@ -186,24 +156,10 @@ async function getTokenBalance(
       return '0';
     }
     
-    // If rate limited, try alternative endpoint
+    // If rate limited, return 0 (shared client handles rate limiting)
     if (error?.status === 429) {
-      console.log('[AmnisService] Rate limit hit, switching endpoint...');
-      try {
-        const altConfig = new AptosConfig({
-          network: Network.MAINNET,
-          fullnode: getNextEndpoint(),
-        });
-        const altAptos = new Aptos(altConfig);
-        const resource = await altAptos.getAccountResource({
-          accountAddress,
-          resourceType: `0x1::coin::CoinStore<${coinType}>`,
-        });
-        return (resource as any).coin.value || '0';
-      } catch (retryError: any) {
-        console.warn(`[AmnisService] Retry failed for ${coinType}`);
-        return '0';
-      }
+      console.warn(`[AmnisService] Rate limit encountered for ${coinType}`);
+      return '0';
     }
     
     console.warn(`[AmnisService] Error fetching balance for ${coinType}:`, error?.message || error);
@@ -266,7 +222,7 @@ async function getTotalAptStaked(): Promise<string> {
       typeArguments: [],
     };
 
-    const result = await aptos.view({ payload });
+    const result = await aptosClient.view({ payload });
     // Returns [total, active, pending_inactive]
     return result[0]?.toString() || '0';
   } catch (error) {
@@ -286,7 +242,7 @@ async function getTokenSupply(coinType: string): Promise<string> {
       typeArguments: [],
     };
 
-    const result = await aptos.view({ payload });
+    const result = await aptosClient.view({ payload });
     return result[0]?.toString() || '0';
   } catch (error) {
     return '0';
@@ -304,7 +260,7 @@ async function getStAptExchangeRate(): Promise<number> {
       typeArguments: [],
     };
 
-    const result = await aptos.view({ payload });
+    const result = await aptosClient.view({ payload });
     const rate = Number(result[0]) / 1e8; // Convert from fixed-point
     return rate > 0 ? rate : 1.0;
   } catch (error) {
@@ -514,7 +470,7 @@ export async function getPendingUnstakeRequests(
   }
 
   try {
-    const client: any = aptos as any;
+    const client: any = aptosClient as any;
     if (!client?.getAccountOwnedObjects) {
       log.warn('Aptos client does not expose getAccountOwnedObjects, skipping withdrawal fetch');
       return [];

@@ -4,10 +4,12 @@ import 'react-native-url-polyfill/auto';
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo } from 'react';
 import { Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { googleAuthService } from '../../services/googleAuthService';
+import { walletAuthService } from '../../services/walletAuthService';
 
 // Types for wallet integration
-export type WalletName = 'Petra' | 'Martian' | 'Pontem' | 'Fewcha';
-export type ConnectionMethod = 'extension' | 'deeplink';
+export type WalletName = 'Petra' | 'Martian' | 'Pontem' | 'Fewcha' | 'Google';
+export type ConnectionMethod = 'extension' | 'deeplink' | 'google';
 
 export interface WalletAccount {
   address: string;
@@ -50,6 +52,7 @@ interface WalletContextType {
   // Connection methods
   connectExtension: (walletName: WalletName) => Promise<void>;
   connectDeepLink: (walletName: WalletName) => Promise<void>;
+  connectGoogle: () => Promise<void>;
   disconnect: () => Promise<void>;
   
   // Transaction methods
@@ -204,6 +207,25 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     await AsyncStorage.removeItem('lastConnectedWallet');
   };
 
+  // Helper function to create user in Supabase database
+  const createSupabaseUser = async (address: string, walletName: WalletName) => {
+    try {
+      console.log(`[WalletProvider] Creating/updating Supabase user for ${address}`);
+      
+      // Use walletAuthService to create or update user profile
+      await walletAuthService.connectWallet(
+        address,
+        undefined, // publicKey
+        walletName
+      );
+      
+      console.log(`[WalletProvider] Supabase user created/updated successfully`);
+    } catch (error) {
+      console.error('[WalletProvider] Failed to create Supabase user:', error);
+      // Don't throw - wallet connection should succeed even if Supabase fails
+    }
+  };
+
   const connectExtension = async (walletName: WalletName) => {
     if (!isExtensionAvailable || !window.aptos) {
       throw new Error('Petra extension not available. Please install Petra wallet extension.');
@@ -233,6 +255,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         setConnected(true);
         setLastConnectedWallet(`${walletName}-extension`);
         await AsyncStorage.setItem('lastConnectedWallet', `${walletName}-extension`);
+        
+        // Create user in Supabase
+        await createSupabaseUser(walletAccount.address, walletName);
       }
     } catch (error) {
       throw error;
@@ -251,7 +276,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         await openPetraWallet();
         
         // Simulate successful connection (in real implementation, this would come from deep link response)
-        setTimeout(() => {
+        setTimeout(async () => {
           const mockAccount: WalletAccount = {
             address: '0x1234567890abcdef1234567890abcdef12345678',
             publicKey: '0xabcdef1234567890abcdef1234567890abcdef12',
@@ -268,10 +293,56 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           setWallet(walletInfo);
           setConnected(true);
           setLastConnectedWallet(`${walletName}-deeplink`);
-          AsyncStorage.setItem('lastConnectedWallet', `${walletName}-deeplink`);
+          await AsyncStorage.setItem('lastConnectedWallet', `${walletName}-deeplink`);
+          
+          // Create user in Supabase
+          await createSupabaseUser(mockAccount.address, walletInfo.name);
         }, 2000);
       }
     } catch (error) {
+      throw error;
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const connectGoogle = async () => {
+    try {
+      setConnecting(true);
+      
+      // Get Google client ID from environment
+      const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 
+        '1234567890-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com';
+      
+      // Sign in with Google
+      const googleAccount = await googleAuthService.signInWithGoogle(GOOGLE_CLIENT_ID);
+      
+      // Create wallet account from Google account
+      const walletAccount: WalletAccount = {
+        address: googleAccount.address,
+        publicKey: googleAccount.publicKey,
+        ansName: googleAccount.email,
+      };
+      
+      const walletInfo: WalletInfo = {
+        name: 'Google',
+        icon: 'https://www.google.com/favicon.ico',
+        url: 'https://accounts.google.com',
+        connectionMethod: 'google',
+      };
+      
+      setAccount(walletAccount);
+      setWallet(walletInfo);
+      setConnected(true);
+      setLastConnectedWallet('Google-google');
+      await AsyncStorage.setItem('lastConnectedWallet', 'Google-google');
+      
+      // Create user in Supabase
+      await createSupabaseUser(walletAccount.address, 'Google');
+      
+      console.log('[WalletProvider] Google sign-in successful:', googleAccount.email);
+    } catch (error) {
+      console.error('[WalletProvider] Google sign-in failed:', error);
       throw error;
     } finally {
       setConnecting(false);
@@ -404,13 +475,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     wallet,
     connectExtension,
     connectDeepLink,
+    connectGoogle,
     disconnect,
     signAndSubmitTransaction,
     signMessage,
     handleDeepLink,
     lastConnectedWallet,
     isExtensionAvailable,
-  }), [connected, connecting, account, wallet, connectExtension, connectDeepLink, disconnect, signAndSubmitTransaction, signMessage, handleDeepLink, lastConnectedWallet, isExtensionAvailable]);
+  }), [connected, connecting, account, wallet, lastConnectedWallet, isExtensionAvailable]);
 
   return (
     <WalletContext.Provider value={value}>

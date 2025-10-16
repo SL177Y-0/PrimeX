@@ -98,18 +98,27 @@ function convertToOnChainAmount(amount: number, decimals: number): string {
 // ============================================================================
 
 /**
- * Fetch reserve data for a specific coin type
+ * Fetch reserve data for a specific coin type using view function
+ * DEPRECATED: Use ariesProtocolService.fetchReserve() instead
+ * This service is maintained for backward compatibility only
  */
 export async function fetchReserve(coinType: string): Promise<AriesReserve | null> {
   try {
-    const resourceType = `${ARIES_CONFIG.contractAddress}::${ARIES_CONFIG.modules.reserve}::Reserve<${coinType}>` as `${string}::${string}::${string}`;
-    
-    const resource = await aptos.getAccountResource({
-      accountAddress: ARIES_CONFIG.contractAddress,
-      resourceType,
+    // Use view function to fetch reserve state from on-chain table
+    const [reserveData] = await aptos.view<[any]>({
+      payload: {
+        function: `${ARIES_CONFIG.contractAddress}::reserve::reserve_state`,
+        typeArguments: [coinType],
+        functionArguments: [],
+      },
     });
     
-    const data = resource.data as any;
+    if (!reserveData) {
+      console.warn(`[AriesLendingService] No reserve found for ${coinType}`);
+      return null;
+    }
+    
+    const data = reserveData as any;
     const metadata = getAssetMetadata(coinType);
     
     // Parse interest rate config
@@ -167,8 +176,13 @@ export async function fetchReserve(coinType: string): Promise<AriesReserve | nul
     };
     
     return reserve;
-  } catch (error) {
-    console.error(`Failed to fetch reserve for ${coinType}:`, error);
+  } catch (error: any) {
+    // Enhanced error handling
+    if (error?.message?.includes('resource_not_found') || error?.message?.includes('function_not_found')) {
+      console.warn(`[AriesLendingService] Reserve not available for ${coinType}`);
+    } else {
+      console.error(`[AriesLendingService] Failed to fetch reserve for ${coinType}:`, error?.message || error);
+    }
     return null;
   }
 }

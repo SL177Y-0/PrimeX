@@ -2,18 +2,19 @@
  * React Hooks for Aries Lending & Borrowing
  * 
  * Provides data fetching and state management hooks for Aries protocol
+ * Now uses @aries-markets/tssdk via AriesProtocolService wrapper
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ARIES_CONFIG } from '../config/constants';
 import {
   fetchPools,
   fetchUserPositions,
   fetchProtocolStats,
   fetchReserve,
+  fetchReservePrices,
   fetchHistoricalAPR,
-  enrichReservesWithPrices,
-} from '../services/ariesLendingService';
+} from '../services/ariesProtocolService';
 import type {
   AriesPool,
   AriesReserve,
@@ -38,25 +39,11 @@ export function useAriesPools() {
       setLoading(true);
       setError(null);
       
+      // fetchPools now handles price enrichment internally
       const { pairedPools: paired, isolatedPools: isolated } = await fetchPools();
       
-      // Enrich with price data
-      const enrichedPaired = await Promise.all(
-        paired.map(async pool => ({
-          ...pool,
-          reserves: await enrichReservesWithPrices(pool.reserves),
-        }))
-      );
-      
-      const enrichedIsolated = await Promise.all(
-        isolated.map(async pool => ({
-          ...pool,
-          reserves: await enrichReservesWithPrices(pool.reserves),
-        }))
-      );
-      
-      setPairedPools(enrichedPaired);
-      setIsolatedPools(enrichedIsolated);
+      setPairedPools(paired);
+      setIsolatedPools(isolated);
       setLastUpdate(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch pools');
@@ -71,14 +58,17 @@ export function useAriesPools() {
     fetchData();
   }, [fetchData]);
 
-  // Auto-refresh
+  // Auto-refresh with stable interval (prevents restart on every render)
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
+  
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchData();
+      fetchDataRef.current();
     }, ARIES_CONFIG.refreshIntervals.pools);
 
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, []); // Empty deps - interval never restarts
 
   return {
     pairedPools,
@@ -109,8 +99,25 @@ export function useAriesReserve(coinType: string) {
       const data = await fetchReserve(coinType);
       
       if (data) {
-        const enriched = await enrichReservesWithPrices([data]);
-        setReserve(enriched[0] || null);
+        // Enrich with current price
+        const prices = await fetchReservePrices();
+        const price = prices[data.symbol] || 0;
+        const decimals = data.decimals;
+        
+        const totalSupplyInUnits = parseFloat(data.totalCashAvailable) / Math.pow(10, decimals) + 
+                                   parseFloat(data.totalBorrowed) / Math.pow(10, decimals);
+        const totalBorrowedInUnits = parseFloat(data.totalBorrowed) / Math.pow(10, decimals);
+        const availableLiquidityInUnits = parseFloat(data.totalCashAvailable) / Math.pow(10, decimals);
+        
+        const enriched = {
+          ...data,
+          priceUSD: price,
+          totalSupplyUSD: totalSupplyInUnits * price,
+          totalBorrowedUSD: totalBorrowedInUnits * price,
+          availableLiquidityUSD: availableLiquidityInUnits * price,
+        };
+        
+        setReserve(enriched);
       } else {
         setReserve(null);
       }
@@ -122,12 +129,17 @@ export function useAriesReserve(coinType: string) {
     }
   }, [coinType]);
 
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
+  
   useEffect(() => {
     fetchData();
     
-    const interval = setInterval(fetchData, ARIES_CONFIG.refreshIntervals.pools);
+    const interval = setInterval(() => {
+      fetchDataRef.current();
+    }, ARIES_CONFIG.refreshIntervals.pools);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, []);
 
   return {
     reserve,
@@ -167,14 +179,19 @@ export function useAriesUserPositions(userAddress?: string) {
     }
   }, [userAddress]);
 
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
+  
   useEffect(() => {
     fetchData();
     
     if (userAddress) {
-      const interval = setInterval(fetchData, ARIES_CONFIG.refreshIntervals.userPositions);
+      const interval = setInterval(() => {
+        fetchDataRef.current();
+      }, ARIES_CONFIG.refreshIntervals.userPositions);
       return () => clearInterval(interval);
     }
-  }, [fetchData, userAddress]);
+  }, [userAddress]); // Only restart when userAddress changes
 
   return {
     portfolio,
@@ -208,12 +225,17 @@ export function useAriesProtocolStats() {
     }
   }, []);
 
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
+  
   useEffect(() => {
     fetchData();
     
-    const interval = setInterval(fetchData, ARIES_CONFIG.refreshIntervals.pools);
+    const interval = setInterval(() => {
+      fetchDataRef.current();
+    }, ARIES_CONFIG.refreshIntervals.pools);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, []);
 
   return {
     stats,
@@ -249,12 +271,17 @@ export function useAriesHistoricalAPR(coinType: string, days: number = 30) {
     }
   }, [coinType, days]);
 
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
+  
   useEffect(() => {
     fetchData();
     
-    const interval = setInterval(fetchData, ARIES_CONFIG.refreshIntervals.aprHistory);
+    const interval = setInterval(() => {
+      fetchDataRef.current();
+    }, ARIES_CONFIG.refreshIntervals.aprHistory);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, []); // Empty deps - interval never restarts
 
   return {
     history,

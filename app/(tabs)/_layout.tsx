@@ -3,7 +3,7 @@ import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, TrendingUp, Wallet, Settings, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react-native';
+import { Home, TrendingUp, Wallet, Settings, ArrowUpDown, ArrowUp, ArrowDown, BarChart3 } from 'lucide-react-native';
 
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAccent } from '../../theme/useAccent';
@@ -101,6 +101,14 @@ const TabLayout = React.memo(function TabLayout() {
         options={{
           tabBarLabel: 'Withdraw',
           tabBarIcon: ({ color }) => <ArrowDown size={24} color={color} />,
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          tabBarLabel: 'Analytics',
+          tabBarIcon: ({ color }) => <BarChart3 size={24} color={color} />,
           href: null,
         }}
       />

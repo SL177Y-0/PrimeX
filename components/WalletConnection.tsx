@@ -15,6 +15,7 @@ import {
   CheckCircle,
   ArrowLeft,
 } from 'lucide-react-native';
+import { Image } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
 import { useWallet } from '../app/providers/WalletProvider';
@@ -33,19 +34,22 @@ export function WalletConnection({ onBack }: WalletConnectionProps) {
     account, 
     wallet,
     connectExtension, 
-    connectDeepLink, 
+    connectDeepLink,
+    connectGoogle,
     disconnect,
     isExtensionAvailable 
   } = useWallet();
   
-  const [selectedMethod, setSelectedMethod] = useState<'extension' | 'deeplink' | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<'extension' | 'deeplink' | 'google' | null>(null);
 
-  const handleConnect = async (method: 'extension' | 'deeplink') => {
+  const handleConnect = async (method: 'extension' | 'deeplink' | 'google') => {
     try {
       if (method === 'extension') {
         await connectExtension('Petra');
-      } else {
+      } else if (method === 'deeplink') {
         await connectDeepLink('Petra');
+      } else if (method === 'google') {
+        await connectGoogle();
       }
     } catch (error) {
       Alert.alert('Connection Failed', error instanceof Error ? error.message : 'Failed to connect wallet');
@@ -81,7 +85,7 @@ export function WalletConnection({ onBack }: WalletConnectionProps) {
             Wallet Connected
           </Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            You're ready to start trading
+            You&apos;re ready to start trading
           </Text>
         </View>
 
@@ -134,6 +138,36 @@ export function WalletConnection({ onBack }: WalletConnectionProps) {
       </View>
 
       <View style={styles.methodsContainer}>
+        {/* Google Sign-In Method */}
+        <Pressable
+          style={[
+            styles.methodCard,
+            { 
+              backgroundColor: theme.colors.card,
+              borderColor: selectedMethod === 'google' ? theme.colors.accentFrom : theme.colors.border,
+              borderWidth: 2,
+            }
+          ]}
+          onPress={() => setSelectedMethod('google')}
+        >
+          <View style={styles.methodContent}>
+            <View style={[styles.methodIcon, { backgroundColor: '#FFFFFF' }]}>
+              <Image 
+                source={{ uri: 'https://www.google.com/favicon.ico' }}
+                style={{ width: 28, height: 28 }}
+              />
+            </View>
+            <View style={styles.methodTextContainer}>
+              <Text style={[styles.methodTitle, { color: theme.colors.textPrimary }]}>
+                Sign in with Google
+              </Text>
+              <Text style={[styles.methodDescription, { color: theme.colors.textSecondary }]}>
+                Connect using your Google account (Aptos Keyless)
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+
         {/* Extension Method */}
         <Pressable
           style={[
@@ -197,7 +231,7 @@ export function WalletConnection({ onBack }: WalletConnectionProps) {
 
       {selectedMethod && (
         <GradientPillButton
-          title={connecting ? 'Connecting...' : 'Connect Wallet'}
+          title={connecting ? 'Connecting...' : selectedMethod === 'google' ? 'Continue with Google' : 'Connect Wallet'}
           onPress={() => handleConnect(selectedMethod)}
           disabled={connecting || (selectedMethod === 'extension' && !isExtensionAvailable)}
           style={styles.connectButton}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, Alert, ScrollView, Dimensions, Modal, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -20,6 +20,7 @@ import { PositionsList } from './PositionsList';
 import { merkleService } from '../services/merkleService';
 import { realMarketDataService, RealMarketData } from '../services/realMarketDataService';
 import { globalTextInputStyle } from '../styles/globalStyles';
+import { databaseService } from '../services/database.service';
 import {
   TrendingUp, 
   TrendingDown, 
@@ -64,6 +65,26 @@ export const TradingInterface: React.FC = () => {
   const { placeOrder, loading: tradingLoading, error: tradingError } = useMerkleTrading();
   const { positions, activities, portfolio, totalPnL, loading: positionsLoading, refreshPositions } = useMerklePositions();
   const { events, loading: eventsLoading } = useMerkleEvents();
+  
+  // Scroll position ref to prevent jitter
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollPositionRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const [isScrollRestoring, setIsScrollRestoring] = useState(false);
+  
+  // ✅ Initialize leverage feature on first access
+  useEffect(() => {
+    const initFeature = async () => {
+      if (!connected || !account?.address) return;
+      
+      const isInit = await databaseService.isFeatureInitialized(account.address, 'leverage');
+      if (!isInit) {
+        await databaseService.initializeLeverageFeature(account.address);
+      }
+    };
+    
+    initFeature();
+  }, [connected, account?.address]);
   
   // Use activities (trading history from API) instead of blockchain events
   const displayActivities = activities || [];
@@ -408,6 +429,43 @@ export const TradingInterface: React.FC = () => {
       // Start 70-second cooldown timer
       setLastPositionOpenTime(Date.now());
       
+      // ✅ Save leverage position to Supabase
+      if (account?.address) {
+        try {
+          const marketPrice = parseFloat(price);
+          const liquidationPrice = side === 'long' 
+            ? marketPrice * (1 - (1 / leverage)) 
+            : marketPrice * (1 + (1 / leverage));
+          
+          await databaseService.saveLeveragePosition({
+            user_address: account.address,
+            leverage_ratio: leverage,
+            margin_amount: collateralValue.toString(),
+            margin_amount_usd: collateralValue.toString(),
+            liquidation_price: liquidationPrice.toString(),
+            current_price: marketPrice.toString(),
+            funding_rate: fundingRate.toString(),
+            unrealized_pnl: '0',
+          });
+          
+          // Also log transaction
+          await databaseService.saveTransaction({
+            user_address: account.address,
+            transaction_hash: txHash,
+            transaction_type: side === 'long' ? 'supply' : 'borrow', // Leverage = special type
+            asset_symbol: market.split('_')[0],
+            amount: sizeValue.toString(),
+            amount_usd: (sizeValue * marketPrice).toString(),
+            status: 'confirmed',
+          });
+          
+          console.log('[TradingInterface] ✅ Leverage position saved to Supabase');
+        } catch (dbError) {
+          console.error('[TradingInterface] Failed to save to Supabase:', dbError);
+          // Don't fail the order if DB save fails
+        }
+      }
+      
       // Immediately fetch positions to show active position
       setTimeout(() => {
         refreshPositions(); // Force refresh positions
@@ -636,11 +694,37 @@ export const TradingInterface: React.FC = () => {
     );
   };
 
+  // Track scroll position to prevent jump on data update
+  const handleScroll = useCallback((event: any) => {
+    if (!isScrollRestoring) {
+      scrollPositionRef.current = event.nativeEvent.contentOffset.y;
+    }
+  }, [isScrollRestoring]);
+
+  // Restore scroll position when content changes
+  const handleContentSizeChange = useCallback((width: number, height: number) => {
+    const savedPosition = scrollPositionRef.current;
+    
+    if (contentHeightRef.current !== height && savedPosition > 0 && scrollViewRef.current) {
+      setIsScrollRestoring(true);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: savedPosition, animated: false });
+        setIsScrollRestoring(false);
+      }, 50);
+    }
+    
+    contentHeightRef.current = height;
+  }, []);
+
   return (
     <ScrollView 
+      ref={scrollViewRef}
       style={[styles.container, { backgroundColor: theme.colors.bg }]}
       contentContainerStyle={{ paddingBottom: spacing.xl }}
       showsVerticalScrollIndicator={false}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
+      onContentSizeChange={handleContentSizeChange}
     >
       {/* Market Overview & Chart Section */}
       <Card style={[
