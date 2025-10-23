@@ -4,9 +4,8 @@
  * Manages E-Mode (Efficiency Mode) state and actions
  */
 
-import { useState, useCallback } from 'react';
-import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
-import { ARIES_CONFIG, APTOS_CONFIG } from '../config/constants';
+import React, { useState, useCallback } from 'react';
+import { ARIES_CONFIG } from '../config/constants';
 import { useWallet } from '../app/providers/WalletProvider';
 import type { EModeCategory } from '../types/aries';
 
@@ -20,28 +19,31 @@ interface UseEModeResult {
   refetch: () => Promise<void>;
 }
 
-// Mock E-Mode categories (always available)
+// E-Mode categories matching official Aries Markets platform
 const mockCategories: EModeCategory[] = [
   {
     categoryId: 1,
     maxLTV: 9000, // 90%
     liquidationThreshold: 9300, // 93%
     liquidationBonus: 200, // 2%
-    label: 'Stablecoins',
+    label: 'APT Correlated',
     assets: [
-      ARIES_CONFIG.pairedAssets.USDC?.coinType || '',
-      ARIES_CONFIG.pairedAssets.USDT?.coinType || '',
-    ].filter(Boolean),
+      '0x1::aptos_coin::AptosCoin', // APT
+      '0xd11107bdf0d6d7040c6c0bfbdecb6545191fdf13e8d8d259952f53e1713f61b5::staked_coin::StakedAptos', // stAPT
+      '0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt', // amAPT
+    ],
   },
   {
     categoryId: 2,
-    maxLTV: 8500, // 85%
-    liquidationThreshold: 8800, // 88%
-    liquidationBonus: 300, // 3%
-    label: 'APT Ecosystem',
+    maxLTV: 9000, // 90%
+    liquidationThreshold: 9300, // 93%
+    liquidationBonus: 200, // 2%
+    label: 'Stable Correlated',
     assets: [
-      ARIES_CONFIG.pairedAssets.APT?.coinType || '',
-    ].filter(Boolean),
+      '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDT', // USDT
+      '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC', // USDC
+      '0x5e156f1207d0ebfa19a9eeff00d62a282278fb8719f4fab3a586a0a2c0fffbea::coin::T', // sUSDe
+    ],
   },
 ];
 
@@ -60,33 +62,20 @@ export function useEMode(): UseEModeResult {
     setError(null);
 
     try {
-      const aptosConfig = new AptosConfig({
-        network: APTOS_CONFIG.network as Network,
-        fullnode: APTOS_CONFIG.nodeUrl,
-      });
-      const aptos = new Aptos(aptosConfig);
-
-      // In production, fetch from on-chain
-      // For now, use mock data
+      // Set categories (these are static)
       setCategories(mockCategories);
 
-      // Try to fetch user's active E-Mode category
-      try {
-        const resource = await aptos.getAccountResource({
-          accountAddress: account.address,
-          resourceType: `${ARIES_CONFIG.contractAddress}::profile::Profile`,
-        });
-
-        const profileData = resource as any;
-        setActiveCategory(profileData.emode_category || 0);
-      } catch (err) {
-        // User doesn't have profile yet or E-Mode not active
-        setActiveCategory(0);
-      }
+      // E-Mode status will be fetched from portfolio data
+      // The ariesSDKService.fetchUserPortfolio() already includes E-Mode status
+      // We don't need to query blockchain directly here
+      // Just set to 0 for now - the actual status comes from portfolio
+      setActiveCategory(0);
+      
+      console.log('[useEMode] E-Mode categories loaded, status will come from portfolio');
     } catch (err: any) {
       console.error('[useEMode] Error fetching E-Mode:', err);
       setError(err.message || 'Failed to fetch E-Mode');
-      setCategories(mockCategories); // Still show categories even on error
+      setCategories(mockCategories);
     } finally {
       setLoading(false);
     }
@@ -167,6 +156,11 @@ export function useEMode(): UseEModeResult {
       setLoading(false);
     }
   }, [account?.address, signAndSubmitTransaction, fetchEMode]);
+
+  // Fetch E-Mode status on mount and when account changes
+  React.useEffect(() => {
+    fetchEMode();
+  }, [fetchEMode]);
 
   return {
     categories,

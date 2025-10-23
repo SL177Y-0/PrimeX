@@ -9,7 +9,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
-  Modal,
   TouchableOpacity,
   TextInput,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { CustomModal } from '../../CustomModal';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../../theme/ThemeProvider';
 import { useWallet } from '../../../app/providers/WalletProvider';
@@ -180,23 +180,11 @@ export default function AriesSupplyModal({ visible, coinType, onClose }: AriesSu
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
+    <CustomModal visible={visible} onClose={handleClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalOverlay}
+        style={styles.modalContainer}
       >
-        <TouchableOpacity 
-          style={styles.backdrop} 
-          activeOpacity={1} 
-          onPress={handleClose}
-        />
-
-        <View style={styles.modalContainer}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Supply {asset.symbol}</Text>
@@ -367,9 +355,8 @@ export default function AriesSupplyModal({ visible, coinType, onClose }: AriesSu
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        </KeyboardAvoidingView>
+    </CustomModal>
   );
 }
 

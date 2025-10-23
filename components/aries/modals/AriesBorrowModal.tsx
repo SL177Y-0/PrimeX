@@ -9,7 +9,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
-  Modal,
   TouchableOpacity,
   TextInput,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { CustomModal } from '../../CustomModal';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWallet } from '../../../app/providers/WalletProvider';
 import { useAriesLending } from '../../../hooks/useAriesLendingProduction';
@@ -146,23 +146,11 @@ export default function AriesBorrowModal({ visible, coinType, onClose }: AriesBo
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
+    <CustomModal visible={visible} onClose={handleClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalOverlay}
+        style={styles.modalContainer}
       >
-        <TouchableOpacity 
-          style={styles.backdrop} 
-          activeOpacity={1} 
-          onPress={handleClose}
-        />
-
-        <View style={styles.modalContainer}>
           <View style={styles.header}>
             <Text style={styles.title}>Borrow {asset.symbol}</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
@@ -323,9 +311,8 @@ export default function AriesBorrowModal({ visible, coinType, onClose }: AriesBo
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        </KeyboardAvoidingView>
+    </CustomModal>
   );
 }
 

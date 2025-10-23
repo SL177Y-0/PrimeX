@@ -157,7 +157,67 @@ app.use('/api/coingecko', async (req, res) => {
   }
 });
 
-// Aries Markets Proxy
+// Aries Markets tRPC Proxy (for @aries-markets/api SDK)
+// Aries API is SLOW - sometimes takes 15-20+ seconds to respond
+app.use('/api/aries-trpc', async (req, res) => {
+  try {
+    // Set long timeouts - Aries API is notoriously slow
+    req.setTimeout(30000); // 30 seconds
+    res.setTimeout(30000);
+    
+    const targetUrl = `${ALLOWED_TARGETS.aries}`;
+    
+    // tRPC uses GET requests with query parameters for queries
+    // Build full URL with query string
+    const queryString = new URL(req.url, 'http://localhost').search;
+    const fullUrl = `${targetUrl}${req.path}${queryString}`;
+    
+    console.log(`  → Proxying tRPC to: ${fullUrl}`);
+    console.log(`  → Method: ${req.method}`);
+    console.log(`  → Note: Aries API can be slow (10-20s), please be patient...`);
+    
+    const response = await fetch(fullUrl, {
+      method: req.method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Origin': 'https://app.ariesmarkets.xyz',
+        'Referer': 'https://app.ariesmarkets.xyz/',
+      },
+      body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
+      // Note: fetch API doesn't support timeout directly, handled by req/res timeout
+    });
+    
+    if (!response.ok) {
+      console.error(`  ✗ Aries tRPC error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`  ✗ Response: ${errorText.substring(0, 500)}`);
+      
+      // For 502/504 errors, suggest retry
+      if (response.status === 502 || response.status === 504) {
+        console.error(`  ⚠️ Gateway timeout - Aries API is overloaded, client will retry`);
+      }
+      
+      return res.status(response.status).json({ error: errorText });
+    }
+    
+    const data = await response.json();
+    console.log(`  ✓ tRPC Success`);
+    res.json(data);
+  } catch (error) {
+    console.error('  ✗ Aries tRPC proxy error:', error.message);
+    
+    // Suggest retry for timeout errors
+    if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+      console.error(`  ⚠️ Timeout - Aries API is slow, client will retry`);
+    }
+    
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Aries Markets REST Proxy (legacy, for direct API calls)
 app.use('/api/aries', async (req, res) => {
   try {
     const apiPath = req.path.substring(1);
@@ -232,14 +292,33 @@ app.use('/api/pyth', async (req, res) => {
       headers['Authorization'] = `Bearer ${API_KEYS.PYTH}`;
     }
     
-    const response = await fetch(targetUrl, { method: 'GET', headers });
-    
-    if (!response.ok) {
-      throw new Error(`Pyth API error: ${response.status}`);
+    try {
+      const response = await fetch(targetUrl, {
+        method: req.method,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        timeout: 15000, // 15 second timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(`  ✓ tRPC Success (${response.status})`);
+      
+      // Log data size for debugging
+      const dataStr = JSON.stringify(data);
+      console.log(`  → Response size: ${(dataStr.length / 1024).toFixed(2)}KB`);
+      
+      res.json(data);
+    } catch (error) {
+      console.error('  ✗ tRPC Error:', error.message);
+      console.error('  ✗ Target URL:', targetUrl);
+      res.status(500).json({ error: 'Failed to proxy tRPC request', details: error.message });
     }
-    
-    const data = await response.json();
-    res.json(data);
   } catch (error) {
     console.error('  ✗ Pyth proxy error:', error.message);
     res.status(500).json({ error: error.message });

@@ -15,14 +15,18 @@ import {
   RefreshControl,
   ActivityIndicator,
   Image,
+  Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Zap, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useWallet } from '../../app/providers/WalletProvider';
 import { useAriesLending } from '../../hooks/useAriesLendingProduction';
+import { useEMode } from '../../hooks/useEMode';
 import { formatHealthFactor, getHealthFactorColor } from '../../utils/ariesRiskCalculationsComplete';
 import { formatAssetAmount } from '../../config/ariesAssetsComplete';
 import { LoadingScreen } from '../LoadingScreen';
+import { EModePanel } from '../EModePanel';
 import AriesSupplyModal from './modals/AriesSupplyModal';
 // @ts-ignore - TS cache issue, restart TS server to resolve
 import AriesBorrowModal from './modals/AriesBorrowModal';
@@ -63,6 +67,17 @@ export default function AriesLendDashboard() {
   const [activeTab, setActiveTab] = useState<'paired' | 'isolated'>('paired');
   const [modalState, setModalState] = useState<ModalState>({ type: null, coinType: null });
   const [refreshing, setRefreshing] = useState(false);
+  const [showEModePanel, setShowEModePanel] = useState(false);
+
+  // E-Mode hook
+  const {
+    categories: emodeCategories,
+    activeCategory: activeEmodeCategory,
+    loading: emodeLoading,
+    enableEMode,
+    disableEMode,
+    refetch: refetchEMode,
+  } = useEMode();
 
   // ==========================================================================
   // HANDLERS
@@ -70,7 +85,7 @@ export default function AriesLendDashboard() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refresh();
+    await Promise.all([refresh(), refetchEMode()]);
     setRefreshing(false);
   };
 
@@ -135,8 +150,7 @@ export default function AriesLendDashboard() {
   if (reservesLoading && reserves.length === 0) {
     return (
       <LoadingScreen 
-        message="Loading Lend & Borrow"
-        subMessage="Fetching Aries Markets data..."
+        message="Loading Lend & Borrow - Fetching Aries Markets data..."
       />
     );
   }
@@ -145,8 +159,7 @@ export default function AriesLendDashboard() {
   if (isInitializing) {
     return (
       <LoadingScreen 
-        message="Initializing Profile"
-        subMessage="Setting up your Aries Markets account..."
+        message="Initializing Profile - Setting up your Aries Markets account..."
       />
     );
   }
@@ -155,8 +168,7 @@ export default function AriesLendDashboard() {
   if (portfolioLoading && !portfolio) {
     return (
       <LoadingScreen 
-        message="Loading Portfolio"
-        subMessage="Fetching your positions and balances..."
+        message="Loading Portfolio - Fetching your positions and balances..."
       />
     );
   }
@@ -175,6 +187,92 @@ export default function AriesLendDashboard() {
         {/* Portfolio Overview */}
         {hasProfile && portfolio && <PortfolioOverviewCard portfolio={portfolio} theme={theme} />}
 
+        {/* E-Mode Banner (when not active) */}
+        {hasProfile && activeEmodeCategory === 0 && (
+          <Pressable
+            style={[styles.emodeBanner, { backgroundColor: theme.colors.purple + '15', borderColor: theme.colors.purple }]}
+            onPress={() => setShowEModePanel(!showEModePanel)}
+          >
+            <Zap size={20} color={theme.colors.purple} />
+            <View style={styles.emodeBannerContent}>
+              <Text style={[styles.emodeBannerTitle, { color: theme.colors.textPrimary }]}>
+                Enter E-Mode to increase your LTV for selected category of assets!
+              </Text>
+              <Text style={[styles.emodeBannerSubtitle, { color: theme.colors.textSecondary }]}>
+                Maximize capital efficiency with correlated assets
+              </Text>
+            </View>
+            {showEModePanel ? (
+              <ChevronUp size={20} color={theme.colors.purple} />
+            ) : (
+              <ChevronDown size={20} color={theme.colors.purple} />
+            )}
+          </Pressable>
+        )}
+
+        {/* E-Mode Active Status (when active) */}
+        {hasProfile && activeEmodeCategory > 0 && (
+          <View style={[styles.emodeActiveCard, { backgroundColor: theme.colors.positive + '20', borderColor: theme.colors.positive }]}>
+            <Zap size={20} color={theme.colors.positive} />
+            <View style={styles.emodeActiveContent}>
+              <Text style={[styles.emodeActiveTitle, { color: theme.colors.positive }]}>
+                ⚡ E-Mode Active: {emodeCategories.find(c => c.categoryId === activeEmodeCategory)?.label || 'Unknown'}
+              </Text>
+              <Text style={[styles.emodeActiveSubtitle, { color: theme.colors.textSecondary }]}>
+                Higher LTV enabled for correlated assets
+              </Text>
+            </View>
+            <Pressable
+              style={[styles.emodeExitButton, { backgroundColor: theme.colors.negative }]}
+              onPress={async () => {
+                try {
+                  await disableEMode();
+                  await refresh();
+                } catch (error) {
+                  console.error('[Aries] Failed to exit E-Mode:', error);
+                }
+              }}
+              disabled={emodeLoading}
+            >
+              {emodeLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.emodeExitButtonText}>Exit E-Mode</Text>
+              )}
+            </Pressable>
+          </View>
+        )}
+
+        {/* E-Mode Panel (collapsible) */}
+        {hasProfile && showEModePanel && (
+          <View style={styles.emodePanelContainer}>
+            <EModePanel
+              categories={emodeCategories}
+              userPortfolio={portfolio}
+              activeCategory={activeEmodeCategory}
+              onEnableEMode={async (categoryId) => {
+                await enableEMode(categoryId);
+                await refresh();
+                setShowEModePanel(false);
+              }}
+              onDisableEMode={async () => {
+                await disableEMode();
+                await refresh();
+              }}
+            />
+          </View>
+        )}
+
+        {/* E-Mode Warning (when active and in isolated pool) */}
+        {hasProfile && activeEmodeCategory > 0 && activeTab === 'isolated' && (
+          <View style={[styles.emodeWarning, { backgroundColor: theme.colors.orange + '15', borderColor: theme.colors.orange }]}>
+            <AlertCircle size={18} color={theme.colors.orange} />
+            <Text style={[styles.emodeWarningText, { color: theme.colors.orange }]}>
+              In E-Mode some assets are not borrowable. Exit E-Mode to access all assets.
+            </Text>
+          </View>
+        )}
+
         {/* Market Tabs - Matching official Aries platform */}
         <View style={[styles.tabsContainer, { backgroundColor: theme.colors.elevated }]}>
           <TouchableOpacity
@@ -191,7 +289,7 @@ export default function AriesLendDashboard() {
             onPress={() => setActiveTab('isolated')}
           >
             <Text style={[styles.tabText, { color: theme.colors.textSecondary }, activeTab === 'isolated' && [styles.tabTextActive, { color: '#FFFFFF' }]]}>
-              Merkle LP Pool
+              Isolated Pool
             </Text>
             {/* New badge */}
             {activeTab === 'isolated' && (
@@ -219,9 +317,9 @@ export default function AriesLendDashboard() {
 
         {filteredReserves.length === 0 && (
           <EmptyState 
-            title={`No ${activeTab === 'paired' ? 'Main Pool' : 'Merkle LP Pool'} Assets`}
+            title={`No ${activeTab === 'paired' ? 'Main Pool' : 'Isolated Pool'} Assets`}
             description={activeTab === 'isolated' 
-              ? "Merkle LP pool assets will appear here once you start using the platform."
+              ? "Isolated pool assets will appear here once you start using the platform."
               : "Main pool assets are loading... Please refresh."}
             theme={theme}
           />
@@ -749,6 +847,79 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+
+  // E-Mode Styles
+  emodeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  emodeBannerContent: {
+    flex: 1,
+  },
+  emodeBannerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  emodeBannerSubtitle: {
+    fontSize: 12,
+  },
+  emodeActiveCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  emodeActiveContent: {
+    flex: 1,
+  },
+  emodeActiveTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emodeActiveSubtitle: {
+    fontSize: 12,
+  },
+  emodeExitButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  emodeExitButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  emodePanelContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  emodeWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  emodeWarningText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   // Reserve List

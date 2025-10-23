@@ -12,7 +12,8 @@ import { Zap, CheckCircle, AlertCircle, Info } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { useResponsive } from '../hooks/useResponsive';
 import { PAGE_ACCENTS } from '../theme/pageAccents';
-import type { EModeCategory, UserPortfolio } from '../types/aries';
+import type { EModeCategory } from '../types/aries';
+import type { UserPortfolio } from '../types/ariesComplete';
 
 interface EModePanelProps {
   categories: EModeCategory[];
@@ -42,8 +43,8 @@ export function EModePanel({
     
     return categories.some(category => {
       const userAssets = [
-        ...userPortfolio.supplies.map(s => s.coinType),
-        ...userPortfolio.borrows.map(b => b.coinType),
+        ...userPortfolio.deposits.map((d: any) => d.coinType),
+        ...userPortfolio.borrows.map((b: any) => b.coinType),
       ];
       
       // User must have at least one asset in the category
@@ -124,10 +125,10 @@ export function EModePanel({
         {categories.map((category) => {
           const isActive = activeCategory === category.categoryId;
           const isExpanded = expandedCategory === category.categoryId;
-          const userHasAssets = userPortfolio && 
-            [...userPortfolio.supplies, ...userPortfolio.borrows].some(
-              pos => category.assets.includes(pos.coinType)
-            );
+          const hasCompatibleAssets = userPortfolio ? (
+            userPortfolio.deposits.some((d: any) => category.assets.includes(d.coinType)) ||
+            userPortfolio.borrows.some((b: any) => category.assets.includes(b.coinType))
+          ) : false;
 
           return (
             <Pressable
@@ -158,7 +159,7 @@ export function EModePanel({
                   >
                     {category.label}
                   </Text>
-                  {userHasAssets && !isActive && (
+                  {hasCompatibleAssets && !isActive && (
                     <View style={[styles.badge, { backgroundColor: pageAccent.light }]}>
                       <Text style={[styles.badgeText, { color: pageAccent.primary }]}>
                         Compatible
@@ -263,7 +264,7 @@ export function EModePanel({
                       },
                     ]}
                     onPress={() => handleToggleEMode(category.categoryId)}
-                    disabled={loading || (!isActive && !userHasAssets)}
+                    disabled={loading || (!isActive && !hasCompatibleAssets)}
                   >
                     {loading ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
@@ -274,7 +275,7 @@ export function EModePanel({
                     )}
                   </Pressable>
 
-                  {!isActive && !userHasAssets && (
+                  {!isActive && !hasCompatibleAssets && (
                     <View style={styles.warningBox}>
                       <AlertCircle size={16} color={theme.colors.orange} />
                       <Text style={[styles.warningText, { color: theme.colors.orange }]}>
