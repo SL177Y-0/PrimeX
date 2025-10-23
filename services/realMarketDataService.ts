@@ -1,6 +1,7 @@
 import { TRADING_CONSTANTS } from '../config/constants';
 import { log } from '../utils/logger';
-import { priceOracleService } from './priceOracleService';
+// Note: This service needs refactoring to work with current price service architecture
+// import { priceService } from './ariesPriceService';
 
 export interface RealMarketData {
   symbol: string;
@@ -47,7 +48,7 @@ class RealMarketDataService {
     'DOGE_USD': { coingecko: 'dogecoin', binance: 'DOGEUSDT', symbol: 'DOGE', display: 'DOGE/USD' },
   };
 
-  // Get real market data using priceOracleService (consolidated price logic)
+  // Get real market data using priceService (consolidated price logic)
   async getMarketData(symbol: string): Promise<RealMarketData | null> {
     try {
       // Check cache first
@@ -58,29 +59,12 @@ class RealMarketDataService {
 
       const mapping = this.SYMBOL_MAPPING[symbol as keyof typeof this.SYMBOL_MAPPING];
       if (!mapping) {
-        log.warn(`No mapping found for symbol: ${symbol}`);
+        log.warn(`No mapping found for symbol: ${symbol}`, { service: 'RealMarketDataService' });
         return null;
       }
 
-      // Use priceOracleService for price data (deduplication + Pyth/CoinGecko)
-      const priceData = await priceOracleService.getPrice(mapping.symbol);
-
-      const marketData: RealMarketData = {
-        symbol,
-        price: priceData.priceUSD || 0,
-        change24h: 0, // Would need historical data
-        changePercent24h: 0, // Would need historical data
-        volume24h: 0, // Would need market data API
-        high24h: 0, // Would need OHLC data
-        low24h: 0, // Would need OHLC data
-        marketCap: undefined,
-        lastUpdated: priceData.timestamp,
-      };
-
-      // Cache the result
-      this.cache.set(symbol, { data: marketData, timestamp: Date.now() });
-
-      return marketData;
+      // Use detailed market data from CoinGecko directly
+      return this.getDetailedMarketData(symbol);
     } catch (error) {
       log.error(`Error fetching market data for ${symbol}:`, error);
       return null;
@@ -93,8 +77,10 @@ class RealMarketDataService {
       const mapping = this.SYMBOL_MAPPING[symbol as keyof typeof this.SYMBOL_MAPPING];
       if (!mapping) return null;
 
+      // Route through proxy to avoid CORS issues
+      const proxyBaseUrl = process.env.EXPO_PUBLIC_PROXY_BASE_URL || 'http://localhost:3001';
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/coins/${mapping.coingecko}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`
+        `${proxyBaseUrl}/api/coingecko/api/v3/coins/${mapping.coingecko}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`
       );
 
       if (!response.ok) {
@@ -173,8 +159,10 @@ class RealMarketDataService {
       const mapping = this.SYMBOL_MAPPING[symbol as keyof typeof this.SYMBOL_MAPPING];
       if (!mapping) return [];
 
+      // Route through proxy to avoid CORS issues
+      const proxyBaseUrl = process.env.EXPO_PUBLIC_PROXY_BASE_URL || 'http://localhost:3001';
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/coins/${mapping.coingecko}/market_chart?vs_currency=usd&days=${days}`
+        `${proxyBaseUrl}/api/coingecko/api/v3/coins/${mapping.coingecko}/market_chart?vs_currency=usd&days=${days}`
       );
 
       if (!response.ok) {

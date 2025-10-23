@@ -7,7 +7,10 @@
 
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { ARIES_CONFIG, APTOS_CONFIG } from '../config/constants';
-import { priceOracleService } from './priceOracleService';
+import { priceService } from './ariesPriceService';
+
+// Reward token (placeholder - update with actual reward token from Aries)
+const REWARD_TOKEN = '0x1::aptos_coin::AptosCoin';
 
 export interface UserReward {
   id: string;
@@ -56,8 +59,18 @@ class RewardsService {
 
   /**
    * Fetch user rewards from profile_farm module
+   * NOTE: Aries Markets rewards program may not be active or view functions may not be public
+   * Returning empty array to prevent errors - rewards are shown via APR in the UI
    */
   async fetchUserRewards(userAddress: string): Promise<UserReward[]> {
+    // Rewards fetching is currently disabled as the Aries protocol does not expose
+    // public view functions for querying rewards (profile_farm, profile_farm_borrow don't exist)
+    // The APR shown in the UI comes from the lending interest rates, not separate reward tokens
+    console.log('[RewardsService] Rewards fetching disabled - APR shown via interest rates');
+    return [];
+
+    // TODO: Enable if Aries adds public reward view functions in the future
+    /*
     try {
       const rewards: UserReward[] = [];
 
@@ -67,15 +80,21 @@ class RewardsService {
           // Query profile_farm for supply rewards
           const [supplyFarmData] = await this.aptos.view({
             payload: {
-              function: `${ARIES_CONFIG.contractAddress}::profile::profile_farm`,
-              typeArguments: [asset.coinType, ARIES_CONFIG.rewardToken],
+              function: `${ARIES_CONFIG.contractAddress}::profile_farm::get_pending_rewards`,
+              typeArguments: [asset.coinType, REWARD_TOKEN],
               functionArguments: [userAddress, 'default'],
             },
+          }).catch((error) => {
+            if (this.isNoDepositError(error)) {
+              return [null];
+            }
+            throw error;
           });
 
-          if (supplyFarmData && supplyFarmData.pending_reward) {
-            const amount = supplyFarmData.pending_reward.toString();
-            const amountDecimal = parseFloat(amount) / Math.pow(10, 8); // Assuming 8 decimals for reward token
+          const farmData = supplyFarmData as any;
+          if (farmData && farmData.pending_reward) {
+            const amount = farmData.pending_reward.toString();
+            const amountDecimal = parseFloat(amount) / Math.pow(10, 8);
             const priceUSD = await this.getRewardTokenPrice();
 
             rewards.push({
@@ -86,42 +105,15 @@ class RewardsService {
               rewardType: 'supply',
               amount,
               amountUSD: amountDecimal * priceUSD,
-              apr: this.calculateRewardAPR(supplyFarmData),
-              claimed: false,
-              earnedAt: new Date().toISOString(),
-            });
-          }
-
-          // Query profile_farm for borrow rewards (if applicable)
-          const [borrowFarmData] = await this.aptos.view({
-            payload: {
-              function: `${ARIES_CONFIG.contractAddress}::profile::profile_farm_borrow`,
-              typeArguments: [asset.coinType, ARIES_CONFIG.rewardToken],
-              functionArguments: [userAddress, 'default'],
-            },
-          });
-
-          if (borrowFarmData && borrowFarmData.pending_reward) {
-            const amount = borrowFarmData.pending_reward.toString();
-            const amountDecimal = parseFloat(amount) / Math.pow(10, 8);
-            const priceUSD = await this.getRewardTokenPrice();
-
-            rewards.push({
-              id: `${userAddress}_${symbol}_borrow`,
-              userAddress,
-              assetSymbol: symbol,
-              coinType: asset.coinType,
-              rewardType: 'borrow',
-              amount,
-              amountUSD: amountDecimal * priceUSD,
-              apr: this.calculateRewardAPR(borrowFarmData),
+              apr: this.calculateRewardAPR(farmData),
               claimed: false,
               earnedAt: new Date().toISOString(),
             });
           }
         } catch (error) {
-          console.warn(`Failed to fetch rewards for ${symbol}:`, error);
-          // Continue with other assets
+          if (!this.isNoDepositError(error)) {
+            console.warn(`Failed to fetch rewards for ${symbol}:`, error);
+          }
         }
       }
 
@@ -130,6 +122,18 @@ class RewardsService {
       console.error('[RewardsService] Failed to fetch user rewards:', error);
       return [];
     }
+    */
+  }
+
+  /**
+   * Check if error is the expected "no deposit" error from Aries
+   */
+  private isNoDepositError(error: any): boolean {
+    if (!error) return false;
+    const errorMessage = error.message || error.toString();
+    // Check for EPROFILE_NO_DEPOSIT_RESERVE (error code 0x0 = 4016)
+    return errorMessage.includes('EPROFILE_NO_DEPOSIT_RESERVE') || 
+           errorMessage.includes('vm_error_code":4016');
   }
 
   /**
@@ -194,15 +198,15 @@ class RewardsService {
   }
 
   /**
-   * Claim rewards for user
+   * Claim rewards for a specific asset
    */
-  async claimRewards(
+  async claimReward(
     userAddress: string,
     assetSymbol: string,
-    rewardType: 'supply' | 'borrow'
+    rewardType: 'supply' | 'borrow' | 'liquidity_mining'
   ): Promise<string> {
     try {
-      const asset = ARIES_CONFIG.pairedAssets[assetSymbol];
+      const asset = (ARIES_CONFIG.pairedAssets as any)[assetSymbol];
       if (!asset) {
         throw new Error(`Asset ${assetSymbol} not found`);
       }
@@ -210,19 +214,21 @@ class RewardsService {
       // Build claim transaction
       const functionName = rewardType === 'supply' 
         ? 'claim_supply_rewards'
-        : 'claim_borrow_rewards';
+        : rewardType === 'borrow' 
+          ? 'claim_borrow_rewards'
+          : 'claim_liquidity_mining_rewards';
 
       const transaction = await this.aptos.transaction.build.simple({
         sender: userAddress,
         data: {
           function: `${ARIES_CONFIG.contractAddress}::profile::${functionName}`,
-          typeArguments: [asset.coinType, ARIES_CONFIG.rewardToken],
+          typeArguments: [asset.coinType, REWARD_TOKEN],
           functionArguments: ['default'], // Profile name
         },
       });
 
-      // Return transaction for signing
-      return transaction;
+      // Return transaction for signing (returns payload for wallet to sign)
+      return JSON.stringify(transaction);
     } catch (error) {
       console.error('[RewardsService] Failed to build claim transaction:', error);
       throw error;
@@ -275,30 +281,25 @@ class RewardsService {
   }
 
   /**
-   * Get reward token price in USD
+   * Get current price of reward token (APT)
    */
   private async getRewardTokenPrice(): Promise<number> {
     try {
-      // Assuming reward token is APT for now
-      const priceData = await priceOracleService.getPrice('APT');
-      return priceData.priceUSD;
+      return await priceService.getPrice(REWARD_TOKEN);
     } catch (error) {
-      console.warn('Failed to fetch reward token price, using fallback');
-      return 8.5; // Fallback price
+      console.error('[RewardsService] Failed to fetch reward token price:', error);
+      return 0; // Fallback to 0 if price fetch fails
     }
   }
 
   /**
    * Estimate future rewards based on current positions and APRs
    */
-  async estimateFutureRewards(
-    userAddress: string,
-    days: number = 30
-  ): Promise<{
+  async estimateRewards(userAddress: string): Promise<{
     estimatedTotal: number;
     breakdown: Array<{
       asset: string;
-      type: 'supply' | 'borrow';
+      type: 'supply' | 'borrow' | 'liquidity_mining';
       estimatedReward: number;
       apr: number;
     }>;
@@ -310,16 +311,17 @@ class RewardsService {
 
       for (const reward of rewards) {
         const dailyRate = reward.apr / 365 / 100;
-        const estimatedReward = reward.amountUSD * dailyRate * days;
+        const daysElapsed = 30; // Default 30 days estimation
+        const estimatedDaily = (reward.amountUSD / 30) * daysElapsed;
         
         breakdown.push({
           asset: reward.assetSymbol,
           type: reward.rewardType,
-          estimatedReward,
+          estimatedReward: estimatedDaily,
           apr: reward.apr,
         });
 
-        estimatedTotal += estimatedReward;
+        estimatedTotal += estimatedDaily;
       }
 
       return {

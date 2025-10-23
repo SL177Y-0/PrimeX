@@ -220,10 +220,12 @@ export const API_CONFIG = {
     endpoint: process.env.EXPO_PUBLIC_SWITCHBOARD_ENDPOINT || 'https://api.switchboard.xyz',
   },
   
-  // External APIs
+  // External APIs (routed through proxy)
   coingecko: {
     apiKey: process.env.EXPO_PUBLIC_COINGECKO_API_KEY,
-    baseUrl: 'https://api.coingecko.com/api/v3',
+    baseUrl: process.env.EXPO_PUBLIC_PROXY_BASE_URL 
+      ? `${process.env.EXPO_PUBLIC_PROXY_BASE_URL}/api/coingecko/api/v3`
+      : 'http://localhost:3001/api/coingecko/api/v3',
   },
   
   coinmarketcap: {

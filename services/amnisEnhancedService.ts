@@ -22,9 +22,9 @@ const TESTNET_RPC_ENDPOINTS = [
 ];
 
 const MAINNET_RPC_ENDPOINTS = [
-  'https://aptos-mainnet.pontem.network/v1',
-  'https://rpc.ankr.com/http/aptos/v1',
   'https://fullnode.mainnet.aptoslabs.com/v1',
+  'https://aptos-mainnet.nodereal.io/v1/dbe3294d24374cad9d0886ca12d0aeb7/v1',
+  'https://rpc.ankr.com/http/aptos/v1',
 ];
 
 let currentEndpointIndex = 0;
@@ -364,7 +364,7 @@ export async function getTotalAptStaked(): Promise<[string, string, string]> {
       result[2]?.toString() || '0',
     ];
   } catch (error) {
-    // console.error('Error fetching total APT:', error);
+    // Suppress errors - RPC endpoint may be unavailable
     return ['0', '0', '0'];
   }
 }
@@ -384,7 +384,7 @@ export async function getValidatorPools(): Promise<string[]> {
     const result = await aptos.view({ payload });
     return (result[0] as string[]) || [];
   } catch (error) {
-    // console.error('Error fetching validator pools:', error);
+    // Suppress errors - RPC endpoint may be unavailable
     return [];
   }
 }
@@ -459,6 +459,7 @@ export async function getStAptExchangeRate(): Promise<number> {
     const precision = 1e8; // 10^8
     return price / precision;
   } catch (error) {
+    // Suppress errors - return fallback rate
     return 1.0; // Default 1:1 ratio
   }
 }

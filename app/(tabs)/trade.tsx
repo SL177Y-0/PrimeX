@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../../theme/ThemeProvider';
-import { useAppStore } from '../../store/useAppStore';
-import { Card } from '../../components/Card';
-import { formatCurrency } from '../../utils/number';
-import { 
-  BarChart3, 
-  Users, 
-  Bell, 
+import {
+  BarChart3,
+  Users,
+  Bell,
   Copy,
   ChevronRight,
   ArrowUpDown,
@@ -19,23 +15,17 @@ import {
   RefreshCw,
   Wallet,
   TrendingUp,
-  Percent
+  Percent,
 } from 'lucide-react-native';
-
-// Import trading page components
-import SpotTradingContent from '../trading/spotTrading';
-import CopyTradingContent from '../trading/copyTrading';
-import GroupTradingContent from '../trading/groupTrading';
-import AdvancedChartsContent from '../trading/advancedCharts';
-import PositionsOrdersContent from '../trading/positionsOrders';
-import PriceAlertsContent from '../trading/priceAlerts';
-import DepositContent from '../trading/deposit';
-import WithdrawContent from '../trading/withdraw';
+import { useTheme } from '../../theme/ThemeProvider';
+import { useAppStore } from '../../store/useAppStore';
+import { Card } from '../../components/Card';
 import TradingInterface from '../../components/TradingInterface';
 import { SwapInterface } from '../../components/SwapInterface';
 import { WalletConnection } from '../../components/WalletConnection';
 import { StakingHub } from '../../components/StakingHub';
-import { LendDashboard } from '../../components/LendDashboard';
+import AriesLendDashboard from '../../components/aries/AriesLendDashboard';
+import { formatCurrency } from '../../utils/number';
 
 // Responsive breakpoints following 2025 best practices
 const BREAKPOINTS = {
@@ -129,42 +119,6 @@ export default function TradeScreen() {
       subtitle: 'Exchange Tokens',
       icon: RefreshCw,
     },
-    {
-      id: 'spot-trading',
-      title: 'Spot Trading',
-      subtitle: 'Buy & sell cryptocurrencies instantly',
-      icon: ArrowUpDown,
-    },
-    {
-      id: 'copy-trading',
-      title: 'Copy Trading',
-      subtitle: 'Follow successful traders',
-      icon: Copy,
-    },
-    {
-      id: 'group-trading',
-      title: 'Group Trading',
-      subtitle: 'Trade together with your squad',
-      icon: Users,
-    },
-    {
-      id: 'charts',
-      title: 'Advanced Charts',
-      subtitle: 'Professional trading charts & analysis',
-      icon: BarChart3,
-    },
-    {
-      id: 'positions',
-      title: 'Positions & Orders',
-      subtitle: 'Manage your active trades',
-      icon: Target,
-    },
-    {
-      id: 'alerts',
-      title: 'Price Alerts',
-      subtitle: 'Set price notifications',
-      icon: Bell,
-    },
   ];
 
   const tradingOptions = baseTradingOptions.map((option, index) => ({
@@ -192,312 +146,387 @@ export default function TradeScreen() {
     color: ACCENT_COLORS[(baseTradingOptions.length + index) % ACCENT_COLORS.length],
   }));
 
+  type ComingSoonConfig = { title: string; description: string };
+
+  const getComingSoonConfig = (optionId: string): ComingSoonConfig | undefined => {
+    const config: Record<string, ComingSoonConfig> = {
+      'spot-trading': {
+        title: 'Spot Trading',
+        description: 'Spot trading is coming soon. Stay tuned for the official launch!',
+      },
+      'copy-trading': {
+        title: 'Copy Trading',
+        description: 'Copy trading will be available soon so you can follow top performers.',
+      },
+      'group-trading': {
+        title: 'Group Trading',
+        description: 'Trade with friends and communities once this feature rolls out.',
+      },
+      charts: {
+        title: 'Advanced Charts',
+        description: 'Advanced charting tools are under construction for a better pro experience.',
+      },
+      positions: {
+        title: 'Positions & Orders',
+        description: 'View and manage open positions once the trading engine ships.',
+      },
+      alerts: {
+        title: 'Price Alerts',
+        description: 'Set custom price alerts when this notification feature is ready.',
+      },
+      deposit: {
+        title: 'Deposit',
+        description: 'Direct fiat and crypto deposit flows are being integrated.',
+      },
+      withdraw: {
+        title: 'Withdraw',
+        description: 'Secure withdrawal flows will be enabled soon.',
+      },
+    };
+
+    return config[optionId];
+  };
+
+  const ComingSoon = ({ title, description }: ComingSoonConfig) => (
+    <View style={[styles.comingSoonContainer, { backgroundColor: theme.colors.bg }]}> 
+      <Card style={[styles.comingSoonCard, { backgroundColor: theme.colors.chip }]}> 
+        <Text style={[styles.comingSoonTitle, { color: theme.colors.textPrimary }]}>{title}</Text>
+        <Text
+          style={[styles.comingSoonDescription, { color: theme.colors.textSecondary }]}
+        >
+          {description}
+        </Text>
+      </Card>
+    </View>
+  );
+
+  const renderLandingContent = () => (
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={[
+        styles.scrollContent,
+        {
+          paddingHorizontal: spacing.md,
+          paddingBottom: insets.bottom + spacing.lg,
+        },
+      ]}
+      showsVerticalScrollIndicator={false}
+      accessibilityRole="scrollbar"
+      accessibilityLabel="Trading options and market overview"
+    >
+      <View style={[styles.section, { marginBottom: spacing.lg }]}>
+        <Text
+          style={[styles.sectionTitle, {
+            color: theme.colors.textPrimary,
+            fontSize: fontSize.lg,
+            marginBottom: spacing.md,
+          }]}
+        >
+          Quick Actions
+        </Text>
+        <View
+          style={[styles.quickActionsGrid, isMobile && styles.quickActionsGridMobile, { gap: spacing.sm }]}
+        >
+          {quickActions.map((action) => (
+            <Pressable
+              key={action.id}
+              style={[
+                styles.quickActionCard,
+                isMobile && styles.quickActionCardMobile,
+                {
+                  minHeight: getResponsiveValue({ xs: 100, sm: 110, md: 120, lg: 130, xl: 140 }, screenWidth),
+                  flex: isMobile ? 1 : 0.5,
+                },
+              ]}
+              onPress={() => setSelectedOption(action.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`${action.title}: ${action.subtitle}`}
+              accessibilityHint={`Tap to open ${action.title} page`}
+            >
+              <Card
+                style={[
+                  styles.quickActionItem,
+                  {
+                    backgroundColor: theme.colors.chip,
+                    padding: spacing.md,
+                    borderRadius: getResponsiveValue({ xs: 12, sm: 14, md: 16, lg: 18, xl: 20 }, screenWidth),
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.quickActionIcon,
+                    {
+                      backgroundColor: action.color,
+                      width: getResponsiveValue({ xs: 40, sm: 44, md: 48, lg: 52, xl: 56 }, screenWidth),
+                      height: getResponsiveValue({ xs: 40, sm: 44, md: 48, lg: 52, xl: 56 }, screenWidth),
+                      borderRadius: getResponsiveValue({ xs: 20, sm: 22, md: 24, lg: 26, xl: 28 }, screenWidth),
+                      marginBottom: spacing.sm,
+                    },
+                  ]}
+                >
+                  <action.icon
+                    size={getResponsiveValue({ xs: 18, sm: 20, md: 22, lg: 24, xl: 26 }, screenWidth)}
+                    color="#FFFFFF"
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.quickActionTitle,
+                    {
+                      color: theme.colors.textPrimary,
+                      fontSize: fontSize.md,
+                      marginBottom: spacing.xs,
+                      textAlign: 'center',
+                    },
+                  ]}
+                >
+                  {action.title}
+                </Text>
+                <Text
+                  style={[
+                    styles.quickActionSubtitle,
+                    {
+                      color: theme.colors.textSecondary,
+                      fontSize: fontSize.sm,
+                      textAlign: 'center',
+                    },
+                  ]}
+                >
+                  {action.subtitle}
+                </Text>
+              </Card>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <View style={[styles.section, { marginBottom: spacing.lg }]}>
+        <Text
+          style={[styles.sectionTitle, {
+            color: theme.colors.textPrimary,
+            fontSize: fontSize.lg,
+            marginBottom: spacing.md,
+          }]}
+        >
+          Trading Options
+        </Text>
+        <View style={[styles.optionsList, { gap: spacing.sm }]}>
+          {tradingOptions.map((option) => (
+            <Pressable
+              key={option.id}
+              onPress={() => setSelectedOption(option.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`${option.title}: ${option.subtitle}`}
+              accessibilityHint={`Tap to open ${option.title} page`}
+            >
+              <Card
+                style={[
+                  styles.optionCard,
+                  {
+                    backgroundColor: theme.colors.chip,
+                    padding: spacing.md,
+                    borderRadius: getResponsiveValue({ xs: 12, sm: 14, md: 16, lg: 18, xl: 20 }, screenWidth),
+                    minHeight: getResponsiveValue({ xs: 70, sm: 75, md: 80, lg: 85, xl: 90 }, screenWidth)
+                  },
+                ]}
+              >
+                <View style={styles.optionLeft}>
+                  <View
+                    style={[
+                      styles.optionIcon,
+                      {
+                        backgroundColor: option.color,
+                        width: getResponsiveValue({ xs: 40, sm: 44, md: 48, lg: 52, xl: 56 }, screenWidth),
+                        height: getResponsiveValue({ xs: 40, sm: 44, md: 48, lg: 52, xl: 56 }, screenWidth),
+                        borderRadius: getResponsiveValue({ xs: 20, sm: 22, md: 24, lg: 26, xl: 28 }, screenWidth),
+                        marginRight: spacing.md
+                      },
+                    ]}
+                  >
+                    <option.icon
+                      size={getResponsiveValue({ xs: 18, sm: 20, md: 22, lg: 24, xl: 26 }, screenWidth)}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                  <View style={styles.optionInfo}>
+                    <Text
+                      style={[
+                        styles.optionTitle,
+                        {
+                          color: theme.colors.textPrimary,
+                          fontSize: fontSize.md,
+                          marginBottom: spacing.xs
+                        },
+                      ]}
+                    >
+                      {option.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.optionSubtitle,
+                        {
+                          color: theme.colors.textSecondary,
+                          fontSize: fontSize.sm
+                        },
+                      ]}
+                    >
+                      {option.subtitle}
+                    </Text>
+                  </View>
+                </View>
+                <ChevronRight
+                  size={getResponsiveValue({ xs: 16, sm: 18, md: 20, lg: 22, xl: 24 }, screenWidth)}
+                  color={theme.colors.textSecondary}
+                />
+              </Card>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <View style={[styles.section, { marginBottom: spacing.lg }]}>
+        <Text
+          style={[styles.sectionTitle, {
+            color: theme.colors.textPrimary,
+            fontSize: fontSize.lg,
+            marginBottom: spacing.md,
+          }]}
+        >
+          Market Overview
+        </Text>
+        <Card
+          style={[
+            styles.marketCard,
+            {
+              backgroundColor: theme.colors.chip,
+              padding: spacing.md,
+              borderRadius: getResponsiveValue({ xs: 12, sm: 14, md: 16, lg: 18, xl: 20 }, screenWidth)
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.marketStats,
+              isMobile && styles.marketStatsMobile,
+              { gap: spacing.md }
+            ]}
+          >
+            <View style={styles.marketStat}>
+              <Text
+                style={[
+                  styles.marketStatValue,
+                  {
+                    color: theme.colors.positive,
+                    fontSize: fontSize.lg,
+                    marginBottom: spacing.xs
+                  },
+                ]}
+              >
+                +2.4%
+              </Text>
+              <Text
+                style={[
+                  styles.marketStatLabel,
+                  {
+                    color: theme.colors.textSecondary,
+                    fontSize: fontSize.sm
+                  },
+                ]}
+              >
+                BTC 24h
+              </Text>
+            </View>
+            <View style={styles.marketStat}>
+              <Text
+                style={[
+                  styles.marketStatValue,
+                  {
+                    color: theme.colors.positive,
+                    fontSize: fontSize.lg,
+                    marginBottom: spacing.xs
+                  },
+                ]}
+              >
+                +1.8%
+              </Text>
+              <Text
+                style={[
+                  styles.marketStatLabel,
+                  {
+                    color: theme.colors.textSecondary,
+                    fontSize: fontSize.sm
+                  },
+                ]}
+              >
+                ETH 24h
+              </Text>
+            </View>
+            <View style={styles.marketStat}>
+              <Text
+                style={[
+                  styles.marketStatValue,
+                  {
+                    color: theme.colors.negative,
+                    fontSize: fontSize.lg,
+                    marginBottom: spacing.xs
+                  },
+                ]}
+              >
+                -0.5%
+              </Text>
+              <Text
+                style={[
+                  styles.marketStatLabel,
+                  {
+                    color: theme.colors.textSecondary,
+                    fontSize: fontSize.sm
+                  },
+                ]}
+              >
+                SOL 24h
+              </Text>
+            </View>
+          </View>
+        </Card>
+      </View>
+    </ScrollView>
+  );
+
   const renderContent = () => {
+    if (!selectedOption) {
+      return renderLandingContent();
+    }
+
     switch (selectedOption) {
       case 'merkle-trading':
         return <TradingInterface />;
       case 'staking':
         return <StakingHub />;
       case 'lend-borrow':
-        return <LendDashboard />;
+        return <AriesLendDashboard />;
       case 'swap':
         return <SwapInterface />;
-      case 'spot-trading':
-        return <SpotTradingContent onBack={() => setSelectedOption(null)} />;
-      case 'copy-trading':
-        return <CopyTradingContent onBack={() => setSelectedOption(null)} />;
-      case 'group-trading':
-        return <GroupTradingContent onBack={() => setSelectedOption(null)} />;
-      case 'charts':
-        return <AdvancedChartsContent onBack={() => setSelectedOption(null)} />;
-      case 'positions':
-        return <PositionsOrdersContent onBack={() => setSelectedOption(null)} />;
-      case 'alerts':
-        return <PriceAlertsContent onBack={() => setSelectedOption(null)} />;
       case 'wallet':
         return <WalletConnection onBack={() => setSelectedOption(null)} />;
-      case 'deposit':
-        return <DepositContent onBack={() => setSelectedOption(null)} />;
-      case 'withdraw':
-        return <WithdrawContent onBack={() => setSelectedOption(null)} />;
-      default:
-        return (
-          <ScrollView 
-            style={styles.scrollView}
-            contentContainerStyle={[
-              styles.scrollContent, 
-              { 
-                paddingHorizontal: spacing.md,
-                paddingBottom: 0 + insets.bottom + spacing.lg
-              }
-            ]}
-            showsVerticalScrollIndicator={false}
-            accessibilityRole="scrollbar"
-            accessibilityLabel="Trading options and market overview"
-          >
-            {/* Quick Actions */}
-            <View style={[styles.section, { marginBottom: spacing.lg }]}>
-              <Text style={[
-                styles.sectionTitle, 
-                { 
-                  color: theme.colors.textPrimary,
-                  fontSize: fontSize.lg,
-                  marginBottom: spacing.md
-                }
-              ]}>
-                Quick Actions
-              </Text>
-              <View style={[
-                styles.quickActionsGrid, 
-                isMobile && styles.quickActionsGridMobile,
-                { gap: spacing.sm }
-              ]}>
-                {quickActions.map((action) => (
-                  <Pressable 
-                    key={action.id} 
-                    style={[
-                      styles.quickActionCard, 
-                      isMobile && styles.quickActionCardMobile,
-                      { 
-                        minHeight: getResponsiveValue({ xs: 100, sm: 110, md: 120, lg: 130, xl: 140 }, screenWidth),
-                        flex: isMobile ? 1 : 0.5
-                      }
-                    ]} 
-                    onPress={() => setSelectedOption(action.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${action.title}: ${action.subtitle}`}
-                    accessibilityHint={`Tap to open ${action.title} page`}
-                  >
-                    <Card style={[
-                      styles.quickActionItem, 
-                      { 
-                        backgroundColor: theme.colors.chip,
-                        padding: spacing.md,
-                        borderRadius: getResponsiveValue({ xs: 12, sm: 14, md: 16, lg: 18, xl: 20 }, screenWidth)
-                      }
-                    ]}>
-                      <View style={[
-                        styles.quickActionIcon, 
-                        { 
-                          backgroundColor: action.color,
-                          width: getResponsiveValue({ xs: 40, sm: 44, md: 48, lg: 52, xl: 56 }, screenWidth),
-                          height: getResponsiveValue({ xs: 40, sm: 44, md: 48, lg: 52, xl: 56 }, screenWidth),
-                          borderRadius: getResponsiveValue({ xs: 20, sm: 22, md: 24, lg: 26, xl: 28 }, screenWidth),
-                          marginBottom: spacing.sm
-                        }
-                      ]}>
-                        <action.icon 
-                          size={getResponsiveValue({ xs: 18, sm: 20, md: 22, lg: 24, xl: 26 }, screenWidth)} 
-                          color="#FFFFFF" 
-                        />
-                      </View>
-                      <Text style={[
-                        styles.quickActionTitle, 
-                        { 
-                          color: theme.colors.textPrimary,
-                          fontSize: fontSize.md,
-                          marginBottom: spacing.xs,
-                          textAlign: 'center'
-                        }
-                      ]}>
-                        {action.title}
-                      </Text>
-                      <Text style={[
-                        styles.quickActionSubtitle, 
-                        { 
-                          color: theme.colors.textSecondary,
-                          fontSize: fontSize.sm,
-                          textAlign: 'center'
-                        }
-                      ]}>
-                        {action.subtitle}
-                      </Text>
-                    </Card>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-            
-            {/* Trading Options */}
-            <View style={[styles.section, { marginBottom: spacing.lg }]}>
-              <Text style={[
-                styles.sectionTitle, 
-                { 
-                  color: theme.colors.textPrimary,
-                  fontSize: fontSize.lg,
-                  marginBottom: spacing.md
-                }
-              ]}>
-                Trading Options
-              </Text>
-              <View style={[styles.optionsList, { gap: spacing.sm }]}>
-                {tradingOptions.map((option) => (
-                  <Pressable 
-                    key={option.id} 
-                    onPress={() => setSelectedOption(option.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${option.title}: ${option.subtitle}`}
-                    accessibilityHint={`Tap to open ${option.title} page`}
-                  >
-                    <Card style={[
-                      styles.optionCard, 
-                      { 
-                        backgroundColor: theme.colors.chip,
-                        padding: spacing.md,
-                        borderRadius: getResponsiveValue({ xs: 12, sm: 14, md: 16, lg: 18, xl: 20 }, screenWidth),
-                        minHeight: getResponsiveValue({ xs: 70, sm: 75, md: 80, lg: 85, xl: 90 }, screenWidth)
-                      }
-                    ]}>
-                      <View style={styles.optionLeft}>
-                        <View style={[
-                          styles.optionIcon, 
-                          { 
-                            backgroundColor: option.color,
-                            width: getResponsiveValue({ xs: 40, sm: 44, md: 48, lg: 52, xl: 56 }, screenWidth),
-                            height: getResponsiveValue({ xs: 40, sm: 44, md: 48, lg: 52, xl: 56 }, screenWidth),
-                            borderRadius: getResponsiveValue({ xs: 20, sm: 22, md: 24, lg: 26, xl: 28 }, screenWidth),
-                            marginRight: spacing.md
-                          }
-                        ]}>
-                          <option.icon 
-                            size={getResponsiveValue({ xs: 18, sm: 20, md: 22, lg: 24, xl: 26 }, screenWidth)} 
-                            color="#FFFFFF" 
-                          />
-                        </View>
-                        <View style={styles.optionInfo}>
-                          <Text style={[
-                            styles.optionTitle, 
-                            { 
-                              color: theme.colors.textPrimary,
-                              fontSize: fontSize.md,
-                              marginBottom: spacing.xs
-                            }
-                          ]}>
-                            {option.title}
-                          </Text>
-                          <Text style={[
-                            styles.optionSubtitle, 
-                            { 
-                              color: theme.colors.textSecondary,
-                              fontSize: fontSize.sm
-                            }
-                          ]}>
-                            {option.subtitle}
-                          </Text>
-                        </View>
-                      </View>
-                      <ChevronRight 
-                        size={getResponsiveValue({ xs: 16, sm: 18, md: 20, lg: 22, xl: 24 }, screenWidth)} 
-                        color={theme.colors.textSecondary} 
-                      />
-                    </Card>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-            
-            {/* Market Overview */}
-            <View style={[styles.section, { marginBottom: spacing.lg }]}>
-              <Text style={[
-                styles.sectionTitle, 
-                { 
-                  color: theme.colors.textPrimary,
-                  fontSize: fontSize.lg,
-                  marginBottom: spacing.md
-                }
-              ]}>
-                Market Overview
-              </Text>
-              <Card style={[
-                styles.marketCard, 
-                { 
-                  backgroundColor: theme.colors.chip,
-                  padding: spacing.md,
-                  borderRadius: getResponsiveValue({ xs: 12, sm: 14, md: 16, lg: 18, xl: 20 }, screenWidth)
-                }
-              ]}>
-                <View style={[
-                  styles.marketStats, 
-                  isMobile && styles.marketStatsMobile,
-                  { gap: spacing.md }
-                ]}>
-                  <View style={styles.marketStat}>
-                    <Text style={[
-                      styles.marketStatValue, 
-                      { 
-                        color: theme.colors.positive,
-                        fontSize: fontSize.lg,
-                        marginBottom: spacing.xs
-                      }
-                    ]}>
-                      +2.4%
-                    </Text>
-                    <Text style={[
-                      styles.marketStatLabel, 
-                      { 
-                        color: theme.colors.textSecondary,
-                        fontSize: fontSize.sm
-                      }
-                    ]}>
-                      BTC 24h
-                    </Text>
-                  </View>
-                  <View style={styles.marketStat}>
-                    <Text style={[
-                      styles.marketStatValue, 
-                      { 
-                        color: theme.colors.positive,
-                        fontSize: fontSize.lg,
-                        marginBottom: spacing.xs
-                      }
-                    ]}>
-                      +1.8%
-                    </Text>
-                    <Text style={[
-                      styles.marketStatLabel, 
-                      { 
-                        color: theme.colors.textSecondary,
-                        fontSize: fontSize.sm
-                      }
-                    ]}>
-                      ETH 24h
-                    </Text>
-                  </View>
-                  <View style={styles.marketStat}>
-                    <Text style={[
-                      styles.marketStatValue, 
-                      { 
-                        color: theme.colors.negative,
-                        fontSize: fontSize.lg,
-                        marginBottom: spacing.xs
-                      }
-                    ]}>
-                      -0.5%
-                    </Text>
-                    <Text style={[
-                      styles.marketStatLabel, 
-                      { 
-                        color: theme.colors.textSecondary,
-                        fontSize: fontSize.sm
-                      }
-                    ]}>
-                      SOL 24h
-                    </Text>
-                  </View>
-                </View>
-              </Card>
-            </View>
-          </ScrollView>
-        );
+      default: {
+        const comingSoonConfig = getComingSoonConfig(selectedOption);
+        return comingSoonConfig ? (
+          <ComingSoon
+            title={comingSoonConfig.title}
+            description={comingSoonConfig.description}
+          />
+        ) : null;
+      }
     }
   };
-  
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       {/* Header */}
       <View style={[
-        styles.header, 
-        { 
+        styles.header,
+        {
           paddingTop: insets.top + spacing.sm,
           paddingHorizontal: spacing.md,
           paddingBottom: spacing.md
@@ -505,7 +534,7 @@ export default function TradeScreen() {
       ]}>
         {selectedOption ? (
           <View style={styles.headerWithBack}>
-            <Pressable 
+            <Pressable
               onPress={() => setSelectedOption(null)}
               style={[
                 styles.backButton,
@@ -592,6 +621,21 @@ export default function TradeScreen() {
       <View style={styles.contentContainer}>
         {renderContent()}
       </View>
+    </View>
+  );
+}
+
+function ComingSoon({ title, description }: { title: string; description: string }) {
+  const { theme } = useTheme();
+
+  return (
+    <View style={[styles.comingSoonContainer, { backgroundColor: theme.colors.bg }]}> 
+      <Card style={styles.comingSoonCard}>
+        <Text style={[styles.comingSoonTitle, { color: theme.colors.textPrimary }]}>{title}</Text>
+        <Text style={[styles.comingSoonDescription, { color: theme.colors.textSecondary }]}>
+          {description}
+        </Text>
+      </Card>
     </View>
   );
 }
@@ -728,5 +772,27 @@ const styles = StyleSheet.create({
   marketStatLabel: {
     fontFamily: 'Inter-Medium',
     // Dynamic styles applied inline
+  },
+  comingSoonContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  comingSoonCard: {
+    padding: 24,
+    alignItems: 'center',
+    maxWidth: 420,
+  },
+  comingSoonTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 20,
+    marginBottom: 12,
+  },
+  comingSoonDescription: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

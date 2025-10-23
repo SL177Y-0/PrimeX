@@ -39,8 +39,8 @@ export class PrimeXWebSocketServer extends EventEmitter {
   private wss: WebSocketServer;
   private clients: Map<string, ClientConnection> = new Map();
   private supabase: any;
-  private priceUpdateInterval: NodeJS.Timeout | null = null;
-  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private priceUpdateInterval: ReturnType<typeof setInterval> | null = null;
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(port: number = 8080) {
     super();

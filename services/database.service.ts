@@ -86,10 +86,11 @@ export class DatabaseService {
         return dbCache.data;
       }
 
-      // 3. Fetch from Aptos (use your ariesProtocolService)
+      // 3. Fetch from Aptos (use ariesSDKService with view functions)
       try {
-        const { ariesProtocolService } = await import('./ariesProtocolService');
-        const freshData = await ariesProtocolService.fetchReserve(coinType);
+        const { ariesSDKService } = await import('./ariesSDKService');
+        const reserves = await ariesSDKService.fetchAllReserves();
+        const freshData = reserves.find((r: any) => r.coinType === coinType);
 
         // Update both caches
         cache.set(cacheKey, freshData, 60);

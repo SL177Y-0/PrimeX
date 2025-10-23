@@ -14,7 +14,14 @@
  * as get_price_no_older_than is not exposed as a view function on Aptos
  */
 
-import { priceOracleService, TokenPrice } from './priceOracleService';
+import { priceService } from './ariesPriceService';
+
+// Legacy TokenPrice interface (for compatibility)
+export interface TokenPrice {
+  symbol: string;
+  priceUSD: number;
+  timestamp: number;
+}
 
 export interface PythPrice {
   symbol: string;
@@ -91,26 +98,42 @@ export class PythOracleService {
   }
 
   /**
-   * Fetch price using priceOracleService REST API
+   * Fetch price using Pyth REST API
+   * NOTE: This service is deprecated and not used in Aries integration
    */
   private async fetchPythPrice(symbol: string): Promise<PythPrice> {
     try {
-      // Use the existing priceOracleService which uses Hermes REST API
-      const tokenPrice: TokenPrice = await priceOracleService.getPrice(symbol);
+      // Fetch from CoinGecko via ariesPriceService (Pyth not implemented)
+      const coinType = this.getCoinTypeForSymbol(symbol);
+      const priceUSD = await priceService.getPrice(coinType);
 
-      // Convert TokenPrice to PythPrice format
+      // Convert to PythPrice format
       return {
         symbol,
-        price: Math.round(tokenPrice.priceUSD * 1e8), // Convert to integer with 8 decimals
-        confidence: tokenPrice.confidence || 0,
+        price: Math.round(priceUSD * 1e8), // Convert to integer with 8 decimals
+        confidence: 0, // Not available from CoinGecko
         expo: -8, // Standard 8 decimal places
-        publishTime: Math.floor(tokenPrice.timestamp / 1000), // Convert to seconds
-        priceUSD: tokenPrice.priceUSD,
+        publishTime: Math.floor(Date.now() / 1000), // Current timestamp
+        priceUSD: priceUSD,
       };
     } catch (error: any) {
-      console.error(`[Pyth] REST API error for ${symbol}:`, error.message);
+      console.error(`[Pyth] Price fetch error for ${symbol}:`, error.message);
       throw error;
     }
+  }
+
+  /**
+   * Helper to convert symbol to coin type
+   */
+  private getCoinTypeForSymbol(symbol: string): string {
+    const mapping: Record<string, string> = {
+      'APT': '0x1::aptos_coin::AptosCoin',
+      'BTC': '0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::WBTC',
+      'ETH': '0xcc8a89c8dce9693d354449f1f73e60e14e347417854f029db5bc8e7454008abb::coin::T',
+      'SOL': '0x1::aptos_coin::AptosCoin', // Placeholder
+      'USDC': '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b::coin::T',
+    };
+    return mapping[symbol.toUpperCase()] || '0x1::aptos_coin::AptosCoin';
   }
 
   /**

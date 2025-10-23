@@ -1864,9 +1864,11 @@ export const TradingInterface: React.FC = () => {
                   fontSize: orderValidation.isValid ? fontSize.lg : fontSize.sm,
                   fontFamily: orderValidation.isValid ? 'Inter-Black' : 'Inter-Bold',
                   marginLeft: spacing.sm,
-                  textShadowColor: orderValidation.isValid ? 'none' : 'rgba(0, 0, 0, 0.3)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 2
+                  ...(orderValidation.isValid ? {} : {
+                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                  }),
                 }
               ]}>
                 {tradingLoading 

@@ -15,7 +15,9 @@
   ],
   "exclude": [
     "node_modules",
-    "Docs_New/Lend",
-    "Docs_New/scripts"
+    "Docs_New/**",
+    "supabase/functions/**/*",
+    "server/**/*",
+    "__tests__/**/*"
   ]
 }

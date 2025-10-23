@@ -10,8 +10,10 @@ import { ARIES_ASSETS } from '../config/ariesAssets';
 const priceCache = new Map<string, { price: number; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 seconds
 
-// CoinGecko API (free tier, no API key required)
-const COINGECKO_API = 'https://api.coingecko.com/api/v3';
+// Use proxy server to handle CORS and API keys
+const COINGECKO_API = process.env.EXPO_PUBLIC_PROXY_BASE_URL 
+  ? `${process.env.EXPO_PUBLIC_PROXY_BASE_URL}/api/coingecko/api/v3`
+  : 'http://localhost:3001/api/coingecko/api/v3';
 
 // Mock prices for development
 const MOCK_PRICES: Record<string, number> = {

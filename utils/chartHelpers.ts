@@ -206,29 +206,23 @@ export function formatChartDate(
  */
 export function generateMockAPRHistory(
   days: number = 30,
-  baseSupplyAPR: number = 5,
-  baseBorrowAPR: number = 8
+  minAPR: number = 5,
+  maxAPR: number = 8,
 ): APRDataPoint[] {
   const now = Date.now();
-  const history: APRDataPoint[] = [];
-
-  for (let i = days; i >= 0; i--) {
-    const timestamp = now - i * 24 * 60 * 60 * 1000;
-    
-    // Add some randomness
-    const supplyVariation = (Math.random() - 0.5) * 2;
-    const borrowVariation = (Math.random() - 0.5) * 3;
-    
-    history.push({
+  return Array.from({ length: days + 1 }).map((_, index) => {
+    const offset = days - index;
+    const timestamp = now - offset * 24 * 60 * 60 * 1000;
+    const supplyAPR = minAPR + Math.random() * (maxAPR - minAPR);
+    const borrowAPR = supplyAPR * 1.5 + Math.random() * 2;
+    return {
       timestamp,
       date: formatChartDate(timestamp),
-      supplyAPR: Math.max(0, baseSupplyAPR + supplyVariation),
-      borrowAPR: Math.max(0, baseBorrowAPR + borrowVariation),
-      utilization: 50 + (Math.random() - 0.5) * 40, // 30-70%
-    });
-  }
-
-  return history;
+      supplyAPR,
+      borrowAPR,
+      utilization: 60 + Math.random() * 20,
+    };
+  });
 }
 
 /**
@@ -236,21 +230,14 @@ export function generateMockAPRHistory(
  */
 export function generateMockPnLHistory(days: number = 30): PnLDataPoint[] {
   const now = Date.now();
-  const history: Array<{ timestamp: number; pnl: number }> = [];
-
-  let trend = 0;
-  for (let i = days; i >= 0; i--) {
-    const timestamp = now - i * 24 * 60 * 60 * 1000;
-    
-    // Simulate trending PnL with some volatility
-    trend += (Math.random() - 0.45) * 50; // Slight upward bias
-    const dailyPnL = trend + (Math.random() - 0.5) * 100;
-    
-    history.push({
+  const history = Array.from({ length: days + 1 }).map((_, index) => {
+    const offset = days - index;
+    const timestamp = now - offset * 24 * 60 * 60 * 1000;
+    return {
       timestamp,
-      pnl: dailyPnL,
-    });
-  }
+      pnl: 0,
+    };
+  });
 
   return formatPnLHistory(history);
 }

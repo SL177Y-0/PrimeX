@@ -97,15 +97,8 @@ export const SUPPORTED_MARKETS: MarketInfo[] = [
 const priceCache = new Map<string, { data: PriceData; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 seconds
 
-// Fallback prices for when APIs are unavailable
-// Using underscore format to match MARKETS keys
-const FALLBACK_PRICES: Record<string, number> = {
-  'BTC_USD': 43250.50,
-  'ETH_USD': 2650.75,
-  'APT_USD': 12.45,
-  'SOL_USD': 98.20,
-  'DOGE_USD': 0.085,
-};
+// When APIs are unavailable we return zeroed data instead of mock values
+const FALLBACK_PRICES: Record<string, number> = {};
 
 class PriceService {
   private wsConnections: Map<string, { close: () => void }> = new Map();
@@ -140,8 +133,10 @@ class PriceService {
         return this.getFallbackPrices(targetSymbols);
       }
 
+      // Route through proxy to avoid CORS issues and rate limits
+      const proxyBaseUrl = process.env.EXPO_PUBLIC_PROXY_BASE_URL || 'http://localhost:3001';
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${coinGeckoIds.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`
+        `${proxyBaseUrl}/api/coingecko/api/v3/simple/price?ids=${coinGeckoIds.join(',')}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`
       );
 
       if (!response.ok) {
@@ -200,13 +195,14 @@ class PriceService {
     try {
       const coinGeckoId = this.mapSymbolToCoinGeckoId(symbol);
       if (!coinGeckoId) {
-        return this.generateMockCandles(FALLBACK_PRICES[symbol] || 100, limit);
+        return this.generateFallbackCandles(limit);
       }
 
-      // CoinGecko historical data (limited on free tier)
+      // CoinGecko historical data (limited on free tier) - Route through proxy
+      const proxyBaseUrl = process.env.EXPO_PUBLIC_PROXY_BASE_URL || 'http://localhost:3001';
       const days = this.getDaysFromInterval(interval, limit);
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/coins/${coinGeckoId}/market_chart?vs_currency=usd&days=${days}&interval=${interval}`
+        `${proxyBaseUrl}/api/coingecko/api/v3/coins/${coinGeckoId}/market_chart?vs_currency=usd&days=${days}&interval=${interval}`
       );
 
       if (!response.ok) {
@@ -217,8 +213,7 @@ class PriceService {
       return this.processCandleData(data);
     } catch (error) {
       log.error('Error fetching candle data:', error);
-      const fallbackPrice = FALLBACK_PRICES[symbol] || 100;
-      return this.generateMockCandles(fallbackPrice, limit);
+      return this.generateFallbackCandles(limit);
     }
   }
 
@@ -260,14 +255,15 @@ class PriceService {
 
     return Object.entries(data).map(([coinId, priceData]: [string, CoinGeckoPriceData]) => {
       const symbol = idToSymbol[coinId];
+      const price = priceData.usd || 0;
       return {
         symbol,
-        price: priceData.usd || 0,
+        price,
         change24h: priceData.usd_24h_change || 0,
         changePercent24h: priceData.usd_24h_change || 0,
         volume24h: priceData.usd_24h_vol || 0,
-        high24h: priceData.usd * 1.05, // Approximate
-        low24h: priceData.usd * 0.95, // Approximate
+        high24h: price,
+        low24h: price,
         timestamp: Date.now(),
       };
     }).filter(price => price.symbol);
@@ -280,16 +276,12 @@ class PriceService {
     return prices.map((pricePoint: [number, number], index: number) => {
       const [timestamp, price] = pricePoint;
       const volume = volumes[index] ? volumes[index][1] : 0;
-      
-      // Generate OHLC from single price point (simplified)
-      const volatility = 0.02;
-      const change = (Math.random() - 0.5) * volatility * price;
-      
+
       return {
         timestamp,
-        open: price - change / 2,
-        high: price + Math.abs(change),
-        low: price - Math.abs(change),
+        open: price,
+        high: price,
+        low: price,
         close: price,
         volume,
       };
@@ -299,41 +291,26 @@ class PriceService {
   private getFallbackPrices(symbols: string[]): PriceData[] {
     return symbols.map(symbol => ({
       symbol,
-      price: FALLBACK_PRICES[symbol] || 100,
-      change24h: (Math.random() - 0.5) * 10, // Random change
-      changePercent24h: (Math.random() - 0.5) * 5,
-      volume24h: Math.random() * 1000000,
-      high24h: (FALLBACK_PRICES[symbol] || 100) * 1.05,
-      low24h: (FALLBACK_PRICES[symbol] || 100) * 0.95,
+      price: 0,
+      change24h: 0,
+      changePercent24h: 0,
+      volume24h: 0,
+      high24h: 0,
+      low24h: 0,
       timestamp: Date.now(),
     }));
   }
 
-  private generateMockCandles(currentPrice: number, count: number): CandleData[] {
-    const candles: CandleData[] = [];
-    let price = currentPrice * 0.95;
-    
-    for (let i = 0; i < count; i++) {
-      const open = price;
-      const volatility = 0.02;
-      const change = (Math.random() - 0.5) * volatility * price;
-      const close = Math.max(0, open + change);
-      const high = Math.max(open, close) * (1 + Math.random() * 0.01);
-      const low = Math.min(open, close) * (1 - Math.random() * 0.01);
-      
-      candles.push({
-        timestamp: Date.now() - (count - i) * 3600000,
-        open,
-        high,
-        low,
-        close,
-        volume: Math.random() * 100000,
-      });
-      
-      price = close;
-    }
-    
-    return candles;
+  private generateFallbackCandles(count: number): CandleData[] {
+    const now = Date.now();
+    return Array.from({ length: count }).map((_, index) => ({
+      timestamp: now - (count - index) * 3600000,
+      open: 0,
+      high: 0,
+      low: 0,
+      close: 0,
+      volume: 0,
+    }));
   }
 
   private getDaysFromInterval(interval: string, limit: number): number {

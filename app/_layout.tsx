@@ -7,6 +7,9 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { WalletProvider } from './providers/WalletProvider';
 
+// Import console filter to hide non-Aries logs
+import '../utils/consoleFilter';
+
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 

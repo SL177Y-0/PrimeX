@@ -383,9 +383,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         const payload = {
           type: "entry_function_payload",
           function: transaction.function,
-          type_arguments: transaction.type_arguments || [],
-          arguments: transaction.arguments || [],
+          type_arguments: transaction.typeArguments || transaction.type_arguments || [],
+          arguments: transaction.functionArguments || transaction.arguments || [],
         };
+        
+        console.log('[WalletProvider] Submitting transaction:', payload);
         
         // Sending transaction to Petra
         return await window.aptos.signAndSubmitTransaction(payload);

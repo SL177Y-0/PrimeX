@@ -45,7 +45,7 @@ export function useRewards(refreshInterval: number = 60000) {
 
   const claimReward = useCallback(async (
     assetSymbol: string,
-    rewardType: 'supply' | 'borrow'
+    rewardType: 'supply' | 'borrow' | 'liquidity_mining'
   ) => {
     if (!account?.address) {
       throw new Error('Wallet not connected');
@@ -54,7 +54,7 @@ export function useRewards(refreshInterval: number = 60000) {
     try {
       setClaiming(`${assetSymbol}_${rewardType}`);
       
-      const transaction = await rewardsService.claimRewards(
+      const transaction = await rewardsService.claimReward(
         account.address,
         assetSymbol,
         rewardType
