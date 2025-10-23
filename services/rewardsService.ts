@@ -7,7 +7,7 @@
 
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { ARIES_CONFIG, APTOS_CONFIG } from '../config/constants';
-import { priceService } from './ariesPriceService';
+import { pythPriceService } from './pythPriceService';
 
 // Reward token (placeholder - update with actual reward token from Aries)
 const REWARD_TOKEN = '0x1::aptos_coin::AptosCoin';
@@ -285,7 +285,8 @@ class RewardsService {
    */
   private async getRewardTokenPrice(): Promise<number> {
     try {
-      return await priceService.getPrice(REWARD_TOKEN);
+      const price = await pythPriceService.getPrice(REWARD_TOKEN);
+      return price || 0;
     } catch (error) {
       console.error('[RewardsService] Failed to fetch reward token price:', error);
       return 0; // Fallback to 0 if price fetch fails

@@ -17,8 +17,8 @@ import { MARKETS, MarketName } from '../config/constants';
 import { TradingChart } from './TradingChart';
 import { CandleChart, CandleData } from './CandleChart';
 import { PositionsList } from './PositionsList';
-import { merkleService } from '../services/merkleService';
-import { realMarketDataService, RealMarketData } from '../services/realMarketDataService';
+import { merkleService } from '../Docs_New/PrimeX-master/services/merkleService';
+import { realMarketDataService, RealMarketData } from '../Docs_New/PrimeX-master/services/realMarketDataService';
 import { globalTextInputStyle } from '../styles/globalStyles';
 import { databaseService } from '../services/database.service';
 import {
@@ -264,7 +264,7 @@ export const TradingInterface: React.FC = () => {
       // Fetch candlestick data
       const candlestickData = await realMarketDataService.getCandlestickData(market, 1);
       if (candlestickData.length > 0) {
-        const formattedCandles: CandleData[] = candlestickData.map(candle => ({
+        const formattedCandles: CandleData[] = candlestickData.map((candle: any) => ({
           time: candle.timestamp,
           open: candle.open,
           high: candle.high,
@@ -302,7 +302,7 @@ export const TradingInterface: React.FC = () => {
     fetchMarketData();
 
     // Subscribe to real-time price updates
-    const unsubscribe = realMarketDataService.subscribeToPrice(market, (data) => {
+    const unsubscribe = realMarketDataService.subscribeToPrice(market, (data: RealMarketData) => {
       setMarketData(data);
       setPrice(data.price.toFixed(2));
     });

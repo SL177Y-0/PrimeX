@@ -27,6 +27,10 @@ import { formatHealthFactor, getHealthFactorColor } from '../../utils/ariesRiskC
 import { formatAssetAmount } from '../../config/ariesAssetsComplete';
 import { LoadingScreen } from '../LoadingScreen';
 import { EModePanel } from '../EModePanel';
+import { EModeToggle } from './EModeToggle';
+import { formatUSD, formatPercentage } from '../../utils/ariesFormatters';
+import { calculateNetAPR } from '../../utils/ariesAPRCalculations';
+import { getRiskParameterSummary } from '../../utils/ariesRiskParameters';
 import AriesSupplyModal from './modals/AriesSupplyModal';
 // @ts-ignore - TS cache issue, restart TS server to resolve
 import AriesBorrowModal from './modals/AriesBorrowModal';
@@ -243,22 +247,22 @@ export default function AriesLendDashboard() {
           </View>
         )}
 
-        {/* E-Mode Panel (collapsible) */}
-        {hasProfile && showEModePanel && (
+        {/* E-Mode Toggle (NEW - Enhanced UI) */}
+        {hasProfile && showEModePanel && portfolio && (
           <View style={styles.emodePanelContainer}>
-            <EModePanel
-              categories={emodeCategories}
-              userPortfolio={portfolio}
-              activeCategory={activeEmodeCategory}
-              onEnableEMode={async (categoryId) => {
-                await enableEMode(categoryId);
+            <EModeToggle
+              userDeposits={portfolio.deposits?.map((d: any) => d.coinType) || []}
+              currentEMode={activeEmodeCategory}
+              onToggleEMode={async (categoryId) => {
+                if (categoryId === null) {
+                  await disableEMode();
+                } else {
+                  await enableEMode(categoryId);
+                }
                 await refresh();
                 setShowEModePanel(false);
               }}
-              onDisableEMode={async () => {
-                await disableEMode();
-                await refresh();
-              }}
+              loading={emodeLoading}
             />
           </View>
         )}

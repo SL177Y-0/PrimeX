@@ -14,7 +14,7 @@
  * as get_price_no_older_than is not exposed as a view function on Aptos
  */
 
-import { priceService } from './ariesPriceService';
+import { pythPriceService } from './pythPriceService';
 
 // Legacy TokenPrice interface (for compatibility)
 export interface TokenPrice {
@@ -105,7 +105,7 @@ export class PythOracleService {
     try {
       // Fetch from CoinGecko via ariesPriceService (Pyth not implemented)
       const coinType = this.getCoinTypeForSymbol(symbol);
-      const priceUSD = await priceService.getPrice(coinType);
+      const priceUSD = await pythPriceService.getPrice(coinType) || 0;
 
       // Convert to PythPrice format
       return {

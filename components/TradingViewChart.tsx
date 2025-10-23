@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '../theme/ThemeProvider';
-import { realMarketDataService } from '../services/realMarketDataService';
+import { realMarketDataService } from '../Docs_New/PrimeX-master/services/realMarketDataService';
 
 interface TradingViewChartProps {
   symbol: string;
@@ -32,7 +32,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = ({
         const data = await realMarketDataService.getCandlestickData(symbol, days);
         
         if (data && data.length > 0) {
-          const formatted = data.map(candle => ({
+          const formatted = data.map((candle: any) => ({
             time: Math.floor(candle.timestamp / 1000),
             open: candle.open,
             high: candle.high,

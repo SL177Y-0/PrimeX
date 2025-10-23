@@ -16,6 +16,12 @@ import {
   simulateRepayHealthFactor,
 } from '../utils/ariesRiskCalculationsComplete';
 import { toBaseUnits, getAssetByCoinType } from '../config/ariesAssetsComplete';
+
+// NEW: Import utility modules
+import { calculateNetAPR } from '../utils/ariesAPRCalculations';
+import { getRiskParameterSummary } from '../utils/ariesRiskParameters';
+import { canEnterEMode, getAvailableEModeCategories, calculateEModeBenefit } from '../utils/ariesEModeUtils';
+import { formatHealthFactor, formatUSD, formatPercentage } from '../utils/ariesFormatters';
 import type {
   AriesReserve,
   UserPortfolio,

@@ -43,7 +43,7 @@ import {
   formatAPR,
   type StakingBalance,
   type StakingStats,
-} from '../services/amnisService';
+} from '../Docs_New/PrimeX-master/services/amnisService';
 import { AMNIS_CONFIG, STAKING_CONSTANTS } from '../config/constants';
 import { databaseService } from '../services/database.service';
 

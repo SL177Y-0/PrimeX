@@ -380,7 +380,7 @@ class MerkleSdkService {
    */
   private async normalizeSDKPositionsWithPnL(rawPositions: SDKPosition[]): Promise<Position[]> {
     // Import price service dynamically to avoid circular dependency
-    const { realMarketDataService } = await import('./realMarketDataService');
+    const { realMarketDataService } = await import('../Docs_New/PrimeX-master/services/realMarketDataService');
     
     return Promise.all(rawPositions.map(async raw => {
       // Parse numeric values from strings (API returns strings for large numbers)

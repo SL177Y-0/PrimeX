@@ -1,15 +1,16 @@
 /**
  * Rewards Panel Component
  * 
- * Displays user's earned rewards from lending and borrowing activities
- * Allows claiming of pending rewards
+ * Displays user's claimable rewards from Aries Markets with real data integration
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Gift, TrendingUp, Clock, CheckCircle, DollarSign, Zap } from 'lucide-react-native';
+import { Gift, CheckCircle, DollarSign, TrendingUp, Clock, Zap } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
+import { ariesRewardsIntegration, UserRewards } from '../services/ariesRewardsIntegration';
+import { formatUSD, formatCryptoAmount, formatPercentage } from '../utils/ariesFormatters';
 import { useResponsive } from '../hooks/useResponsive';
 import { PAGE_ACCENTS } from '../theme/pageAccents';
 import type { UserReward } from '../services/rewardsService';
