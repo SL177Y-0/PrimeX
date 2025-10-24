@@ -64,15 +64,33 @@ export default function AriesSupplyModal({ visible, coinType, onClose }: AriesSu
     reserves.find(r => r.coinType === coinType),
   [reserves, coinType]);
 
-  // Get wallet balance from portfolio or default to 0
-  // In production, this would fetch from Aptos RPC using account.address
-  const walletBalance = useMemo(() => {
-    // For now, return a reasonable default
-    // TODO: Integrate with Aptos SDK to fetch real balance
-    // const aptosClient = new AptosClient('https://fullnode.mainnet.aptoslabs.com');
-    // const balance = await aptosClient.getAccountResource(account.address, `0x1::coin::CoinStore<${coinType}>`);
-    return 0;
-  }, [coinType]);
+  // Get wallet balance from blockchain
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [loadingBalance, setLoadingBalance] = useState(false);
+
+  useEffect(() => {
+    if (!account?.address || !coinType || !asset) return;
+
+    const fetchBalance = async () => {
+      setLoadingBalance(true);
+      try {
+        const { ariesWalletService } = await import('../../../services/ariesWalletService');
+        const balance = await ariesWalletService.getBalance(
+          account.address,
+          coinType,
+          asset.decimals
+        );
+        setWalletBalance(balance.balanceFormatted);
+      } catch (error) {
+        console.error('[SupplyModal] Error fetching balance:', error);
+        setWalletBalance(0);
+      } finally {
+        setLoadingBalance(false);
+      }
+    };
+
+    fetchBalance();
+  }, [account?.address, coinType, asset]);
 
   // ==========================================================================
   // VALIDATION & SIMULATION
@@ -106,9 +124,7 @@ export default function AriesSupplyModal({ visible, coinType, onClose }: AriesSu
   }, [amount, asset, walletBalance, reserve]);
 
   const simulation = useMemo(() => {
-    if (!validation.valid || !amount || !asset || !coinType) {
-      return null;
-    }
+    if (!validation.valid || !asset || coinType === null) return null;
 
     const baseUnits = toBaseUnits(parseFloat(amount), asset.decimals);
     

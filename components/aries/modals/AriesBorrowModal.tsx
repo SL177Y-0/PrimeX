@@ -87,9 +87,7 @@ export default function AriesBorrowModal({ visible, coinType, onClose }: AriesBo
   }, [amount, asset, portfolio, maxBorrow, reserve]);
 
   const simulation = useMemo(() => {
-    if (!validation.valid || !amount || !asset || !coinType) {
-      return null;
-    }
+    if (!validation.valid || !amount || !asset || !coinType) return null;
 
     const baseUnits = toBaseUnits(parseFloat(amount), asset.decimals);
     

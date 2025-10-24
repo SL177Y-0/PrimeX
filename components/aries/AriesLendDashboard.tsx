@@ -127,9 +127,20 @@ export default function AriesLendDashboard() {
   // ==========================================================================
 
   const filteredReserves = useMemo(() => {
-    return reserves.filter((r: any) => 
-      activeTab === 'paired' ? r.isPaired : !r.isPaired
-    );
+    const filtered = activeTab === 'paired'
+      ? reserves.filter((r: any) => r.isPaired)
+      : reserves.filter((r: any) => !r.isPaired);
+    
+    // Debug: Log first reserve to check logoUrl
+    if (filtered.length > 0) {
+      console.log('[AriesLend] Sample reserve:', {
+        symbol: filtered[0].symbol,
+        logoUrl: filtered[0].logoUrl,
+        hasLogo: !!filtered[0].logoUrl
+      });
+    }
+    
+    return filtered;
   }, [reserves, activeTab]);
 
   // ==========================================================================
@@ -293,7 +304,7 @@ export default function AriesLendDashboard() {
             onPress={() => setActiveTab('isolated')}
           >
             <Text style={[styles.tabText, { color: theme.colors.textSecondary }, activeTab === 'isolated' && [styles.tabTextActive, { color: '#FFFFFF' }]]}>
-              Isolated Pool
+              Merkle LP Pool
             </Text>
             {/* New badge */}
             {activeTab === 'isolated' && (
@@ -559,7 +570,11 @@ function ReserveCard({ reserve, onSupply, onBorrow, onWithdraw, onRepay, theme }
             <Image 
               source={{ uri: reserve.logoUrl }} 
               style={styles.reserveIcon}
-              onError={() => console.log(`[Logo] Failed to load: ${reserve.logoUrl}`)}
+              onError={(e) => {
+                console.log(`[Logo] Failed to load ${reserve.symbol}: ${reserve.logoUrl}`);
+                console.log('[Logo] Error:', e.nativeEvent.error);
+              }}
+              onLoad={() => console.log(`[Logo] Loaded ${reserve.symbol}: ${reserve.logoUrl}`)}
             />
           ) : (
             <View style={[styles.reserveIconFallback, { backgroundColor: theme.colors.purple }]}>

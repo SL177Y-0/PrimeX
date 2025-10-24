@@ -84,9 +84,21 @@ function setCache(key, data) {
 // ============================================================================
 
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+  origin: true, // Allow all origins dynamically (not wildcard)
+  credentials: true, // Allow credentials
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'x-api-key', 
+    'x-aptos-client',
+    'x-aptos-typescript-sdk-version',
+    'x-aptos-typescript-sdk-origin-method', // ← Missing header!
+    'x-aptos-ledger-version',
+    'x-aptos-chain-id',
+  ],
+  exposedHeaders: ['*'],
+  maxAge: 86400, // 24 hours
 }));
 
 app.use(express.json());
@@ -355,6 +367,52 @@ app.use('/api/nodereal', async (req, res) => {
   }
 });
 
+// Aptos RPC Proxy (for ariesSDKService - direct blockchain queries)
+// This proxies ALL Aptos RPC calls to NodeReal with API key
+app.use('/api/aptos-rpc', async (req, res) => {
+  try {
+    // Build full NodeReal URL with API key
+    const targetUrl = `${ALLOWED_TARGETS.nodereal}/v1/${API_KEYS.NODEREAL}/v1`;
+    
+    // Get the path from the request (e.g., /accounts/0x.../resource/...)
+    const apiPath = req.path === '/' ? '' : req.path;
+    const fullUrl = `${targetUrl}${apiPath}`;
+    
+    console.log(`  → Proxying Aptos RPC to: ${fullUrl}`);
+    console.log(`  → Method: ${req.method}`);
+    if (req.method === 'POST' && req.body) {
+      console.log(`  → POST Body:`, JSON.stringify(req.body, null, 2));
+    }
+    
+    const response = await fetch(fullUrl, {
+      method: req.method,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'PrimeX/1.0',
+      },
+      body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`  ✗ NodeReal RPC error: ${response.status} ${response.statusText}`);
+      console.error(`  ✗ Response: ${errorText.substring(0, 500)}`);
+      return res.status(response.status).json({ 
+        error: `NodeReal RPC error: ${response.status}`,
+        details: errorText 
+      });
+    }
+    
+    const data = await response.json();
+    console.log(`  ✓ RPC Success`);
+    res.json(data);
+  } catch (error) {
+    console.error('  ✗ Aptos RPC proxy error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Aptos GraphQL Proxy
 app.use('/api/aptos/graphql', async (req, res) => {
   try {
@@ -448,15 +506,19 @@ app.listen(PORT, () => {
   console.log('\n🚀 PrimeX Universal Proxy Gateway');
   console.log(`   Local: http://localhost:${PORT}`);
   console.log('\n📡 Available Routes:');
-  console.log('/api/coingecko/*  → CoinGecko API');
-  console.log('/api/aries/*      → Aries Markets API');
-  console.log('/api/pyth/*       → Pyth/Hermes Oracle');
-  console.log('/api/nodereal/*   → NodeReal Aptos RPC');
+  console.log('/api/coingecko/*   → CoinGecko API');
+  console.log('/api/aries/*       → Aries Markets API');
+  console.log('/api/aries-trpc/*  → Aries tRPC API');
+  console.log('/api/pyth/*        → Pyth/Hermes Oracle');
+  console.log('/api/nodereal/*    → NodeReal Aptos RPC');
+  console.log('/api/aptos-rpc/*   → Aptos RPC (NodeReal with API key)');
   console.log('/api/aptos/graphql → Aptos GraphQL');
-  console.log('/api/merkle/*     → Merkle Trade API');
+  console.log('/api/merkle/*      → Merkle Trade API');
   console.log('\n🛠  Management:');
   console.log('   /health           → Health check');
   console.log('   /cache/stats      → Cache statistics');
   console.log('   POST /cache/clear → Clear cache');
+  console.log('\n✅ NodeReal API Key: ' + (API_KEYS.NODEREAL ? 'Configured' : 'Missing'));
+  console.log('✅ CoinGecko API Key: ' + (API_KEYS.COINGECKO ? 'Configured' : 'Not set (using free tier)'));
   console.log('\n');
 });

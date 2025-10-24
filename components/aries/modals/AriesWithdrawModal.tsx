@@ -100,7 +100,7 @@ export default function AriesWithdrawModal({ visible, coinType, onClose }: Aries
   }, [amount, asset, depositedAmount, portfolio, coinType, simulateWithdraw]);
 
   const simulation = useMemo(() => {
-    if (!validation.valid || !amount || !asset || !coinType) {
+    if (!validation.valid || !amount || !asset || !coinType || !simulateWithdraw) {
       return null;
     }
 

@@ -9,7 +9,9 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gift, CheckCircle, DollarSign, TrendingUp, Clock, Zap } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { ariesRewardsIntegration, UserRewards } from '../services/ariesRewardsIntegration';
+// TODO: Rewards integration to be implemented
+// import { ariesRewardsIntegration, UserRewards } from '../services/ariesRewardsIntegration';
+type UserRewards = any; // Placeholder
 import { formatUSD, formatCryptoAmount, formatPercentage } from '../utils/ariesFormatters';
 import { useResponsive } from '../hooks/useResponsive';
 import { PAGE_ACCENTS } from '../theme/pageAccents';

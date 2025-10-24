@@ -45,6 +45,8 @@ export default function AriesRepayModal({ visible, coinType, onClose }: AriesRep
   const [repayAll, setRepayAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [loadingBalance, setLoadingBalance] = useState(false);
 
   const asset = useMemo(() => 
     coinType ? getAssetByCoinType(coinType) : null,
@@ -57,16 +59,34 @@ export default function AriesRepayModal({ visible, coinType, onClose }: AriesRep
   // Get borrowed amount from portfolio
   const borrowedAmount = useMemo(() => {
     if (!portfolio || !coinType) return 0;
-    const borrow = portfolio.borrows.find(b => b.coinType === coinType);
-    return borrow ? fromBaseUnits(borrow.borrowedAmount, asset?.decimals || 8) : 0;
-  }, [portfolio, coinType, asset]);
+    const position = portfolio.borrows.find(b => b.coinType === coinType);
+    return position ? position.borrowedAmountDisplay : 0;
+  }, [portfolio, coinType]);
 
-  // Get wallet balance (TODO: fetch from Aptos RPC)
-  const walletBalance = useMemo(() => {
-    // For now, return a reasonable default
-    // TODO: Integrate with Aptos SDK to fetch real balance
-    return 0;
-  }, [coinType]);
+  // Fetch wallet balance
+  useEffect(() => {
+    if (!account?.address || !coinType || !asset) return;
+
+    const fetchBalance = async () => {
+      setLoadingBalance(true);
+      try {
+        const { ariesWalletService } = await import('../../../services/ariesWalletService');
+        const balance = await ariesWalletService.getBalance(
+          account.address,
+          coinType,
+          asset.decimals
+        );
+        setWalletBalance(balance.balanceFormatted);
+      } catch (error) {
+        console.error('[RepayModal] Error fetching balance:', error);
+        setWalletBalance(0);
+      } finally {
+        setLoadingBalance(false);
+      }
+    };
+
+    fetchBalance();
+  }, [account?.address, coinType, asset]);
 
   const validation = useMemo(() => {
     if (!amount || !asset) {
@@ -99,9 +119,8 @@ export default function AriesRepayModal({ visible, coinType, onClose }: AriesRep
   }, [amount, asset, borrowedAmount, walletBalance]);
 
   const simulation = useMemo(() => {
-    if (!validation.valid || !amount || !asset || !coinType) {
-      return null;
-    }
+    if (!validation.valid || !amount || !asset || !coinType) return null;
+    if (!coinType) return null;
 
     const baseUnits = toBaseUnits(parseFloat(amount), asset.decimals);
     

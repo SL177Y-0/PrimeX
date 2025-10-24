@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { ariesTransactionService } from '../services/ariesTransactionService';
 import { ariesSDKService } from '../services/ariesSDKService';
 import {
   calculateMaxSafeWithdrawal,
@@ -92,7 +93,7 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
 
     try {
       // Check if profile exists (using 'Main Account' as default profile name)
-      const exists = await ariesSDKService.hasProfile(walletAddress, 'Main Account');
+      const exists = await ariesTransactionService.hasProfile(walletAddress, 'Main Account');
       setHasProfile(exists);
       if (exists) {
         setProfileName('Main Account');
@@ -124,7 +125,7 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
 
     try {
       // Double-check if profile already exists
-      const alreadyExists = await ariesSDKService.hasProfile(walletAddress, name);
+      const alreadyExists = await ariesTransactionService.hasProfile(walletAddress, name);
       if (alreadyExists) {
         console.log('[AriesLending] Profile already exists, skipping creation');
         setHasProfile(true);
@@ -133,7 +134,7 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
         return;
       }
 
-      const payload = ariesSDKService.buildInitializeProfileTransaction(name, referrer);
+      const payload = ariesTransactionService.buildInitializeProfileTransaction(name, referrer);
       
       console.log('Profile initialization payload:', payload);
       
@@ -185,13 +186,85 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
     setReservesError(null);
 
     try {
-      const data = await ariesSDKService.fetchAllReserves();
-      setReserves(data);
+      console.log('[AriesLending] 🚀 Fetching reserves using direct blockchain queries...');
+      // Use direct blockchain queries via ariesSDKService
+      const data = await ariesSDKService.fetchAllReserves(false); // Don't include deprecated
+      
+      // Convert to AriesReserve format for compatibility
+      const formattedData: AriesReserve[] = data.map((reserve: any) => ({
+        // Asset Identification
+        coinType: reserve.coinType,
+        symbol: reserve.symbol,
+        name: reserve.name,
+        decimals: 8, // Standard for most Aptos assets
+        logoUrl: undefined,
+        
+        // Pool Type
+        isPaired: reserve.isPaired,
+        isStablecoin: ['USDT', 'USDC', 'sUSDe'].includes(reserve.symbol),
+        
+        // Financial State (converted from new format)
+        totalLiquidity: (reserve.totalSupplied * 1e8).toString(),
+        totalBorrowed: (reserve.totalBorrowed * 1e8).toString(),
+        totalLpSupply: '0',
+        cashAvailable: ((reserve.totalSupplied - reserve.totalBorrowed) * 1e8).toString(),
+        reserveAmount: '0',
+        
+        // Exchange Rate
+        exchangeRate: '1.0',
+        
+        // Risk Parameters
+        loanToValue: reserve.ltv / 100,
+        ltv: reserve.ltv,
+        liquidationThreshold: (reserve.ltv + 5) / 100,
+        borrowFactor: 1.0,
+        liquidationBonus: 0.05,
+        reserveFactor: 0.1,
+        
+        // Fees
+        borrowFeeHundredthBips: 10,
+        flashLoanFeeHundredthBips: 30,
+        withdrawFeeHundredthBips: 0,
+        
+        // Limits
+        depositLimit: '200000000',
+        borrowLimit: '100000000',
+        
+        // Flags
+        allowCollateral: true,
+        allowRedeem: true,
+        
+        // Interest Rate Model
+        interestRateConfig: {
+          minBorrowRate: 0,
+          optimalBorrowRate: 0.1,
+          maxBorrowRate: 2.5,
+          optimalUtilization: 0.8,
+        },
+        
+        // Computed Metrics
+        utilization: reserve.utilization / 100,
+        supplyAPR: reserve.supplyAPR / 100,
+        borrowAPR: reserve.borrowAPR / 100,
+        
+        // USD Values
+        priceUSD: reserve.priceUSD,
+        totalSuppliedUSD: reserve.marketSizeUSD,
+        totalBorrowedUSD: reserve.totalBorrowedUSD,
+        totalSupplied: reserve.totalSupplied.toString(),
+        availableLiquidityUSD: reserve.marketSizeUSD - reserve.totalBorrowedUSD,
+        
+        // E-Mode
+        emodeCategory: undefined,
+      }));
+      
+      setReserves(formattedData);
       setReservesLastFetch(now);
+      console.log(`[AriesLending] ✅ Loaded ${formattedData.length} reserves from blockchain`);
     } catch (err) {
       const error = err as Error;
       setReservesError(error);
-      console.error('Failed to fetch reserves:', error);
+      console.error('[AriesLending] ❌ Failed to fetch reserves:', error);
     } finally {
       setReservesLoading(false);
     }
@@ -216,7 +289,7 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
     setPortfolioError(null);
 
     try {
-      const data = await ariesSDKService.fetchUserPortfolio(walletAddress, profileName || 'Main Account');
+      const data = await ariesTransactionService.fetchUserPortfolio(walletAddress, profileName || 'Main Account');
       setPortfolio(data);
       setPortfolioLastFetch(now);
     } catch (err) {
@@ -262,7 +335,7 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
     setError(null);
 
     try {
-      const payload = ariesSDKService.buildSupplyTransaction(
+      const payload = ariesTransactionService.buildSupplyTransaction(
         params.coinType, 
         params.amount, 
         params.profileName || 'Main Account'
@@ -312,7 +385,7 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
     setError(null);
 
     try {
-      const payload = ariesSDKService.buildWithdrawTransaction(
+      const payload = ariesTransactionService.buildWithdrawTransaction(
         params.coinType, 
         params.amount, 
         params.profileName || 'Main Account'
@@ -360,7 +433,7 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
     setError(null);
 
     try {
-      const payload = ariesSDKService.buildBorrowTransaction(
+      const payload = ariesTransactionService.buildBorrowTransaction(
         params.coinType, 
         params.amount, 
         params.profileName || 'Main Account'
@@ -408,7 +481,7 @@ export function useAriesLending(walletAddress?: string): UseAriesLending {
     setError(null);
 
     try {
-      const payload = ariesSDKService.buildRepayTransaction(
+      const payload = ariesTransactionService.buildRepayTransaction(
         params.coinType, 
         params.amount, 
         params.profileName || 'Main Account'
